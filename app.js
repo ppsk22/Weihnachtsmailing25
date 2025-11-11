@@ -201,7 +201,6 @@ document.getElementById("export-gif").addEventListener("click", () => {
     const gif = new GIF({
         workers: 4,
         quality: 10,
-        workerScript: "gif.worker.js",
         width: rect.width,
         height: rect.height
     });
@@ -232,4 +231,5 @@ document.getElementById("export-gif").addEventListener("click", () => {
 
     captureFrame();
 });
+
 
