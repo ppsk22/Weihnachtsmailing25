@@ -41,6 +41,8 @@
             <div class="category" data-panel="claim-panel">Claim</div>
             <div class="category" data-panel="cta-panel">CTA</div>
             <div class="category" data-panel="company-panel">Company</div>
+            <div class="category" data-panel="export-panel">Export</div>
+
 
             <button id="export-png" class="export-btn">PNG</button>
             <button id="export-gif" class="export-btn">GIF</button>
@@ -59,6 +61,24 @@
             <div id="claim-panel" class="panel-section hidden"><p>Claim placeholder</p></div>
             <div id="cta-panel" class="panel-section hidden"><p>CTA placeholder</p></div>
             <div id="company-panel" class="panel-section hidden"><p>Company placeholder</p></div>
+            <div id="export-panel" class="panel-section hidden">
+  <h3>Export</h3>
+
+  <label style="display:block; margin:6px 0 2px;">FPS</label>
+  <input id="gif-fps" type="range" min="1" max="15" value="5" />
+  <span id="gif-fps-val">5</span> fps
+
+  <label style="display:block; margin:10px 0 2px;">Duration (s)</label>
+  <input id="gif-duration" type="number" min="1" max="20" value="5" style="width:80px;" />
+
+  <div style="margin-top:12px; display:flex; gap:8px;">
+    <button id="export-png" class="export-btn">PNG</button>
+    <button id="export-gif" class="export-btn">GIF</button>
+    <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
+  </div>
+
+  <div id="export-progress" style="margin-top:8px; font-size:12px; color:#333;"></div>
+</div>
         </div>
 
         <!-- STAGE -->
@@ -79,6 +99,7 @@
 
 </body>
 </html>
+
 
 
 
