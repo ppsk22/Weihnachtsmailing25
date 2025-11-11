@@ -194,31 +194,34 @@ document.getElementById("export-png").addEventListener("click", () => {
 // ANIMATED GIF EXPORT (5 seconds, 5 FPS)
 //------------------------------------------------------
 document.getElementById("export-gif").addEventListener("click", () => {
-
     const stage = document.getElementById("stage");
     const rect = stage.getBoundingClientRect();
+
+    const w = Math.floor(rect.width);
+    const h = Math.floor(rect.height);
 
     const gif = new GIF({
         workers: 4,
         quality: 10,
-        width: rect.width,
-        height: rect.height
+        width: w,
+        height: h
+        // worker script already set globally
     });
 
-    let frames = 25;  // 5 seconds * 5 FPS
-    let interval = 200; // ms between frames
+    let frames = 25;
+    const interval = 200;
 
     const captureFrame = () => {
-        html2canvas(stage).then(canvas => {
+        html2canvas(stage, { width: w, height: h }).then(canvas => {
             gif.addFrame(canvas, { delay: interval });
             frames--;
 
             if (frames > 0) {
                 setTimeout(captureFrame, interval);
             } else {
-                gif.on('finished', blob => {
+                gif.on("finished", blob => {
                     const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
+                    const a = document.createElement("a");
                     a.href = url;
                     a.download = "banner.gif";
                     a.click();
