@@ -193,67 +193,52 @@ document.getElementById("export-png").addEventListener("click", () => {
 //------------------------------------------------------
 // ANIMATED GIF EXPORT (5 seconds, 5 FPS)
 //------------------------------------------------------
-document.getElementById("export-gif").addEventListener("click", async () => {
-
-    // destructure gifenc API (UMD build exposes "gifenc")
-    const { Gif, GifFrame, quantize, applyPalette } = gifenc;
+document.getElementById("export-gif").addEventListener("click", () => {
 
     const stage = document.getElementById("stage");
     const rect = stage.getBoundingClientRect();
 
-    const w = Math.floor(rect.width);
-    const h = Math.floor(rect.height);
+    const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width: rect.width,
+        height: rect.height
+    });
 
-    const frames = [];
-    const totalFrames = 25;      // 5 seconds * 5 FPS
-    const delay = 200;           // 200ms per frame
+    let frames = 25;
+    const delay = 200;
 
-    for (let i = 0; i < totalFrames; i++) {
-
-        const snap = await html2canvas(stage, {
-            width: w,
-            height: h,
+    function capture() {
+        html2canvas(stage, {
+            width: rect.width,
+            height: rect.height,
             scale: 1,
             useCORS: true,
             backgroundColor: null
+        }).then(canvas => {
+
+            gif.addFrame(canvas, { delay });
+
+            frames--;
+            if (frames > 0) {
+                setTimeout(capture, delay);
+            } else {
+                gif.on('finished', blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "banner.gif";
+                    a.click();
+                });
+
+                gif.render();
+            }
         });
-
-        const ctx = snap.getContext("2d");
-        const img = ctx.getImageData(0, 0, w, h);
-
-        // palette
-        const palette = quantize(img.data, 256);
-        const indexData = applyPalette(img.data, palette);
-
-        // create and push a frame
-        const frame = new GifFrame(indexData, {
-            palette: palette,
-            width: w,
-            height: h,
-            delay: delay
-        });
-
-        frames.push(frame);
-
-        // a slight wait ensures html2canvas settles on each loop
-        await new Promise(r => setTimeout(r, delay));
     }
 
-    // build final GIF
-    const gif = new Gif(frames);
-    const bytes = gif.encode(); // Uint8Array
-
-    // export
-    const blob = new Blob([bytes], { type: "image/gif" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "banner.gif";
-    a.click();
-
-    URL.revokeObjectURL(url);
+    capture();
 });
+
 
 
 
