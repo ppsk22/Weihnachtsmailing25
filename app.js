@@ -205,26 +205,27 @@ btnPNG?.addEventListener("click", async () => {
 });
 
 //------------------------------------------------------
-// GIF EXPORT — animated GIF stickers, proper compositing
-// Requires (loaded before app.js):
-//   - window.__gif_parseGIF / window.__gif_decompressFrames (gifuct-js via ESM shim)
+// GIF EXPORT — working logic + FPS/DUR + progress/cancel
+// deps loaded before app.js:
+//   - __gif_parseGIF / __gif_decompressFrames (gifuct-js via ESM shim)
 //   - GIFEncoder (jsgif: LZWEncoder.js + NeuQuant.js + GIFEncoder.js)
 //------------------------------------------------------
 document.getElementById("export-gif").addEventListener("click", async () => {
-  if (typeof window.__gif_parseGIF !== "function" || typeof window.__gif_decompressFrames !== "function") {
+  if (typeof window.__gif_parseGIF !== "function" ||
+      typeof window.__gif_decompressFrames !== "function") {
     console.error("gifuct-js not loaded"); return;
   }
   if (typeof GIFEncoder !== "function") {
     console.error("jsgif not loaded"); return;
   }
 
-  // UI elements
+  // UI bits (must exist in your Export panel)
   const fpsInput = document.getElementById("gif-fps");
   const durInput = document.getElementById("gif-duration");
+  const progEl   = document.getElementById("export-progress");
   const btnPNG   = document.getElementById("export-png");
   const btnGIF   = document.getElementById("export-gif");
   const btnCancel= document.getElementById("export-cancel");
-  const progEl   = document.getElementById("export-progress");
 
   // options
   const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
@@ -236,11 +237,8 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   let CANCELLED = false;
   if (btnPNG) btnPNG.disabled = true;
   if (btnGIF) btnGIF.disabled = true;
-  if (btnCancel) {
-    btnCancel.style.display = "inline-block";
-    btnCancel.onclick = () => { CANCELLED = true; };
-  }
-  updateProgress(0, TOTAL, "Preloading…");
+  if (btnCancel) { btnCancel.style.display = "inline-block"; btnCancel.onclick = () => { CANCELLED = true; }; }
+  if (progEl) progEl.textContent = `Preloading… 0/${TOTAL}`;
 
   // stage + buffer
   const stage = document.getElementById("stage");
@@ -252,15 +250,15 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   buf.width  = W; buf.height = H;
   const ctx  = buf.getContext("2d", { willReadFrequently: true });
 
-  // background
+  // background (inline url("..."))
   const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL   = bgMatch ? bgMatch[1] : null;
   const bgImg   = bgURL ? await loadImage(bgURL) : null;
 
-  // collect stickers
+  // collect stickers now
   const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
-  // preload static bitmaps and decode animated GIFs
+  // preload (unchanged logic you had)
   const stickers = await Promise.all(wrappers.map(async (w) => {
     const domImg = w.querySelector("img");
     const src    = domImg.getAttribute("src");
@@ -268,51 +266,30 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     const y      = parseFloat(w.getAttribute("data-y")) || 0;
     const scale  = w.scale || 1;
     const angle  = w.angle || 0;
-
-    // draw size (based on DOM image)
-    const drawW = domImg.naturalWidth  || domImg.width  || 150;
-    const drawH = domImg.naturalHeight || domImg.height || 150;
+    const domW   = domImg.naturalWidth  || domImg.width  || 150;
+    const domH   = domImg.naturalHeight || domImg.height || 150;
 
     if (/\.gif(?:[?#].*)?$/i.test(src)) {
-      // decode frames
       const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
       const gif  = window.__gif_parseGIF(ab);
-      const frs  = window.__gif_decompressFrames(gif, true); // [{patch, dims, delay(ms), disposalType}, ...]
-
-      // compute logical size from frames (max right/bottom)
-      let gifW = 1, gifH = 1;
-      for (const f of frs) {
-        gifW = Math.max(gifW, (f.dims.left || 0) + f.dims.width);
-        gifH = Math.max(gifH, (f.dims.top  || 0) + f.dims.height);
-      }
-
-      // per-sticker compositor canvas
-      const sc = document.createElement("canvas");
-      sc.width = gifW; sc.height = gifH;
-      const sctx = sc.getContext("2d", { willReadFrequently: true });
-
-      // delays and total loop duration
-      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 100));
+      const frs  = window.__gif_decompressFrames(gif, true); // [{patch, dims, delay, disposalType}, ...]
+      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-
-      // optional: tiny cache of composed results per frame index to speed up
-      const composedCache = new Map();
-
-      return { kind: "anim", frames: frs, delays, totalDur, canvas: sc, sctx, gifW, gifH, drawW, drawH, x, y, scale, angle, cache: composedCache };
+      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH };
     } else {
       const bmp = await loadImage(src);
-      return { kind: "static", img: bmp, drawW, drawH, x, y, scale, angle };
+      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH };
     }
   }));
 
-  // encoder
+  // encoder (unchanged)
   const enc = new GIFEncoder();
   enc.setRepeat(0);
   enc.setDelay(FRAME_MS);
   enc.setQuality(10);
   enc.start();
 
-  // render frames
+  // render loop (unchanged drawing logic)
   for (let i = 0; i < TOTAL; i++) {
     if (CANCELLED) break;
 
@@ -326,38 +303,42 @@ document.getElementById("export-gif").addEventListener("click", async () => {
       ctx.scale(s.scale || 1, s.scale || 1);
 
       if (s.kind === "static") {
-        ctx.drawImage(s.img, 0, 0, s.drawW, s.drawH);
+        ctx.drawImage(s.img, 0, 0, s.domW, s.domH);
       } else {
-        // determine frame index by elapsed export time
         const elapsed = i * FRAME_MS;
         const mod     = elapsed % s.totalDur;
         let acc = 0, idx = 0;
         for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-        idx = idx % s.frames.length;
+        const f = s.frames[idx % s.frames.length];
 
-        // composite full sticker image at this index using disposal rules (1 & 2)
-        const composed = composeAnimatedSticker(s, idx);
-        // draw sticker canvas scaled to DOM size
-        ctx.drawImage(composed, 0, 0, s.gifW, s.gifH, 0, 0, s.drawW, s.drawH);
+        if (f.disposalType === 2) {
+          ctx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
+        }
+
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width; pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        ctx.drawImage(pc, f.dims.left, f.dims.top);
       }
       ctx.restore();
     }
 
     enc.addFrame(ctx);
-    updateProgress(i + 1, TOTAL, `Encoding ${i + 1}/${TOTAL}`);
+    if (progEl) progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
     await sleep(FRAME_MS);
   }
 
-  // finish or cancel
+  // finish / cancel
   if (!CANCELLED) {
     enc.finish();
-    const binary = enc.stream().getData();
+    const binary = enc.stream().getData(); // binary string
     const url = "data:image/gif;base64," + btoa(binary);
     const a = document.createElement("a");
     a.href = url; a.download = "banner.gif"; a.click();
-    updateProgress(TOTAL, TOTAL, "Done.");
+    if (progEl) progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
   } else {
-    updateProgress(0, TOTAL, "Cancelled.");
+    if (progEl) progEl.textContent = "Cancelled.";
   }
 
   // unlock UI
@@ -365,7 +346,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   if (btnGIF) btnGIF.disabled = false;
   if (btnCancel) btnCancel.style.display = "none";
 
-  // --- helpers ---
+  // helpers
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
   function loadImage(url) {
     return new Promise((res, rej) => {
@@ -377,43 +358,9 @@ document.getElementById("export-gif").addEventListener("click", async () => {
       im.src = url;
     });
   }
-  function updateProgress(done, total, label) {
-    if (progEl) progEl.textContent = `${label || ""}${label ? " — " : ""}${done}/${total}`;
-  }
-
-  // Compose full sticker image up to target frame index, respecting disposal 1 and 2.
-  // Caches per-index composites for speed.
-  function composeAnimatedSticker(s, targetIdx) {
-    // cache hit
-    if (s.cache.has(targetIdx)) return s.cache.get(targetIdx);
-
-    const { frames, sctx, canvas } = s;
-    // clear
-    sctx.clearRect(0, 0, s.gifW, s.gifH);
-
-    // We replay from 0..targetIdx applying disposal on each step (no "restore previous" support).
-    for (let k = 0; k <= targetIdx; k++) {
-      const f = frames[k];
-
-      // draw this frame's patch
-      const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-      // draw via temp canvas to preserve alpha correctly
-      const tmp = document.createElement("canvas");
-      tmp.width = f.dims.width; tmp.height = f.dims.height;
-      tmp.getContext("2d").putImageData(patch, 0, 0);
-      sctx.drawImage(tmp, f.dims.left, f.dims.top);
-
-      // apply disposal *after* drawing, except for the final target frame
-      if (k !== targetIdx && f.disposalType === 2) {
-        sctx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
-      }
-      // disposalType 3 (restore previous) is ignored; most stickers use 1 or 2.
-    }
-
-    s.cache.set(targetIdx, canvas);
-    return canvas;
-  }
 });
+
+
 
 
 
