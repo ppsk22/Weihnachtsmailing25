@@ -193,9 +193,6 @@ document.getElementById("export-png").addEventListener("click", () => {
 //------------------------------------------------------
 // ANIMATED GIF EXPORT (5 seconds, 5 FPS)
 //------------------------------------------------------
-//------------------------------------------------------
-// GIF EXPORT (jsgif, 5 s @ 5 fps, no workers)
-//------------------------------------------------------
 document.getElementById("export-gif").addEventListener("click", async () => {
   const stage = document.getElementById("stage");
   const rect  = stage.getBoundingClientRect();
@@ -204,47 +201,39 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   const H = Math.max(1, Math.floor(rect.height));
   const FPS = 5, DURATION = 5, FRAMES = FPS * DURATION, DELAY = Math.round(1000 / FPS);
 
-  // fixed buffer canvas to normalize every frame
+  // fixed buffer canvas so every frame is identical size
   const buf  = document.createElement("canvas");
   buf.width  = W; buf.height = H;
   const bctx = buf.getContext("2d", { willReadFrequently: true });
 
-  // jsgif encoder (no workers)
-  const encoder = new GIFEncoder();
-  encoder.setRepeat(0);          // loop forever
-  encoder.setDelay(DELAY);       // ms per frame
-  encoder.setQuality(10);        // 1..30 (lower = better quality, slower)
-  encoder.start();
+  const enc = new GIFEncoder();
+  enc.setRepeat(0);     // loop
+  enc.setDelay(DELAY);  // ms per frame
+  enc.setQuality(10);   // 1..30 (lower = better quality)
+  enc.start();
 
   for (let i = 0; i < FRAMES; i++) {
     const snap = await html2canvas(stage, {
       width: W, height: H, scale: 1, useCORS: true, backgroundColor: null
     });
 
-    // draw onto fixed buffer so size is identical per frame
     bctx.clearRect(0, 0, W, H);
     bctx.drawImage(snap, 0, 0, W, H);
 
-    // jsgif accepts a 2D context directly
-    encoder.addFrame(bctx);
+    // jsgif accepts a 2D context
+    enc.addFrame(bctx);
 
-    // pace captures to target FPS
     await new Promise(r => setTimeout(r, DELAY));
   }
 
-  encoder.finish();
+  enc.finish();
 
-  // jsgif returns a binary string stream; build a data URL and download
-  const binaryGif = encoder.stream().getData();             // binary string
-  const b64 = btoa(binaryGif);                              // base64 string
-  const url = "data:image/gif;base64," + b64;
-
+  // download
+  const binary = enc.stream().getData(); // binary string
+  const url = "data:image/gif;base64," + btoa(binary);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = "banner.gif";
-  a.click();
+  a.href = url; a.download = "banner.gif"; a.click();
 });
-
 
 
 
