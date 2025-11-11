@@ -252,9 +252,8 @@ document.getElementById("export-gif").addEventListener("click", async () => {
 
   // stage + buffer
   const stage = document.getElementById("stage");
-  const rect  = stage.getBoundingClientRect();
-  const W = Math.max(1, Math.floor(rect.width));
-  const H = Math.max(1, Math.floor(rect.height));
+  const W = STAGE_W;
+  const H = STAGE_H;
 
   const buf  = document.createElement("canvas");
   buf.width  = W; buf.height = H;
@@ -369,6 +368,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     });
   }
 });
+
 
 
 
