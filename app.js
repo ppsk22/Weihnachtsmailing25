@@ -168,6 +168,17 @@ function makeInteractive(el) {
     // Delete on double click
     el.addEventListener("dblclick", () => el.remove());
 }
+
+const STAGE_W = 1920;
+const STAGE_H = 1080;
+
+// enforce the same size on the DOM element too
+const __stage = document.getElementById("stage");
+if (__stage) {
+  __stage.style.width = STAGE_W + "px";
+  __stage.style.height = STAGE_H + "px";
+
+    
 //------------------------------------------------------
 // EXPORT UI wiring
 //------------------------------------------------------
@@ -190,10 +201,9 @@ btnCancel?.addEventListener("click", () => { EXPORT_CANCELLED = true; });
 //------------------------------------------------------
 btnPNG?.addEventListener("click", async () => {
   const stage = document.getElementById("stage");
-  const rect  = stage.getBoundingClientRect();
   const canvas = await html2canvas(stage, {
-    width: Math.floor(rect.width),
-    height: Math.floor(rect.height),
+    width: STAGE_W,
+    height: STAGE_H,
     scale: 1,
     useCORS: true,
     backgroundColor: null
@@ -359,6 +369,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     });
   }
 });
+
 
 
 
