@@ -147,3 +147,6 @@ body {
     outline: 2px dashed #000;
     outline-offset: 4px;
 }
+
+.export-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
