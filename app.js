@@ -193,52 +193,51 @@ document.getElementById("export-png").addEventListener("click", () => {
 //------------------------------------------------------
 // ANIMATED GIF EXPORT (5 seconds, 5 FPS)
 //------------------------------------------------------
-document.getElementById("export-gif").addEventListener("click", () => {
+document.getElementById("export-gif").addEventListener("click", async () => {
+  const stage = document.getElementById("stage");
+  const rect  = stage.getBoundingClientRect();
 
-    const stage = document.getElementById("stage");
-    const rect = stage.getBoundingClientRect();
+  // integer, fixed-size frames
+  const W = Math.max(1, Math.floor(rect.width));
+  const H = Math.max(1, Math.floor(rect.height));
+  const FPS = 5, DURATION = 5, FRAMES = FPS * DURATION, DELAY = Math.round(1000 / FPS);
 
-    const gif = new GIF({
-        workers: 2,
-        quality: 10,
-        width: rect.width,
-        height: rect.height
+  // local worker path must already be set once in HTML:
+  // window.GIF = window.GIF || {}; window.GIF.workerScript = "js/gif.worker.js";
+  const gif = new GIF({ workers: 2, quality: 10, width: W, height: H });
+
+  // create a fixed buffer canvas; always add its 2D context
+  const buf = document.createElement("canvas");
+  buf.width = W; buf.height = H;
+  const bctx = buf.getContext("2d", { willReadFrequently: true });
+
+  // download when finished
+  gif.on("finished", (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "banner.gif"; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // capture frames sequentially
+  for (let i = 0; i < FRAMES; i++) {
+    // take a snapshot of the stage at fixed size
+    const snap = await html2canvas(stage, {
+      width: W, height: H, scale: 1, useCORS: true, backgroundColor: null
     });
 
-    let frames = 25;
-    const delay = 200;
+    // draw snapshot onto the fixed buffer (prevents size/taint races)
+    bctx.clearRect(0, 0, W, H);
+    bctx.drawImage(snap, 0, 0, W, H);
 
-    function capture() {
-        html2canvas(stage, {
-            width: rect.width,
-            height: rect.height,
-            scale: 1,
-            useCORS: true,
-            backgroundColor: null
-        }).then(canvas => {
+    // add the *context*, not the canvas; force copy now
+    gif.addFrame(bctx, { delay: DELAY, copy: true });
 
-            gif.addFrame(canvas, { delay });
+    // pace at FPS
+    await new Promise(r => setTimeout(r, DELAY));
+  }
 
-            frames--;
-            if (frames > 0) {
-                setTimeout(capture, delay);
-            } else {
-                gif.on('finished', blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "banner.gif";
-                    a.click();
-                });
-
-                gif.render();
-            }
-        });
-    }
-
-    capture();
+  gif.render();
 });
-
-
 
 
