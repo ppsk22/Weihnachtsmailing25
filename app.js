@@ -193,46 +193,71 @@ document.getElementById("export-png").addEventListener("click", () => {
 //------------------------------------------------------
 // ANIMATED GIF EXPORT (5 seconds, 5 FPS)
 //------------------------------------------------------
-document.getElementById("export-gif").addEventListener("click", () => {
-    const stage = document.getElementById("stage");
-    const rect = stage.getBoundingClientRect();
+document.getElementById("export-gif").addEventListener("click", async () => {
+  const stage = document.getElementById("stage");
+  const rect = stage.getBoundingClientRect();
 
-    const w = Math.floor(rect.width);
-    const h = Math.floor(rect.height);
+  // force integer dims and neutralize DPR scaling
+  const w = Math.max(1, Math.floor(rect.width));
+  const h = Math.max(1, Math.floor(rect.height));
 
-    const gif = new GIF({
-        workers: 4,
-        quality: 10,
-        width: w,
-        height: h
-        // worker script already set globally
+  const fps = 5;
+  const durationSec = 5;
+  const frames = fps * durationSec;
+  const delay = Math.round(1000 / fps); // ms
+
+  // workerScript already set globally in <head> to "js/gif.worker.js"
+  const gif = new GIF({
+    workers: 2,
+    quality: 10,
+    width: w,
+    height: h
+  });
+
+  // attach finished handler BEFORE rendering
+  gif.on("finished", (blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "banner.gif";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  // sequential capture to avoid overlap/races
+  for (let i = 0; i < frames; i++) {
+    // ensure consistent canvas from html2canvas
+    // scale:1 avoids DPR-inflated backing store sizes
+    // useCORS true helps if you later point assets to a CDN with CORS
+    // backgroundColor null preserves transparency if any
+    // willReadFrequently hint improves getImageData loops (perf only)
+    // (html2canvas ignores willReadFrequently; browsers use context attr)
+    // To really apply the hint, set it on a 2D context you own. Not needed here.
+    // The key flag here is scale: 1.
+    // NOTE: html2canvas can still return a canvas whose internal size != CSS size if not forced; width/height forces it.
+    /* eslint-disable no-await-in-loop */
+    const snap = await html2canvas(stage, {
+      width: w,
+      height: h,
+      scale: 1,
+      useCORS: true,
+      backgroundColor: null
     });
+    // copy:true makes gif.js read pixels now; avoids later taint/timing issues
+    gif.addFrame(snap, { delay, copy: true });
 
-    let frames = 25;
-    const interval = 200;
+    // paced capture (5 fps). Use rAF to keep UI responsive.
+    await new Promise((r) => setTimeout(r, delay));
+    /* eslint-enable no-await-in-loop */
+  }
 
-    const captureFrame = () => {
-        html2canvas(stage, { width: w, height: h }).then(canvas => {
-            gif.addFrame(canvas, { delay: interval });
-            frames--;
+  // safety timeout so it can’t hang silently forever
+  const failSafe = setTimeout(() => {
+    console.error("GIF render timeout");
+  }, 60000); // 60s cap for slow devices
 
-            if (frames > 0) {
-                setTimeout(captureFrame, interval);
-            } else {
-                gif.on("finished", blob => {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "banner.gif";
-                    a.click();
-                });
-
-                gif.render();
-            }
-        });
-    };
-
-    captureFrame();
+  gif.on("finished", () => clearTimeout(failSafe));
+  gif.render();
 });
 
 
