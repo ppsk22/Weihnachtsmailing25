@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banner Builder</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.17/dist/interact.min.js"></script>
+
+<!-- REQUIRED EXPORT LIBRARIES -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.1/gif.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.1/gif.worker.js"></script>
+
+</head>
+<body>
+
+<div id="root">
+
+    <div id="app">
+
+        <!-- SIDEBAR -->
+        <div id="sidebar">
+            <div class="category" data-panel="bg-panel">BG</div>
+            <div class="category" data-panel="headline-panel">Headline</div>
+            <div class="category" data-panel="claim-panel">Claim</div>
+            <div class="category" data-panel="cta-panel">CTA</div>
+            <div class="category" data-panel="company-panel">Company</div>
+
+            <button id="export-png" class="export-btn">PNG</button>
+            <button id="export-gif" class="export-btn">GIF</button>
+        </div>
+
+        <!-- PANEL -->
+        <div id="panel">
+            <div id="bg-panel" class="panel-section hidden">
+                <h3>Choose Background</h3>
+                <div class="bg-option" data-bg="assets/backgrounds/BG1.webp"></div>
+                <div class="bg-option" data-bg="assets/backgrounds/BG2.webp"></div>
+                <div class="bg-option" data-bg="assets/backgrounds/BG3.webp"></div>
+            </div>
+
+            <div id="headline-panel" class="panel-section hidden"><p>Headline placeholder</p></div>
+            <div id="claim-panel" class="panel-section hidden"><p>Claim placeholder</p></div>
+            <div id="cta-panel" class="panel-section hidden"><p>CTA placeholder</p></div>
+            <div id="company-panel" class="panel-section hidden"><p>Company placeholder</p></div>
+        </div>
+
+        <!-- STAGE -->
+        <div id="stage"></div>
+
+    </div>
+
+    <!-- STICKER BAR -->
+    <div id="sticker-bar">
+        <img class="sticker-src" src="assets/stickers/BG4.webp">
+        <img class="sticker-src" src="assets/stickers/BG5.webp">
+        <img class="sticker-src" src="assets/stickers/BG6.webp">
+    </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
