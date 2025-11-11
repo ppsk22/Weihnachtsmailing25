@@ -74,12 +74,15 @@ body {
 
 /* STAGE */
 #stage {
-    flex: 1;
+    width: 1920px;          /* fixed logical width */
+    height: 1080px;         /* fixed logical height */
     background-size: cover;
     background-position: center;
     position: relative;
     overflow: hidden;
+    flex: 0 0 auto;         /* stop flex from resizing it */
 }
+
 
 /* STICKER BAR */
 #sticker-bar {
@@ -149,4 +152,5 @@ body {
 }
 
 .export-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
 
