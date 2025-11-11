@@ -12,9 +12,10 @@ html, body {
 }
 
 #app {
-    display: flex;
-    flex: 1 1 auto;
-    min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto; 
 }
 
 body {
@@ -74,13 +75,13 @@ body {
 
 /* STAGE */
 #stage {
-    width: 1920px;          /* fixed logical width */
-    height: 1080px;         /* fixed logical height */
+    width: 1920px; 
+    height: 1080px;
     background-size: cover;
     background-position: center;
     position: relative;
     overflow: hidden;
-    flex: 0 0 auto;         /* stop flex from resizing it */
+    flex: 0 0 auto;
 }
 
 
@@ -152,5 +153,6 @@ body {
 }
 
 .export-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
 
 
