@@ -11,7 +11,13 @@
 <script src="js/html2canvas.min.js"></script>
 
 <!-- decode -->
-<script src="https://unpkg.com/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
+<script type="module">
+  import { parseGIF, decompressFrames } from "https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/lib/index.js";
+  // expose to your non-module app.js
+  window.__gif_parseGIF = parseGIF;
+  window.__gif_decompressFrames = decompressFrames;
+</script>
+
 <!-- encode (jsgif) -->
 <script src="js/vendor/jsgif/LZWEncoder.js"></script>
 <script src="js/vendor/jsgif/NeuQuant.js"></script>
@@ -71,6 +77,7 @@
 
 </body>
 </html>
+
 
 
 
