@@ -12,8 +12,7 @@
 
 <!-- decode -->
 <script type="module">
-  import { parseGIF, decompressFrames } from "https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/lib/index.js";
-  // expose to your non-module app.js
+  import { parseGIF, decompressFrames } from "https://unpkg.com/gifuct-js@2.1.2/lib/index.js";
   window.__gif_parseGIF = parseGIF;
   window.__gif_decompressFrames = decompressFrames;
 </script>
@@ -77,6 +76,7 @@
 
 </body>
 </html>
+
 
 
 
