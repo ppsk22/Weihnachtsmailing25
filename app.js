@@ -168,65 +168,89 @@ function makeInteractive(el) {
     // Delete on double click
     el.addEventListener("dblclick", () => el.remove());
 }
+//------------------------------------------------------
+// EXPORT UI wiring
+//------------------------------------------------------
+const fpsInput = document.getElementById("gif-fps");
+const fpsVal   = document.getElementById("gif-fps-val");
+const durInput = document.getElementById("gif-duration");
+const btnPNG   = document.getElementById("export-png");
+const btnGIF   = document.getElementById("export-gif");
+const btnCancel= document.getElementById("export-cancel");
+const progEl   = document.getElementById("export-progress");
+
+fpsInput?.addEventListener("input", () => { fpsVal.textContent = fpsInput.value; });
+
+// shared cancel flag
+let EXPORT_CANCELLED = false;
+btnCancel?.addEventListener("click", () => { EXPORT_CANCELLED = true; });
 
 //------------------------------------------------------
-// PNG EXPORT
+// PNG EXPORT (unchanged logic; uses html2canvas)
 //------------------------------------------------------
-document.getElementById("export-png").addEventListener("click", () => {
-    const stage = document.getElementById("stage");
-
-    const rect = stage.getBoundingClientRect();
-    const canvas = document.createElement("canvas");
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-
-    const ctx = canvas.getContext("2d");
-
-    html2canvas(stage).then(canvas => {
-        const link = document.createElement("a");
-        link.download = "banner.png";
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-    });
+btnPNG?.addEventListener("click", async () => {
+  const stage = document.getElementById("stage");
+  const rect  = stage.getBoundingClientRect();
+  const canvas = await html2canvas(stage, {
+    width: Math.floor(rect.width),
+    height: Math.floor(rect.height),
+    scale: 1,
+    useCORS: true,
+    backgroundColor: null
+  });
+  const link = document.createElement("a");
+  link.download = "banner.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
 });
 
 //------------------------------------------------------
-// ANIMATED GIF EXPORT (5 seconds, 5 FPS)
+// GIF EXPORT (animated GIF stickers supported)
+//  - gifuct-js: window.__gif_parseGIF / __gif_decompressFrames
+//  - jsgif: GIFEncoder
 //------------------------------------------------------
-//------------------------------------------------------
-// GIF EXPORT: plays embedded GIF stickers (5 s @ 5 fps)
-// Requires: __gif_parseGIF, __gif_decompressFrames, GIFEncoder
-//------------------------------------------------------
-document.getElementById("export-gif").addEventListener("click", async () => {
-  if (typeof window.__gif_parseGIF !== "function" || typeof window.__gif_decompressFrames !== "function") {
-    console.error("gifuct-js not loaded"); return;
+btnGIF?.addEventListener("click", async () => {
+  if (typeof window.__gif_parseGIF !== "function" ||
+      typeof window.__gif_decompressFrames !== "function") {
+    console.error("gifuct-js not loaded");
+    return;
   }
   if (typeof GIFEncoder !== "function") {
-    console.error("jsgif not loaded"); return;
+    console.error("jsgif not loaded");
+    return;
   }
+
+  // read options
+  const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
+  const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
+  const TOTAL = FPS * DURATION_S;
+  const FRAME_MS = Math.round(1000 / FPS);
+
+  // UI lock + progress init
+  EXPORT_CANCELLED = false;
+  btnPNG.disabled = true; btnGIF.disabled = true; btnCancel.style.display = "inline-block";
+  updateProgress(0, TOTAL, "Starting…");
 
   const stage = document.getElementById("stage");
   const rect  = stage.getBoundingClientRect();
   const W = Math.max(1, Math.floor(rect.width));
   const H = Math.max(1, Math.floor(rect.height));
 
-  const FPS = 5, DURATION_S = 5;
-  const TOTAL = FPS * DURATION_S;
-  const FRAME_MS = Math.round(1000 / FPS);
-
+  // buffer we composite into each tick
   const buf  = document.createElement("canvas");
   buf.width  = W; buf.height = H;
   const ctx  = buf.getContext("2d", { willReadFrequently: true });
 
   // background
-  const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+  const bgMatch = (stage.style.backgroundImage || "").match(/url\\(["']?(.*?)["']?\\)/);
   const bgURL   = bgMatch ? bgMatch[1] : null;
   const bgImg   = bgURL ? await loadImage(bgURL) : null;
 
-  // stickers on stage
+  // stickers
   const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
   // preload static images and decode animated GIFs
+  updateProgress(0, TOTAL, "Preloading assets…");
   const stickers = await Promise.all(wrappers.map(async (w) => {
     const domImg = w.querySelector("img");
     const src    = domImg.getAttribute("src");
@@ -234,17 +258,15 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     const y      = parseFloat(w.getAttribute("data-y")) || 0;
     const scale  = w.scale || 1;
     const angle  = w.angle || 0;
+    const domW   = domImg.naturalWidth  || domImg.width  || 150;
+    const domH   = domImg.naturalHeight || domImg.height || 150;
 
-    const domW = domImg.naturalWidth  || domImg.width  || 150;
-    const domH = domImg.naturalHeight || domImg.height || 150;
-
-    if (/\.gif(?:[?#].*)?$/i.test(src)) {
+    if (/\\.gif(?:[?#].*)?$/i.test(src)) {
       const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
       const gif  = window.__gif_parseGIF(ab);
-      const frs  = window.__gif_decompressFrames(gif, true); // [{patch, dims, delay, disposalType}, ...]
+      const frs  = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-
       return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH };
     } else {
       const bmp = await loadImage(src);
@@ -261,6 +283,8 @@ document.getElementById("export-gif").addEventListener("click", async () => {
 
   // render loop
   for (let i = 0; i < TOTAL; i++) {
+    if (EXPORT_CANCELLED) break;
+
     ctx.clearRect(0, 0, W, H);
     if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
 
@@ -293,24 +317,41 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     }
 
     enc.addFrame(ctx);
+    updateProgress(i + 1, TOTAL, `Encoding frame ${i + 1} / ${TOTAL}`);
     await sleep(FRAME_MS);
   }
 
-  enc.finish();
-  const binary = enc.stream().getData(); // binary string
-  const url = "data:image/gif;base64," + btoa(binary);
-  const a = document.createElement("a");
-  a.href = url; a.download = "banner.gif"; a.click();
+  let cancelled = EXPORT_CANCELLED;
+  EXPORT_CANCELLED = false;
 
+  if (!cancelled) {
+    enc.finish();
+    const binary = enc.stream().getData(); // binary string
+    const url = "data:image/gif;base64," + btoa(binary);
+    const a = document.createElement("a");
+    a.href = url; a.download = "banner.gif"; a.click();
+    updateProgress(TOTAL, TOTAL, "Done.");
+  } else {
+    updateProgress(0, TOTAL, "Cancelled.");
+  }
+
+  // UI unlock
+  btnPNG.disabled = false; btnGIF.disabled = false; btnCancel.style.display = "none";
+
+  // helpers
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
   function loadImage(url) {
     return new Promise((res, rej) => {
+      if (!url) return res(null);
       const im = new Image();
-      im.crossOrigin = "anonymous"; // ok for same-origin or CORS-enabled
+      im.crossOrigin = "anonymous";
       im.onload = () => res(im);
       im.onerror = rej;
       im.src = url;
     });
+  }
+  function updateProgress(done, total, label) {
+    progEl.textContent = `${label || ""}${label ? " — " : ""}${done}/${total}`;
   }
 });
 
