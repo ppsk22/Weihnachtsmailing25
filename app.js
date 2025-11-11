@@ -199,7 +199,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
 
   const W = Math.max(1, Math.floor(rect.width));
   const H = Math.max(1, Math.floor(rect.height));
-  const FPS = 5, DURATION = 5, FRAMES = FPS * DURATION, DELAY = Math.round(1000 / FPS);
+  const FPS = 25, DURATION = 5, FRAMES = FPS * DURATION, DELAY = Math.round(1000 / FPS);
 
   // fixed buffer canvas so every frame is identical size
   const buf  = document.createElement("canvas");
@@ -234,6 +234,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   const a = document.createElement("a");
   a.href = url; a.download = "banner.gif"; a.click();
 });
+
 
 
 
