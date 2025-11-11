@@ -177,6 +177,7 @@ const __stage = document.getElementById("stage");
 if (__stage) {
   __stage.style.width = STAGE_W + "px";
   __stage.style.height = STAGE_H + "px";
+}
 
     
 //------------------------------------------------------
@@ -368,6 +369,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     });
   }
 });
+
 
 
 
