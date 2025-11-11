@@ -200,39 +200,34 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     const w = Math.floor(rect.width);
     const h = Math.floor(rect.height);
 
-    const fps = 5;
-    const durationSec = 5;
-    const frames = fps * durationSec;
-    const delay = Math.round(1000 / fps); // ms between frames
-
-    // create encoder
-    const encoder = new GIFEncoder(w, h);
-    encoder.setRepeat(0); // loop forever
-    encoder.setDelay(delay);
+    const encoder = new GIFEncoder();
     encoder.start();
+    encoder.setDelay(200);
+    encoder.setRepeat(0);
 
-    for (let i = 0; i < frames; i++) {
+    for (let i = 0; i < 25; i++) {
         const snap = await html2canvas(stage, {
             width: w,
             height: h,
             scale: 1,
-            useCORS: true
+            useCORS: true,
+            backgroundColor: null
         });
 
         const ctx = snap.getContext("2d");
-        const imageData = ctx.getImageData(0, 0, w, h);
+        const img = ctx.getImageData(0, 0, w, h);
 
-        encoder.addFrame(imageData.data);
+        const palette = quantize(img.data, 256);
+        const indexData = applyPalette(img.data, palette);
 
-        await new Promise(res => setTimeout(res, delay));
+        encoder.addFrame(0, 0, w, h, indexData);
+
+        await new Promise(r => setTimeout(r, 200));
     }
 
     encoder.finish();
 
-    const blob = new Blob([encoder.out.getData()], {
-        type: "image/gif"
-    });
-
+    const blob = new Blob([encoder.bytes()], { type: "image/gif" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -240,7 +235,6 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     a.click();
     URL.revokeObjectURL(url);
 });
-
 
 
 
