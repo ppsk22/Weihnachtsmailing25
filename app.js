@@ -193,17 +193,26 @@ document.getElementById("export-png").addEventListener("click", () => {
 //------------------------------------------------------
 // ANIMATED GIF EXPORT (5 seconds, 5 FPS)
 //------------------------------------------------------
+//------------------------------------------------------
+// GIF EXPORT: play embedded GIF stickers (5 s @ 5 fps)
+// Requires:
+//   window.__gif_parseGIF / window.__gif_decompressFrames (gifuct-js)
+//   window.GIFEncoder (jsgif)
+//   All assets same-origin or CORS-enabled
+//------------------------------------------------------
 document.getElementById("export-gif").addEventListener("click", async () => {
-  // sanity
-  if (typeof GIF !== "function") { console.error("gifuct-js not loaded"); return; }
-  if (typeof GIFEncoder !== "function") { console.error("jsgif not loaded"); return; }
+  if (typeof window.__gif_parseGIF !== "function" || typeof window.__gif_decompressFrames !== "function") {
+    console.error("gifuct-js not loaded"); return;
+  }
+  if (typeof GIFEncoder !== "function") {
+    console.error("jsgif not loaded"); return;
+  }
 
   const stage = document.getElementById("stage");
   const rect  = stage.getBoundingClientRect();
   const W = Math.max(1, Math.floor(rect.width));
   const H = Math.max(1, Math.floor(rect.height));
 
-  // timeline = 5s @ 5fps
   const FPS = 5, DURATION_S = 5;
   const TOTAL = FPS * DURATION_S;
   const FRAME_MS = Math.round(1000 / FPS);
@@ -213,15 +222,15 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   buf.width  = W; buf.height = H;
   const ctx  = buf.getContext("2d", { willReadFrequently: true });
 
-  // parse stage background (same-origin URL)
-  const bgMatch = (stage.style.backgroundImage || "").match(/url\\(["']?(.*?)["']?\\)/);
+  // background (URL taken from inline style)
+  const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL   = bgMatch ? bgMatch[1] : null;
   const bgImg   = bgURL ? await loadImage(bgURL) : null;
 
-  // gather all stickers on stage
+  // collect stickers currently on stage
   const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
-  // preload: static bitmaps + decode animated GIF stickers
+  // preload: static bitmaps or decode animated GIFs
   const stickers = await Promise.all(wrappers.map(async (w) => {
     const domImg = w.querySelector("img");
     const src    = domImg.getAttribute("src");
@@ -230,15 +239,15 @@ document.getElementById("export-gif").addEventListener("click", async () => {
     const scale  = w.scale || 1;
     const angle  = w.angle || 0;
 
-    // size hint from DOM image
+    // use DOM image size as draw size hint
     const domW = domImg.naturalWidth  || domImg.width  || 150;
     const domH = domImg.naturalHeight || domImg.height || 150;
 
-    if (/\\.gif(?:\\?|#|$)/i.test(src)) {
+    if (/\.gif(?:[?#].*)?$/i.test(src)) {
       // decode animated GIF frames (RGBA patches + per-frame delay)
-      const ab   = await fetch(src, { cache: "force-cache" }).then(r => r.arrayBuffer());
-      const dec  = new GIF(ab);                                     // from gifuct-js
-      const frs  = dec.decompressFrames(true);                      // [{patch, dims, delay, disposalType}, ...]
+      const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+      const gif  = window.__gif_parseGIF(ab);
+      const frs  = window.__gif_decompressFrames(gif, true); // [{patch, dims, delay, disposalType}, ...]
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10)); // ms
       const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
 
@@ -251,9 +260,9 @@ document.getElementById("export-gif").addEventListener("click", async () => {
 
   // encoder
   const enc = new GIFEncoder();
-  enc.setRepeat(0);
-  enc.setDelay(FRAME_MS);
-  enc.setQuality(10);
+  enc.setRepeat(0);               // loop forever
+  enc.setDelay(FRAME_MS);         // ms per frame
+  enc.setQuality(10);             // 1..30 (lower = better quality)
   enc.start();
 
   // render loop
@@ -263,7 +272,7 @@ document.getElementById("export-gif").addEventListener("click", async () => {
 
     for (const s of stickers) {
       ctx.save();
-      // apply sticker's translate/rotate/scale (origin = top-left of sticker)
+      // apply sticker transform
       ctx.translate(s.x, s.y);
       ctx.rotate((s.angle || 0) * Math.PI / 180);
       ctx.scale(s.scale || 1, s.scale || 1);
@@ -271,21 +280,20 @@ document.getElementById("export-gif").addEventListener("click", async () => {
       if (s.kind === "static") {
         ctx.drawImage(s.img, 0, 0, s.domW, s.domH);
       } else {
-        // choose animated frame by elapsed time
+        // pick current animated frame by elapsed time
         const elapsed = i * FRAME_MS;
         const mod     = elapsed % s.totalDur;
         let acc = 0, idx = 0;
         for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
         const f = s.frames[idx % s.frames.length];
 
-        // handle disposal type 2 (restore to background) over the patch area
+        // disposalType handling (2 = restore to background -> clear patch area)
         if (f.disposalType === 2) {
           ctx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
         }
 
-        // draw RGBA patch at its offset
+        // draw RGBA patch at offset
         const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-        // putImageData draws at 1:1; wrap into a temp canvas so we can draw with alpha reliably
         const pc = document.createElement("canvas");
         pc.width = f.dims.width; pc.height = f.dims.height;
         pc.getContext("2d").putImageData(patch, 0, 0);
@@ -294,16 +302,13 @@ document.getElementById("export-gif").addEventListener("click", async () => {
       ctx.restore();
     }
 
-    // add composed frame
-    enc.addFrame(ctx);
-
-    // pace to FPS
-    await sleep(FRAME_MS);
+    enc.addFrame(ctx);                 // add composed frame
+    await sleep(FRAME_MS);             // pace to FPS
   }
 
   enc.finish();
-  const binary = enc.stream().getData(); // binary string
-  const url = "data:image/gif;base64," + btoa(binary);
+  const binary = enc.stream().getData();                 // binary string
+  const url = "data:image/gif;base64," + btoa(binary);   // download
   const a = document.createElement("a");
   a.href = url; a.download = "banner.gif"; a.click();
 
@@ -312,11 +317,10 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   function loadImage(url) {
     return new Promise((res, rej) => {
       const im = new Image();
-      im.crossOrigin = "anonymous"; // safe if same-origin or proper CORS
+      im.crossOrigin = "anonymous"; // safe for same-origin / CORS-enabled
       im.onload = () => res(im);
       im.onerror = rej;
       im.src = url;
     });
   }
 });
-
