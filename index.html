@@ -31,69 +31,67 @@
 <body>
 
 <div id="root">
+  <div id="app"> <!-- grid frame -->
 
-    <div id="app">
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+      <button class="category" data-panel="bg-panel">BG</button>
+      <button class="category" data-panel="headline-panel">Headline</button>
+      <button class="category" data-panel="claim-panel">Claim</button>
+      <button class="category" data-panel="cta-panel">CTA</button>
+      <button class="category" data-panel="company-panel">Company</button>
+      <button class="category" data-panel="export-panel">Export</button>
+    </aside>
 
-        <!-- SIDEBAR -->
-        <div id="sidebar">
-            <div class="category" data-panel="bg-panel">BG</div>
-            <div class="category" data-panel="headline-panel">Headline</div>
-            <div class="category" data-panel="claim-panel">Claim</div>
-            <div class="category" data-panel="cta-panel">CTA</div>
-            <div class="category" data-panel="company-panel">Company</div>
-            <div class="category" data-panel="export-panel">Export</div>
+    <!-- PANEL (fixed width; scrolls internally) -->
+    <section id="panel">
+      <div id="bg-panel" class="panel-section hidden">
+        <h3>Choose Background</h3>
+        <div class="bg-option" data-bg="assets/backgrounds/BG1.webp"></div>
+        <div class="bg-option" data-bg="assets/backgrounds/BG2.webp"></div>
+        <div class="bg-option" data-bg="assets/backgrounds/BG3.webp"></div>
+      </div>
 
+      <div id="headline-panel" class="panel-section hidden"><p>Headline placeholder</p></div>
+      <div id="claim-panel"    class="panel-section hidden"><p>Claim placeholder</p></div>
+      <div id="cta-panel"      class="panel-section hidden"><p>CTA placeholder</p></div>
+      <div id="company-panel"  class="panel-section hidden"><p>Company placeholder</p></div>
 
-     
+      <div id="export-panel"   class="panel-section hidden">
+        <h3>Export</h3>
+
+        <label class="lbl">FPS</label>
+        <input id="gif-fps" type="range" min="1" max="15" value="5" />
+        <span id="gif-fps-val">5</span> fps
+
+        <label class="lbl">Duration (s)</label>
+        <input id="gif-duration" type="number" min="1" max="20" value="5" class="num" />
+
+        <div class="btn-row">
+          <button id="export-png"   class="export-btn">PNG</button>
+          <button id="export-gif"   class="export-btn">GIF</button>
+          <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
         </div>
 
-        <!-- PANEL -->
-        <div id="panel">
-            <div id="bg-panel" class="panel-section hidden">
-                <h3>Choose Background</h3>
-                <div class="bg-option" data-bg="assets/backgrounds/BG1.webp"></div>
-                <div class="bg-option" data-bg="assets/backgrounds/BG2.webp"></div>
-                <div class="bg-option" data-bg="assets/backgrounds/BG3.webp"></div>
-            </div>
+        <div id="export-progress" class="progress"></div>
+      </div>
+    </section>
 
-            <div id="headline-panel" class="panel-section hidden"><p>Headline placeholder</p></div>
-            <div id="claim-panel" class="panel-section hidden"><p>Claim placeholder</p></div>
-            <div id="cta-panel" class="panel-section hidden"><p>CTA placeholder</p></div>
-            <div id="company-panel" class="panel-section hidden"><p>Company placeholder</p></div>
-            <div id="export-panel" class="panel-section hidden">
-  <h3>Export</h3>
+    <!-- STAGE (fixed 2:1) -->
+    <main id="stage"></main>
 
-  <label style="display:block; margin:6px 0 2px;">FPS</label>
-  <input id="gif-fps" type="range" min="1" max="15" value="5" />
-  <span id="gif-fps-val">5</span> fps
-
-  <label style="display:block; margin:10px 0 2px;">Duration (s)</label>
-  <input id="gif-duration" type="number" min="1" max="20" value="5" style="width:80px;" />
-
-  <div style="margin-top:12px; display:flex; gap:8px;">
-    <button id="export-png" class="export-btn">PNG</button>
-    <button id="export-gif" class="export-btn">GIF</button>
-    <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
-  </div>
-
-  <div id="export-progress" style="margin-top:8px; font-size:12px; color:#333;"></div>
-</div>
-        </div>
-
-        <!-- STAGE -->
-        <div id="stage"></div>
-
-    </div>
-
-    <!-- STICKER BAR -->
+    <!-- STICKER BAR (under the stage only) -->
     <div id="sticker-bar">
-        <img class="sticker-src" src="assets/stickers/BG4.webp">
-        <img class="sticker-src" src="assets/stickers/BG5.webp">
-        <img class="sticker-src" src="assets/stickers/BG6.webp">
-         <img class="sticker-src" src="assets/stickers/giphy.gif">
+      <img class="sticker-src" src="assets/stickers/BG4.webp" />
+      <img class="sticker-src" src="assets/stickers/BG5.webp" />
+      <img class="sticker-src" src="assets/stickers/BG6.webp" />
+      <img class="sticker-src" src="assets/stickers/giphy.gif" />
     </div>
 
+  </div>
 </div>
+
+
 <script src="app.js"></script>
 
 </body>

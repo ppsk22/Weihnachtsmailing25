@@ -169,8 +169,8 @@ function makeInteractive(el) {
     el.addEventListener("dblclick", () => el.remove());
 }
 
-const STAGE_W = 1920;
-const STAGE_H = 1080;
+const STAGE_W = 1200;
+const STAGE_H = 600;
 
 // enforce the same size on the DOM element too
 const __stage = document.getElementById("stage");
@@ -178,6 +178,10 @@ if (__stage) {
   __stage.style.width = STAGE_W + "px";
   __stage.style.height = STAGE_H + "px";
 }
+
+// reflect JS constants into CSS vars (so layout reserves space correctly)
+document.documentElement.style.setProperty('--stage-w', STAGE_W + 'px');
+document.documentElement.style.setProperty('--stage-h', STAGE_H + 'px');
 
     
 //------------------------------------------------------

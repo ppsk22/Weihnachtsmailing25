@@ -1,44 +1,63 @@
-html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow: hidden;
+/* ---- sizing tokens ---- */
+:root{
+  /* set these; your JS also overrides --stage-w/--stage-h at runtime */
+  --stage-w: 1200px;          /* or 600px */
+  --stage-h: 600px;           /* or 300px */
+  --sidebar-w: 80px;
+  --panel-w: 200px;
+  --stickerbar-h: 100px;
 }
 
-#root {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
+html, body { 
+	margin:0; 
+	height:100%; }
+body { 
+	font-family: sans-serif; 
+	background:#fff; }
+
+/* root stacks the app over the sticker bar */
+#root{
+  display:flex;
+  flex-direction:column;
+  min-height: calc(var(--stage-h) + var(--stickerbar-h));
 }
 
-#app {
+/* main app row: sidebar | panel | stage */
+/* Frame: 3 columns (sidebar | panel | stage), 2 rows (stage | sticker bar) */
+#app{
+  display: grid;
+  grid-template-columns: var(--sidebar-w) var(--panel-w) var(--stage-w);
+  grid-template-rows: var(--stage-h) var(--stickerbar-h);
+  gap: 0;
+  /* allow page scrolling if viewport smaller than full frame */
+  min-width: calc(var(--sidebar-w) + var(--panel-w) + var(--stage-w));
+  min-height: calc(var(--stage-h) + var(--stickerbar-h));
+}
+
+
+/* Sidebar occupies left column, only the stage row (not the sticker bar row) */
+#sidebar{
+  grid-column: 1;
+  grid-row: 1 / -1;          /* or 1 / span 2 */
+  width: var(--sidebar-w);
+  height: auto;              /* let grid set the full height */
+  background: #222;
+  color: #fff;
   display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto; 
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 8px;
+  box-sizing: border-box;
+  overflow: hidden; /* fixed width, no reflow */
 }
-
-body {
-    font-family: sans-serif;
-}
-
-/* SIDEBAR */
-#sidebar {
-    width: 80px;
-    background: #222;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 20px 10px;
-}
-
-.category {
-    padding: 10px;
-    background: #333;
-    cursor: pointer;
-    text-align: center;
-    user-select: none;
+.category{
+  padding: 10px;
+  background: #333;
+  cursor: pointer;
+  text-align: center;
+  user-select: none;
+  border: none;
+  color: #fff;
 }
 
 /* Export buttons */
@@ -51,16 +70,26 @@ body {
     cursor: pointer;
 }
 
-/* PANEL */
-#panel {
-    width: 200px;
-    background: #f0f0f0;
-    border-right: 1px solid #ccc;
-    overflow-y: auto;
+/* Panel sits between sidebar and stage, same height as stage; scrolls internally */
+#panel{
+  grid-column: 2;
+  grid-row: 1 / -1;          /* or 1 / span 2 */
+  width: var(--panel-w);
+  height: auto;
+  background: #f0f0f0;
+  border-right: 1px solid #ccc;
+  overflow-y: auto;        /* content scrolls; width never changes */
+  box-sizing: border-box;
 }
+.panel-section{ padding: 10px; }
+.hidden{ display: none; }
+.lbl{ display:block; margin:8px 0 4px; font-size:12px; color:#333; }
+.num{ width:80px; }
+.btn-row{ margin-top:12px; display:flex; gap:8px; }
+.progress{ margin-top:8px; font-size:12px; color:#333; }
+.export-btn{ padding:8px 10px; border:0; background:#555; color:#fff; cursor:pointer; }
+.export-btn[disabled]{ opacity:.5; cursor:not-allowed; }
 
-.panel-section { padding: 10px; }
-.hidden { display: none; }
 
 /* BACKGROUND OPTIONS */
 .bg-option {
@@ -73,37 +102,41 @@ body {
     border: 1px solid #ccc;
 }
 
-/* STAGE */
-#stage {
-  width: 1920px;
-  height: 1080px;
-  position: relative;
-  overflow: hidden;
+/* Stage: fixed box; never flexes, never covered */
+#stage{
+  grid-column: 3;
+  grid-row: 1;
+  width: var(--stage-w);
+  height: var(--stage-h);
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
-  flex: 0 0 auto;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-
-/* STICKER BAR */
-#sticker-bar {
-    height: 100px;
-    flex-shrink: 0;
-    background: #ddd;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    padding: 10px;
-    overflow-x: auto;
+/* Sticker bar: only under the stage (column 3, row 2) */
+#sticker-bar{
+  grid-column: 3;
+  grid-row: 2;
+  height: var(--stickerbar-h);
+  background: #ddd;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  overflow-x: auto;
+  box-sizing: border-box;
 }
 
-.sticker-src {
-    height: 60px;
-    cursor: grab;
-    user-drag: none;
-    -webkit-user-drag: none;
+/* Sticker thumbnails */
+.sticker-src{
+  height: 60px;
+  cursor: grab;
+  user-drag: none;
+  -webkit-user-drag: none;
 }
+
 
 /* STICKER WRAPPER */
 .sticker-wrapper {
