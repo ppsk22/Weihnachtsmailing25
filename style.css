@@ -167,7 +167,7 @@ z-index: 100;
 .sticker-wrapper {
   position: absolute;
   touch-action: none;
-  transform-origin: center center;
+  transform-origin: rop left;
 }
 
 /* Sticker image */

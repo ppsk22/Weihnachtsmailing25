@@ -42,7 +42,6 @@ function createStickerAt(srcUrl, x, y) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("sticker-wrapper");
     wrapper.scale = 1;
-	// wrapper.scale = clampStickerScale(wrapper.scale);
     wrapper.angle = 0;
 
     wrapper.setAttribute("data-x", x);
@@ -61,11 +60,27 @@ function createStickerAt(srcUrl, x, y) {
     wrapper.appendChild(img);
     wrapper.appendChild(scaleHandle);
     wrapper.appendChild(rotHandle);
+	
+	// ensure the <img> has a CSS size immediately so img.width/height are non-zero
+	img.style.width  = img.style.width  || (STICKER_BASE_W + 'px');
+	img.style.height = img.style.height || 'auto';
+
 
     stage.appendChild(wrapper);
 	wrapper.style.zIndex = STICKER_Z_MIN;   // ensure it’s inside the sticker range
 	bringStickerToFront(wrapper);           // new sticker starts on top of stickers
 
+	// normalize initial scale and position once image size is known
+	wrapper.scale = clampStickerScale(wrapper.scale);
+	const imgEl = wrapper.querySelector('img');
+	if (imgEl.complete && imgEl.naturalWidth) {
+	  clampStickerPosition(wrapper);
+	} else {
+	  imgEl.addEventListener('load', () => {
+		clampStickerPosition(wrapper);
+		applyTransform(wrapper);
+	  }, { once: true });
+	}
 
     applyTransform(wrapper);
     makeInteractive(wrapper);
@@ -140,6 +155,7 @@ function makeInteractive(el) {
       const y = (parseFloat(el.getAttribute("data-y")) || 0) + event.dy / s;
       el.setAttribute("data-x", x);
       el.setAttribute("data-y", y);
+	  clampStickerPosition(el);
       applyTransform(el);
     },
     end(){ el.classList.remove("dragging"); }
@@ -149,14 +165,16 @@ function makeInteractive(el) {
 
     // Mobile pinch + rotate
     interact(el).gesturable({
-        listeners: {
-            move(event) {
-                el.scale = clampStickerScale(el.scale * (1 + event.ds));
-                el.angle += event.da;
-                applyTransform(el);
-            }
-        }
-    });
+	  listeners: {
+		move(event) {
+		  el.scale = clampStickerScale(el.scale * (1 + event.ds));
+		  el.angle += event.da;
+		  clampStickerPosition(el);
+		  applyTransform(el);
+		}
+	  }
+	});
+
 
     // Desktop scale
   const scaleHandle = el.querySelector(".scale-handle");
@@ -167,10 +185,11 @@ interact(scaleHandle).draggable({
       document.body.classList.add("scaling");     // <— NEW: force se-resize
     },
     move(event) {
-    const s = uiScale ? uiScale() : 1;
-	el.scale = clampStickerScale(el.scale + (event.dx / s) * 0.01);
-      applyTransform(el);
-    },
+	  const s = uiScale ? uiScale() : 1;
+	  el.scale = clampStickerScale(el.scale + (event.dx / s) * 0.01);
+	  clampStickerPosition(el);
+	  applyTransform(el);
+	},
     end() {
       scaleHandle.classList.remove("dragging");
       document.body.classList.remove("scaling");  // <— NEW
@@ -232,29 +251,6 @@ setFsButton(false);
 const STAGE_W = 1200;
 const STAGE_H = 600;
 
-// ---- STICKER SCALE LIMITS -------------------------------------------------
-// min rendered width in px; max = fraction of the stage’s smaller side
-const STICKER_MIN_PX   = 32;
-const STICKER_MAX_FRAC = 0.9; // 90% of min(stageW, stageH)
-
-// helper: base logical width you create stickers at (matches createStickerAt)
-const STICKER_BASE_W = 150;
-
-// compute per-sticker min/max scale from px limits
-function stickerMinScale() {
-  return Math.max(0.05, STICKER_MIN_PX / STICKER_BASE_W);
-}
-function stickerMaxScale() {
-  const maxPx = Math.floor(Math.min(STAGE_W, STAGE_H) * STICKER_MAX_FRAC);
-  return Math.max(stickerMinScale() + 0.01, maxPx / STICKER_BASE_W);
-}
-
-// clamp helper
-function clampStickerScale(s) {
-  const lo = stickerMinScale();
-  const hi = stickerMaxScale();
-  return Math.min(hi, Math.max(lo, s));
-}
 
 // enforce the same size on the DOM element too
 const __stage = document.getElementById("stage");
@@ -266,6 +262,63 @@ if (__stage) {
 // reflect JS constants into CSS vars (so layout reserves space correctly)
 document.documentElement.style.setProperty('--stage-w', STAGE_W + 'px');
 document.documentElement.style.setProperty('--stage-h', STAGE_H + 'px');
+
+// ---- STICKER SCALE LIMITS -------------------------------------------------
+const STICKER_MIN_PX   = 32;
+const STICKER_MAX_FRAC = 0.9;             // 90% of min(stageW, stageH)
+const STICKER_BASE_W   = 150;             // your createStickerAt default
+
+function stickerMinScale() {
+  return Math.max(0.05, STICKER_MIN_PX / STICKER_BASE_W);
+}
+function stickerMaxScale() {
+  const maxPx = Math.floor(Math.min(STAGE_W, STAGE_H) * STICKER_MAX_FRAC);
+  return Math.max(stickerMinScale() + 0.01, maxPx / STICKER_BASE_W);
+}
+function clampStickerScale(s) {
+  const lo = stickerMinScale();
+  const hi = stickerMaxScale();
+  return Math.min(hi, Math.max(lo, s));
+}
+
+
+function clampStickerPosition(el){
+  // current translate (top-left in unscaled wrapper space)
+  let x = parseFloat(el.getAttribute('data-x')) || 0;
+  let y = parseFloat(el.getAttribute('data-y')) || 0;
+
+  // base (UNSCALED) image size: use the CSS width you set at creation (150px),
+  // derive height from natural aspect; ignore scale & rotation on purpose.
+  const img = el.querySelector('img');
+
+  const baseW = parseFloat(img?.style.width) || 150;
+  const baseH = (img && img.naturalWidth && img.naturalHeight)
+    ? baseW * (img.naturalHeight / img.naturalWidth)
+    : baseW;
+
+  // logical (unscaled) center
+  let cx = x + baseW / 2;
+  let cy = y + baseH / 2;
+
+  // clamp the center to the stage bounds in *logical* coords
+  if (cx < 0)        cx = 0;
+  if (cx > STAGE_W)  cx = STAGE_W;
+  if (cy < 0)        cy = 0;
+  if (cy > STAGE_H)  cy = STAGE_H;
+
+  // convert back to top-left (still unscaled)
+  x = cx - baseW / 2;
+  y = cy - baseH / 2;
+
+  el.setAttribute('data-x', x);
+  el.setAttribute('data-y', y);
+}
+
+
+
+
+
+
 
 // logical dimensions (match your CSS tokens)
 const SIDEBAR_W = 80;
