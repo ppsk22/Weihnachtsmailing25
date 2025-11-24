@@ -1,25 +1,136 @@
-//------------------------------------------------------
-// PANEL LOGIC
-//------------------------------------------------------
-document.querySelectorAll(".category").forEach(cat => {
-    cat.addEventListener("click", () => {
-        const id = cat.getAttribute("data-panel");
-        document.querySelectorAll(".panel-section").forEach(sec => sec.classList.add("hidden"));
-        const panel = document.getElementById(id);
-        if (panel) panel.classList.remove("hidden");
+// ==== POPUP OVER STAGE (NEW) =============================================
+
+// Elements
+const overlay = document.getElementById('overlay');
+const popup   = document.getElementById('popup');
+
+// Utility
+function basename(path){
+  const q = path.split('?')[0].split('#')[0];
+  return q.split('/').pop();
+}
+function closePopup(){
+  overlay.classList.remove('open');
+  overlay.classList.add('hidden');
+  popup.innerHTML = '';
+}
+function openPopup(kind){
+  overlay.classList.remove('hidden');
+  overlay.classList.add('open');
+  popup.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'popup-head';
+  head.innerHTML = `<span>${kind.toUpperCase()}</span><button id="popup-close" class="export-btn">×</button>`;
+
+  const body = document.createElement('div');
+  body.className = 'popup-body';
+
+  popup.appendChild(head);
+  popup.appendChild(body);
+
+  document.getElementById('popup-close').addEventListener('click', closePopup);
+
+  if (kind === 'bg'){
+    buildBGGrid(body);
+  } else if (kind === 'export'){
+    buildExportUI(body);        // <— new
+  } else {
+    const p = document.createElement('p');
+    p.textContent = 'Coming soon.';
+    body.appendChild(p);
+  }
+}
+
+// Build BG grid with filename captions
+function buildBGGrid(container){
+  const source = document.querySelectorAll('#bg-data .bg-option');
+  const wrap = document.createElement('div');
+  wrap.className = 'bg-grid';
+
+  source.forEach(opt => {
+    const url = opt.getAttribute('data-bg');
+    const card = document.createElement('div');
+    card.className = 'bg-card';
+    card.setAttribute('data-bg', url);
+
+    const thumb = document.createElement('div');
+    thumb.className = 'bg-thumb';
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = basename(url);
+    thumb.appendChild(img);
+
+    const cap = document.createElement('div');
+    cap.className = 'bg-caption';
+    cap.textContent = basename(url);
+
+    card.appendChild(thumb);
+    card.appendChild(cap);
+    wrap.appendChild(card);
+
+    card.addEventListener('click', () => {
+      const stage = document.getElementById('stage');
+      stage.style.backgroundImage = `url(${url})`;
+      closePopup();
     });
+  });
+
+  container.appendChild(wrap);
+}
+
+function buildExportUI(container){
+  // Build the same controls the old panel had, but inside the popup
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <label class="lbl">FPS</label>
+    <input id="gif-fps" type="range" min="1" max="15" value="5" />
+    <span id="gif-fps-val">5</span> fps
+
+    <label class="lbl">Duration (s)</label>
+    <input id="gif-duration" type="number" min="1" max="20" value="5" class="num" />
+
+    <div class="btn-row">
+      <button id="export-png"   class="export-btn">PNG</button>
+      <button id="export-gif"   class="export-btn">GIF</button>
+      <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
+    </div>
+
+    <div id="export-progress" class="progress"></div>
+  `;
+  container.appendChild(wrap);
+
+  // Re-bind the existing handlers to these freshly created elements
+  wireExportControls();
+}
+
+
+// Sidebar buttons now drive the popup
+document.querySelectorAll('#sidebar .category').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const which = btn.getAttribute('data-panel'); // 'bg', 'export', etc.
+    const isOpen = overlay.classList.contains('open');
+    if (isOpen){
+      const current = popup.querySelector('.popup-head span')?.textContent?.toLowerCase();
+      if (current === which){
+        closePopup();
+      } else {
+        openPopup(which);
+      }
+    } else {
+      openPopup(which);
+    }
+  });
 });
 
-//------------------------------------------------------
-// BACKGROUND OPTIONS
-//------------------------------------------------------
-document.querySelectorAll(".bg-option").forEach(opt => {
-    opt.style.backgroundImage = `url(${opt.getAttribute("data-bg")})`;
-    opt.addEventListener("click", () => {
-        document.getElementById("stage").style.backgroundImage =
-            `url(${opt.getAttribute("data-bg")})`;
-    });
+// Clicking the dim area closes the popup
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) closePopup();
 });
+
+// Stage starts black
+document.getElementById('stage').style.backgroundColor = '#000';
+
 
 //------------------------------------------------------
 // SELECTION MANAGEMENT
@@ -416,19 +527,28 @@ function bringStickerToFront(el){
 }
 
 	
-	
 //------------------------------------------------------
 // EXPORT UI wiring
 //------------------------------------------------------
-const fpsInput = document.getElementById("gif-fps");
-const fpsVal   = document.getElementById("gif-fps-val");
-const durInput = document.getElementById("gif-duration");
-const btnPNG   = document.getElementById("export-png");
-const btnGIF   = document.getElementById("export-gif");
-const btnCancel= document.getElementById("export-cancel");
-const progEl   = document.getElementById("export-progress");
+function wireExportControls(){
+  const fpsInput = document.getElementById("gif-fps");
+  const fpsVal   = document.getElementById("gif-fps-val");
+  const durInput = document.getElementById("gif-duration");
+  const btnPNG   = document.getElementById("export-png");
+  const btnGIF   = document.getElementById("export-gif");
+  const btnCancel= document.getElementById("export-cancel");
+  const progEl   = document.getElementById("export-progress");
 
-fpsInput?.addEventListener("input", () => { fpsVal.textContent = fpsInput.value; });
+  if (!fpsInput || !btnPNG || !btnGIF) return; // popup not present yet
+
+  // Update the readout
+  fpsInput.addEventListener("input", () => { fpsVal.textContent = fpsInput.value; });
+
+  // Attach your existing PNG/GIF logic to these buttons.
+  // sure it references these IDs (it does).
+  // IMPORTANT: remove any old, page-load-time bindings (step 3).
+}
+
 
 // shared cancel flag
 let EXPORT_CANCELLED = false;

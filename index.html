@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Banner Builder</title>
 
 <link rel="stylesheet" href="style.css">
-    
+
+<!-- libs -->
 <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.17/dist/interact.min.js"></script>
 <script src="js/html2canvas.min.js"></script>
 
-<!-- decode -->
 <!-- decode: gifuct-js as real ESM via esm.sh -->
 <script type="module">
   import { parseGIF, decompressFrames } from "https://esm.sh/gifuct-js@2.1.2?bundle";
@@ -18,100 +18,27 @@
   window.__gif_decompressFrames = decompressFrames;
 </script>
 
-
-
 <!-- encode (jsgif) -->
 <script src="js/vendor/jsgif/LZWEncoder.js"></script>
 <script src="js/vendor/jsgif/NeuQuant.js"></script>
 <script src="js/vendor/jsgif/GIFEncoder.js"></script>
-
-
-
 </head>
 <body>
 
 <div id="root">
-  <div id="app"> <!-- grid frame -->
+  <div id="app"><!-- grid frame -->
 
     <!-- SIDEBAR -->
-    <aside id="sidebar">
-      <button class="category" data-panel="bg-panel">BG</button>
-      <button class="category" data-panel="headline-panel">Headline</button>
-      <button class="category" data-panel="claim-panel">Claim</button>
-      <button class="category" data-panel="cta-panel">CTA</button>
-      <button class="category" data-panel="company-panel">Company</button>
-      <button class="category" data-panel="export-panel">Export</button>
-    </aside>
+   <!-- SIDEBAR -->
+	<aside id="sidebar">
+	  <button class="category" data-panel="bg">BG</button>
+	  <button class="category" data-panel="headline">Headline</button>
+	  <button class="category" data-panel="claim">Claim</button>
+	  <button class="category" data-panel="cta">CTA</button>
+	  <button class="category" data-panel="company">Company</button>
+	  <button class="category" data-panel="export">Export</button>
+	</aside>
 
-    <!-- PANEL (fixed width; scrolls internally) -->
-    <section id="panel">
-      <div id="bg-panel" class="panel-section hidden">
-        <h3>Choose Background</h3>
-        <div class="bg-option" data-bg="assets/backgrounds/BG_1.jpeg"></div>
-        <div class="bg-option" data-bg="assets/backgrounds/BG_2.jpeg"></div>
-        <div class="bg-option" data-bg="assets/backgrounds/BG_3.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_3.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_4.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_5.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_6.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_7.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_8.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_9.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_10.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_11.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_12.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_13.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_14.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_15.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_16.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_17.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_18.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_19.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_20.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_21.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_22.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_23.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_24.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_25.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_26.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_27.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_28.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_29.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_30.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_31.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_32.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_33.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_34.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_35.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_36.jpeg"></div>
-		<div class="bg-option" data-bg="assets/backgrounds/BG_37.jpeg"></div>
-		
-      </div>
-
-      <div id="headline-panel" class="panel-section hidden"><p>Headline placeholder</p></div>
-      <div id="claim-panel"    class="panel-section hidden"><p>Claim placeholder</p></div>
-      <div id="cta-panel"      class="panel-section hidden"><p>CTA placeholder</p></div>
-      <div id="company-panel"  class="panel-section hidden"><p>Company placeholder</p></div>
-
-      <div id="export-panel"   class="panel-section hidden">
-        <h3>Export</h3>
-
-        <label class="lbl">FPS</label>
-        <input id="gif-fps" type="range" min="1" max="15" value="5" />
-        <span id="gif-fps-val">5</span> fps
-
-        <label class="lbl">Duration (s)</label>
-        <input id="gif-duration" type="number" min="1" max="20" value="5" class="num" />
-
-        <div class="btn-row">
-          <button id="export-png"   class="export-btn">PNG</button>
-          <button id="export-gif"   class="export-btn">GIF</button>
-          <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
-        </div>
-
-        <div id="export-progress" class="progress"></div>
-      </div>
-    </section>
 
     <!-- STAGE (fixed 2:1) -->
     <main id="stage"></main>
@@ -122,36 +49,58 @@
       <img class="sticker-src" src="assets/stickers/BG5.webp" />
       <img class="sticker-src" src="assets/stickers/BG6.webp" />
       <img class="sticker-src" src="assets/stickers/giphy.gif" />
-	  
-	  <button id="btn-fullscreen" class="fs-btn-inbar" aria-pressed="false" title="Toggle fullscreen">⛶</button>
-	</div>
+      <button id="btn-fullscreen" class="fs-btn-inbar" aria-pressed="false" title="Toggle fullscreen">⛶</button>
+    </div>
+
+    <!-- OVERLAY (covers stage + sticker-bar; popup sits inside with margins) -->
+    <div id="overlay" class="hidden">
+      <div id="popup"><!-- content injected by JS --></div>
+    </div>
+
+    <!-- BG DATA SOURCE (hidden; easy to maintain list) -->
+    <div id="bg-data" style="display:none;">
+      <div class="bg-option" data-bg="assets/backgrounds/BG_1.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_2.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_3.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_4.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_5.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_6.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_7.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_8.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_9.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_10.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_11.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_12.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_13.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_14.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_15.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_16.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_17.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_18.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_19.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_20.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_21.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_22.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_23.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_24.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_25.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_26.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_27.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_28.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_29.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_30.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_31.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_32.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_33.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_34.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_35.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_36.jpeg"></div>
+      <div class="bg-option" data-bg="assets/backgrounds/BG_37.jpeg"></div>
+    </div>
 
   </div>
 </div>
 
-
-
 <script src="app.js"></script>
-
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
