@@ -113,24 +113,47 @@ interact('.sticker-src').draggable({
       const stage = document.getElementById("stage");
       const r = stage.getBoundingClientRect();
       const s = uiScale();
-      const startX = (event.clientX - r.left) / s - 75; // 150/2
-      const startY = (event.clientY - r.top)  / s - 75;
-      spawningWrapper = createStickerAt(event.target.src, startX, startY);
+
+      // pointer → stage coords (unscaled)
+      const x0 = (event.clientX - r.left) / s - 75; // 150/2
+      const y0 = (event.clientY - r.top)  / s - 75;
+
+      spawningWrapper = createStickerAt(event.target.src, x0, y0);
+
+      // clamp immediately so it can’t start off-stage
+      clampStickerPosition(spawningWrapper);
+      applyTransform(spawningWrapper);
     },
+
     move (event) {
       if (!spawningWrapper) return;
+
       const stage = document.getElementById("stage");
       const r = stage.getBoundingClientRect();
       const s = uiScale();
+
       const x = (event.clientX - r.left) / s - 75;
       const y = (event.clientY - r.top)  / s - 75;
+
       spawningWrapper.setAttribute("data-x", x);
       spawningWrapper.setAttribute("data-y", y);
+
+      // keep center inside stage while dragging in
+      clampStickerPosition(spawningWrapper);
       applyTransform(spawningWrapper);
     },
-    end () { spawningWrapper = null; }
+
+    end () {
+      if (spawningWrapper) {
+        // final snap-in just in case
+        clampStickerPosition(spawningWrapper);
+        applyTransform(spawningWrapper);
+      }
+      spawningWrapper = null;
+    }
   }
 });
+
 
 
 //------------------------------------------------------
@@ -264,7 +287,7 @@ document.documentElement.style.setProperty('--stage-w', STAGE_W + 'px');
 document.documentElement.style.setProperty('--stage-h', STAGE_H + 'px');
 
 // ---- STICKER SCALE LIMITS -------------------------------------------------
-const STICKER_MIN_PX   = 32;
+const STICKER_MIN_PX   = 100;
 const STICKER_MAX_FRAC = 0.9;             // 90% of min(stageW, stageH)
 const STICKER_BASE_W   = 150;             // your createStickerAt default
 
