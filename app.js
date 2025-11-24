@@ -42,6 +42,7 @@ function createStickerAt(srcUrl, x, y) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("sticker-wrapper");
     wrapper.scale = 1;
+	// wrapper.scale = clampStickerScale(wrapper.scale);
     wrapper.angle = 0;
 
     wrapper.setAttribute("data-x", x);
@@ -150,7 +151,7 @@ function makeInteractive(el) {
     interact(el).gesturable({
         listeners: {
             move(event) {
-                el.scale = Math.max(0.2, el.scale * (1 + event.ds));
+                el.scale = clampStickerScale(el.scale * (1 + event.ds));
                 el.angle += event.da;
                 applyTransform(el);
             }
@@ -166,7 +167,8 @@ interact(scaleHandle).draggable({
       document.body.classList.add("scaling");     // <— NEW: force se-resize
     },
     move(event) {
-      el.scale = Math.max(0.2, el.scale + event.dx * 0.01);
+    const s = uiScale ? uiScale() : 1;
+	el.scale = clampStickerScale(el.scale + (event.dx / s) * 0.01);
       applyTransform(el);
     },
     end() {
@@ -230,6 +232,30 @@ setFsButton(false);
 const STAGE_W = 1200;
 const STAGE_H = 600;
 
+// ---- STICKER SCALE LIMITS -------------------------------------------------
+// min rendered width in px; max = fraction of the stage’s smaller side
+const STICKER_MIN_PX   = 32;
+const STICKER_MAX_FRAC = 0.9; // 90% of min(stageW, stageH)
+
+// helper: base logical width you create stickers at (matches createStickerAt)
+const STICKER_BASE_W = 150;
+
+// compute per-sticker min/max scale from px limits
+function stickerMinScale() {
+  return Math.max(0.05, STICKER_MIN_PX / STICKER_BASE_W);
+}
+function stickerMaxScale() {
+  const maxPx = Math.floor(Math.min(STAGE_W, STAGE_H) * STICKER_MAX_FRAC);
+  return Math.max(stickerMinScale() + 0.01, maxPx / STICKER_BASE_W);
+}
+
+// clamp helper
+function clampStickerScale(s) {
+  const lo = stickerMinScale();
+  const hi = stickerMaxScale();
+  return Math.min(hi, Math.max(lo, s));
+}
+
 // enforce the same size on the DOM element too
 const __stage = document.getElementById("stage");
 if (__stage) {
@@ -250,6 +276,8 @@ const STICKERBAR_H = 100;
 document.documentElement.style.setProperty('--sidebar-w', SIDEBAR_W + 'px');
 document.documentElement.style.setProperty('--panel-w', PANEL_W + 'px');
 document.documentElement.style.setProperty('--stickerbar-h', STICKERBAR_H + 'px');
+
+
 
 // scale the whole frame to fit viewport (no upscaling)
 function isFullscreen() {
