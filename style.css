@@ -6,6 +6,7 @@
   --sidebar-w: 80px;
   --panel-w: 200px;
   --stickerbar-h: 100px;
+  --stage-bg: #fff;
   
     /* frame size derived from parts */
   --frame-w: calc(var(--sidebar-w) + var(--panel-w) + var(--stage-w));
@@ -130,6 +131,7 @@ body {
   grid-row: 1;
   width: var(--stage-w);
   height: var(--stage-h);
+  background-color: var(--stage-bg);
   background-size: cover;
   background-position: center;
   position: relative;
