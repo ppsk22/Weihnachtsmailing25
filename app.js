@@ -62,6 +62,9 @@ function createStickerAt(srcUrl, x, y) {
     wrapper.appendChild(rotHandle);
 
     stage.appendChild(wrapper);
+	wrapper.style.zIndex = STICKER_Z_MIN;   // ensure it’s inside the sticker range
+	bringStickerToFront(wrapper);           // new sticker starts on top of stickers
+
 
     applyTransform(wrapper);
     makeInteractive(wrapper);
@@ -83,32 +86,36 @@ function applyTransform(el) {
 //------------------------------------------------------
 let spawningWrapper = null;
 
+function uiScale() {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale').trim();
+  return v ? parseFloat(v) : 1;
+}
+
 interact('.sticker-src').draggable({
-    listeners: {
-        start(event) {
-            const stage = document.getElementById("stage");
-            const rect = stage.getBoundingClientRect();
-            const startX = event.clientX - rect.left - 75;
-            const startY = event.clientY - rect.top  - 75;
-            spawningWrapper = createStickerAt(event.target.src, startX, startY);
-        },
-        move(event) {
-            if (!spawningWrapper) return;
-            const stage = document.getElementById("stage");
-            const rect = stage.getBoundingClientRect();
-
-            const x = event.clientX - rect.left - 75;
-            const y = event.clientY - rect.top  - 75;
-
-            spawningWrapper.setAttribute("data-x", x);
-            spawningWrapper.setAttribute("data-y", y);
-            applyTransform(spawningWrapper);
-        },
-        end() {
-            spawningWrapper = null;
-        }
-    }
+  listeners: {
+    start (event) {
+      const stage = document.getElementById("stage");
+      const r = stage.getBoundingClientRect();
+      const s = uiScale();
+      const startX = (event.clientX - r.left) / s - 75; // 150/2
+      const startY = (event.clientY - r.top)  / s - 75;
+      spawningWrapper = createStickerAt(event.target.src, startX, startY);
+    },
+    move (event) {
+      if (!spawningWrapper) return;
+      const stage = document.getElementById("stage");
+      const r = stage.getBoundingClientRect();
+      const s = uiScale();
+      const x = (event.clientX - r.left) / s - 75;
+      const y = (event.clientY - r.top)  / s - 75;
+      spawningWrapper.setAttribute("data-x", x);
+      spawningWrapper.setAttribute("data-y", y);
+      applyTransform(spawningWrapper);
+    },
+    end () { spawningWrapper = null; }
+  }
 });
+
 
 //------------------------------------------------------
 // INTERACTIVE STICKERS
@@ -116,23 +123,28 @@ interact('.sticker-src').draggable({
 function makeInteractive(el) {
 
     el.addEventListener("pointerdown", () => {
-        deselectAll();
-        el.classList.add("selected");
-    });
+	deselectAll();
+	el.classList.add("selected");
+	bringStickerToFront(el);            // <-- add this line
+});
 
     // Drag to move
-    interact(el).draggable({
-        allowFrom: "img",
-        listeners: {
-            move(event) {
-                const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx;
-                const y = (parseFloat(el.getAttribute("data-y")) || 0) + event.dy;
-                el.setAttribute("data-x", x);
-                el.setAttribute("data-y", y);
-                applyTransform(el);
-            }
-        }
-    });
+	interact(el).draggable({
+  allowFrom: "img",
+  listeners: {
+    start(){ el.classList.add("dragging"); },
+    move(event) {
+      const s = uiScale ? uiScale() : 1;
+      const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx / s;
+      const y = (parseFloat(el.getAttribute("data-y")) || 0) + event.dy / s;
+      el.setAttribute("data-x", x);
+      el.setAttribute("data-y", y);
+      applyTransform(el);
+    },
+    end(){ el.classList.remove("dragging"); }
+  }
+});
+
 
     // Mobile pinch + rotate
     interact(el).gesturable({
@@ -146,28 +158,74 @@ function makeInteractive(el) {
     });
 
     // Desktop scale
-    interact(el.querySelector(".scale-handle")).draggable({
-        listeners: {
-            move(event) {
-                el.scale = Math.max(0.2, el.scale + event.dx * 0.01);
-                applyTransform(el);
-            }
-        }
-    });
-
+  const scaleHandle = el.querySelector(".scale-handle");
+interact(scaleHandle).draggable({
+  listeners: {
+    start() {
+      scaleHandle.classList.add("dragging");
+      document.body.classList.add("scaling");     // <— NEW: force se-resize
+    },
+    move(event) {
+      el.scale = Math.max(0.2, el.scale + event.dx * 0.01);
+      applyTransform(el);
+    },
+    end() {
+      scaleHandle.classList.remove("dragging");
+      document.body.classList.remove("scaling");  // <— NEW
+    }
+  }
+});
     // Desktop rotate
-    interact(el.querySelector(".rot-handle")).draggable({
-        listeners: {
-            move(event) {
-                el.angle += event.dx * 0.5;
-                applyTransform(el);
-            }
-        }
-    });
+    // rotate handle feedback
+const rotHandle = el.querySelector(".rot-handle");
+interact(rotHandle).draggable({
+  listeners: {
+    start() {
+      rotHandle.classList.add("dragging");
+      document.body.classList.add("rotating");    // <— NEW: force grabbing
+    },
+    move(event) {
+      el.angle += event.dx * 0.5;
+      applyTransform(el);
+    },
+    end() {
+      rotHandle.classList.remove("dragging");
+      document.body.classList.remove("rotating"); // <— NEW
+    }
+  }
+});
 
     // Delete on double click
     el.addEventListener("dblclick", () => el.remove());
 }
+
+const fsBtn  = document.getElementById('btn-fullscreen');
+const fsHost = document.getElementById('root'); // fullscreen the scaling shell
+
+function setFsButton(isFull){
+  fsBtn.setAttribute('aria-pressed', String(isFull));
+  fsBtn.textContent = isFull ? '⏏' : '⛶'; // optional icon swap
+}
+
+fsBtn.addEventListener('click', async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await fsHost.requestFullscreen({ navigationUI: 'hide' });
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (e) { console.error(e); }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  const isFull = !!document.fullscreenElement;
+  setFsButton(isFull);
+  // re-run your scaler so the frame fits fullscreen viewport
+  if (typeof updateUIScale === 'function') updateUIScale();
+});
+
+// initialize
+setFsButton(false);
 
 const STAGE_W = 1200;
 const STAGE_H = 600;
@@ -183,7 +241,78 @@ if (__stage) {
 document.documentElement.style.setProperty('--stage-w', STAGE_W + 'px');
 document.documentElement.style.setProperty('--stage-h', STAGE_H + 'px');
 
+// logical dimensions (match your CSS tokens)
+const SIDEBAR_W = 80;
+const PANEL_W = 200;
+const STICKERBAR_H = 100;
+
+// reflect layout tokens into CSS (optional but consistent)
+document.documentElement.style.setProperty('--sidebar-w', SIDEBAR_W + 'px');
+document.documentElement.style.setProperty('--panel-w', PANEL_W + 'px');
+document.documentElement.style.setProperty('--stickerbar-h', STICKERBAR_H + 'px');
+
+// scale the whole frame to fit viewport (no upscaling)
+function isFullscreen() {
+  return document.fullscreenElement === fsHost ||
+         document.webkitFullscreenElement === fsHost ||
+         document.mozFullScreenElement === fsHost ||
+         document.msFullscreenElement === fsHost;
+}
+
+function syncFullscreenUI(){
+  const on = isFullscreen();
+  fsHost.classList.toggle('fs-on', on);  // <— drives CSS
+  setFsButton(on);
+  updateUIScale();                       // allows upscaling in FS
+}
+
+// listen for all vendor events
+document.addEventListener('fullscreenchange',       syncFullscreenUI);
+document.addEventListener('webkitfullscreenchange', syncFullscreenUI);
+document.addEventListener('mozfullscreenchange',    syncFullscreenUI);
+document.addEventListener('MSFullscreenChange',     syncFullscreenUI);
+
+// call once on load to normalize state
+syncFullscreenUI();
+
+
+function updateUIScale(){
+  const frameW = SIDEBAR_W + PANEL_W + STAGE_W;
+  const frameH = STAGE_H + STICKERBAR_H;
+  const scaleW = window.innerWidth  / frameW;
+  const scaleH = window.innerHeight / frameH;
+  const fit    = Math.min(scaleW, scaleH);
+  const s      = isFullscreen() ? fit : Math.min(fit, 1);  // upscale only in FS
+  document.documentElement.style.setProperty('--ui-scale', String(s));
+}
+
+window.addEventListener('resize', updateUIScale);
+updateUIScale();
     
+
+	// ---- STICKER Z-INDEX BUBBLE --------------------------------------------
+// Stickers live only inside this range. Other layers (Headline/CTA/etc.)
+// can use z-indexes above this range and will always sit on top.
+const STICKER_Z_MIN = 100;
+const STICKER_Z_MAX = 999;
+let   STICKER_Z_CUR = STICKER_Z_MIN;
+
+function bringStickerToFront(el){
+  // bump this sticker to the top of the sticker layer
+  STICKER_Z_CUR = Math.min(STICKER_Z_CUR + 1, STICKER_Z_MAX);
+  el.style.zIndex = STICKER_Z_CUR;
+
+  // compact if we hit the ceiling (keeps numbers small)
+  if (STICKER_Z_CUR >= STICKER_Z_MAX) {
+    const stickers = Array.from(document.querySelectorAll('#stage .sticker-wrapper'))
+      .sort((a,b) => (parseInt(a.style.zIndex||STICKER_Z_MIN,10) - parseInt(b.style.zIndex||STICKER_Z_MIN,10)));
+    STICKER_Z_CUR = STICKER_Z_MIN;
+    for (const s of stickers) s.style.zIndex = ++STICKER_Z_CUR;
+  }
+}
+
+	
+	
 //------------------------------------------------------
 // EXPORT UI wiring
 //------------------------------------------------------

@@ -6,6 +6,13 @@
   --sidebar-w: 80px;
   --panel-w: 200px;
   --stickerbar-h: 100px;
+  
+    /* frame size derived from parts */
+  --frame-w: calc(var(--sidebar-w) + var(--panel-w) + var(--stage-w));
+  --frame-h: calc(var(--stage-h) + var(--stickerbar-h));
+
+  /* current visual scale, set by JS */
+  --ui-scale: 1;
 }
 
 html, body { 
@@ -15,16 +22,30 @@ body {
 	font-family: sans-serif; 
 	background:#fff; }
 
-/* root stacks the app over the sticker bar */
+/* viewport shell that centers the frame */
 #root{
   display:flex;
-  flex-direction:column;
-  min-height: calc(var(--stage-h) + var(--stickerbar-h));
+  justify-content:flex-start;   /* was “top left” — invalid */
+  align-items:flex-start;       /* was “top left” — invalid */
+  height:100vh;
+  width:100vw;
+  overflow:auto;
+  background:#fff;
+}
+}
+
+/* the grid “frame” (your #app) has fixed logical size, then is scaled */
+#app{
+
 }
 
 /* main app row: sidebar | panel | stage */
 /* Frame: 3 columns (sidebar | panel | stage), 2 rows (stage | sticker bar) */
-#app{
+#app{ 
+  width: var(--frame-w);
+  height: var(--frame-h);
+  transform: scale(var(--ui-scale));
+  transform-origin: top left;
   display: grid;
   grid-template-columns: var(--sidebar-w) var(--panel-w) var(--stage-w);
   grid-template-rows: var(--stage-h) var(--stickerbar-h);
@@ -32,6 +53,7 @@ body {
   /* allow page scrolling if viewport smaller than full frame */
   min-width: calc(var(--sidebar-w) + var(--panel-w) + var(--stage-w));
   min-height: calc(var(--stage-h) + var(--stickerbar-h));
+  
 }
 
 
@@ -131,6 +153,7 @@ body {
 
 /* Sticker thumbnails */
 .sticker-src{
+z-index: 100;
   height: 60px;
   cursor: grab;
   user-drag: none;
@@ -140,54 +163,149 @@ body {
 
 /* STICKER WRAPPER */
 .sticker-wrapper {
-    position: absolute;
-    touch-action: none;
-    transform-origin: center center;
+  position: absolute;
+  touch-action: none;
+  transform-origin: center center;
 }
 
-.sticker-wrapper img {
-    display: block;
-    pointer-events: auto;
-    user-select: none;
+/* Sticker image */
+.sticker-wrapper img{
+  display:block;
+  user-select:none;
+  pointer-events:auto;
+  position:relative;
+  z-index:1;
+  cursor: move; /* 4-way move icon */
 }
 
-/* HANDLES HIDDEN UNTIL SELECTED */
+/* --- DEFAULT: HIDE HANDLES --- */
 .scale-handle,
 .rot-handle { display: none; }
 
-.sticker-wrapper.selected .scale-handle,
-.sticker-wrapper.selected .rot-handle { display: block; }
+/* SHOW HANDLES ONLY WHEN SELECTED */
+.sticker-wrapper.selected .scale-handle { display: block; }
+.sticker-wrapper.selected .rot-handle   { display: block; }
 
-/* SCALE HANDLE */
-.scale-handle {
-    position: absolute;
-    width: 18px; height: 18px;
-    background: #fff;
-    border: 2px solid #000;
-    bottom: -12px; right: -12px;
-    cursor: nwse-resize;
-    border-radius: 3px;
-}
-
-/* ROTATE HANDLE */
-.rot-handle {
-    position: absolute;
-    width: 18px; height: 18px;
-    background: #fff;
-    border: 2px solid #000;
-    top: -24px; left: 50%;
-    transform: translateX(-50%);
-    cursor: grab;
-    border-radius: 50%;
-}
-
+/* Selection outline */
 .sticker-wrapper.selected {
-    outline: 2px dashed #000;
-    outline-offset: 4px;
+  outline: 2px dashed #000;
+  outline-offset: 4px;
 }
 
-.export-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+/* SCALE HANDLE (with larger invisible hit area + glyph) */
+.scale-handle{
+  position:absolute;
+  width:18px; height:18px;
+  bottom:-12px; right:-12px;   /* keep your current corner */
+  background:#fff;
+  border:2px solid #000;
+  border-radius:3px;
+  z-index:2;
+  pointer-events:auto;
+}
+.scale-handle::before{
+  content:"";
+  position:absolute;
+  inset:-5px;                  /* enlarge hover target */
+  cursor: se-resize;           /* native diagonal arrows */
+}
+.scale-handle::after{
+  content:"⤡";                 /* diagonal glyph */
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:12px;
+  line-height:1;
+  color:#000;
+  text-shadow:0 1px 0 #fff;
+  pointer-events:none;
+  opacity:.5;
+}
+.scale-handle:hover::after,
+.scale-handle.dragging::after{ opacity:1; }
+
+/* ROTATE HANDLE (with larger invisible hit area + glyph) */
+.rot-handle{
+  position:absolute;
+  width:18px; height:18px;
+  top:-24px; left:50%;
+  transform:translateX(-50%);
+  background:#fff;
+  border:2px solid #000;
+  border-radius:50%;
+  z-index:2;
+  pointer-events:auto;
+  cursor: grab;
+}
+.rot-handle::before{
+  content:"";
+  position:absolute;
+  inset:-14px;                 /* enlarge hover target */
+  cursor: grab;
+}
+.rot-handle::after{
+  content:"↻";
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:12px;
+  line-height:1;
+  color:#000;
+  text-shadow:0 1px 0 #fff;
+  pointer-events:none;
+  opacity:.5;
+}
+.rot-handle:hover::after,
+.rot-handle.dragging::after{ opacity:1; }
+
+/* Drag/scale/rotate feedback (you already wire these classes in JS) */
+.sticker-wrapper.dragging img { cursor: grabbing; }
+.scale-handle.dragging        { cursor: se-resize !important; }
+.rot-handle.dragging          { cursor: grabbing !important; }
+body.scaling,  body.scaling  * { cursor: se-resize !important; }
+body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 
 
 
+#sticker-bar {
+  position: relative;            /* new */
+  padding-right: 44px;           /* prevents stickers under the button */
+}
+
+/* Fullscreen button (bottom-right of viewport, not scaled) */
+.fs-btn-inbar{
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: #222;
+  color: #fff;
+  opacity: .85;
+  cursor: pointer;
+}
+.fs-btn-inbar:hover{ opacity: 1; }
+
+
+/* Future non-sticker layers that must sit above stickers */
+.headline-layer,
+.cta-layer,
+.hero-layer {
+  position: absolute;
+  z-index: 2000;   /* safely above the sticker bubble (100..999) */
+  pointer-events: auto;
+}
+
+/* Fullscreen ON (class-based, works everywhere) */
+#root.fs-on{
+  background:#000;             /* black bars */
+  justify-content:center;      /* center horizontally */
+  align-items:center;          /* center vertically */
+  overflow:hidden;             /* no scrollbars in fullscreen */
+}
+#root.fs-on #app{
+  transform-origin:center center; /* scale from center while FS */
+}
