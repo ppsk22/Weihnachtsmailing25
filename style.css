@@ -161,7 +161,7 @@ body {
   border-radius: 12px;
   padding: 16px;
   color: #fff;
-  overflow: auto;
+  overflow: hidden;                  /* no scrolling */
   z-index: 10000;                    /* way above stickers (100-999) and other layers (2000) */
   pointer-events: none;
 }
@@ -240,6 +240,12 @@ body.modal-open #sticker-bar * {
   -webkit-user-drag: none;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  display: none;             /* hidden by default */
+}
+
+/* Show stickers when unlocked */
+#sticker-bar.unlocked .sticker-src {
+  display: block;
 }
 
 /* STICKER WRAPPER */
@@ -411,6 +417,12 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   margin-bottom: 10px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
+}
+
+.popup-head span {
+  flex: 1;
+  text-align: center;  /* center the title */
 }
 
 .popup-body{
@@ -463,4 +475,156 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 .bg-card:hover{
   outline: 2px solid #fff;
   outline-offset: -2px;
+}
+
+/* ==== HEADLINE UI ======================================================== */
+.headline-instructions {
+  text-align: center;
+  font-size: 16px;
+  margin-bottom: 20px;
+  color: #fff;
+}
+
+.word-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-height: 400px;
+}
+
+.word-box {
+  background: #333;
+  border: 2px solid #555;
+  border-radius: 8px;
+  padding: 16px 12px;
+  text-align: center;
+  cursor: pointer;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.word-box:hover {
+  background: #444;
+  border-color: #777;
+}
+
+.word-box.selected {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+}
+
+.headline-generator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 40px;
+}
+
+.headline-preview {
+  font-size: 42px;
+  font-weight: bold;
+  text-align: center;
+  padding: 30px;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.headline-text {
+  font-size: 48px;           /* increased from 32px */
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  cursor: move;
+  user-select: none;
+  padding: 10px 20px;
+}
+
+/* Text layer wrappers size to their content */
+.headline-layer,
+.company-layer {
+  display: inline-block;
+}
+
+/* ==== COMPANY NAME UI ==================================================== */
+.company-generator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 60px;
+}
+
+.company-preview {
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
+  padding: 40px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+}
+
+.company-text {
+  font-size: 40px;           /* increased from 28px */
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  cursor: move;
+  user-select: none;
+  padding: 8px 16px;
+}
+
+/* ==== CTA BUTTON UI ====================================================== */
+.cta-generator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 40px;
+}
+
+.cta-preview {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  padding: 16px 32px;
+  min-width: 200px;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cta-button {
+  font-size: 20px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  cursor: move;
+  user-select: none;
+  padding: 14px 28px;
+  display: inline-block;
+}
+
+.cta-layer {
+  display: inline-block;
 }

@@ -53,9 +53,17 @@ function openPopup(kind){
     if (rh && rh.interactable) rh.interactable().draggable(false);
   });
 
+  // Determine title based on kind
+  let title = kind.toUpperCase();
+  if (kind === 'bg') title = 'PICK YOUR THEME';
+  if (kind === '2') title = 'PICK YOUR HERO';
+  if (kind === '3') title = 'CHOOSE YOUR HEADLINE';
+  if (kind === '5') title = 'CHOOSE YOUR COMPANY NAME';
+  if (kind === '6') title = 'CHOOSE YOUR CALL TO ACTION';
+
   const head = document.createElement('div');
   head.className = 'popup-head';
-  head.innerHTML = `<span>${kind.toUpperCase()}</span><button id="popup-close" class="export-btn">×</button>`;
+  head.innerHTML = `<span>${title}</span><button id="popup-close" class="export-btn">×</button>`;
 
   const body = document.createElement('div');
   body.className = 'popup-body';
@@ -67,6 +75,19 @@ function openPopup(kind){
 
   if (kind === 'bg'){
     buildBGGrid(body);
+  } else if (kind === '2'){
+    buildHeroGrid(body);
+  } else if (kind === '3'){
+    buildHeadlineUI(body);
+  } else if (kind === '4'){
+    // Button 4: Unlock stickers (no overlay needed)
+    unlockStickers();
+    closePopup();
+    return; // Exit early, no overlay content
+  } else if (kind === '5'){
+    buildCompanyNameUI(body);
+  } else if (kind === '6'){
+    buildCTAButtonUI(body);
   } else if (kind === 'export'){
     buildExportUI(body);
   } else {
@@ -106,6 +127,41 @@ function buildBGGrid(container){
     card.addEventListener('click', () => {
       const stage = document.getElementById('stage');
       stage.style.backgroundImage = `url(${url})`;
+      closePopup();
+    });
+  });
+
+  container.appendChild(wrap);
+}
+
+// Build Hero grid - similar to BG grid but spawns hero on stage
+function buildHeroGrid(container){
+  const source = document.querySelectorAll('#bg-data .bg-option'); // Use BG images for now
+  const wrap = document.createElement('div');
+  wrap.className = 'bg-grid';
+
+  source.forEach(opt => {
+    const url = opt.getAttribute('data-bg');
+    const card = document.createElement('div');
+    card.className = 'bg-card';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'bg-thumb';
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = basename(url);
+    thumb.appendChild(img);
+
+    const cap = document.createElement('div');
+    cap.className = 'bg-caption';
+    cap.textContent = basename(url);
+
+    card.appendChild(thumb);
+    card.appendChild(cap);
+    wrap.appendChild(card);
+
+    card.addEventListener('click', () => {
+      spawnHero(url);
       closePopup();
     });
   });
@@ -164,6 +220,611 @@ overlay.addEventListener('click', (e) => {
 
 // Stage starts black
 document.getElementById('stage').style.backgroundColor = '#000';
+
+//------------------------------------------------------
+// HERO MANAGEMENT
+//------------------------------------------------------
+let currentHero = null; // Track the current hero
+
+function spawnHero(imageUrl) {
+  const stage = document.getElementById('stage');
+  
+  // Remove existing hero if any
+  if (currentHero) {
+    currentHero.remove();
+  }
+  
+  // Image is 150px wide (set in createStickerAt)
+  // To center the image: top-left = stage_center - (image_size / 2)
+  const imageSize = 150;
+  const centerX = (STAGE_W / 2) - (imageSize / 2);
+  const centerY = (STAGE_H / 2) - (imageSize / 2);
+  
+  currentHero = createStickerAt(imageUrl, centerX, centerY, true); // true = isHero
+  
+  // Select the hero immediately
+  deselectAll();
+  currentHero.classList.add('selected');
+}
+
+//------------------------------------------------------
+// HEADLINE MANAGEMENT
+//------------------------------------------------------
+let currentHeadline = null; // Track the current headline
+const adjectives = [
+  'MAGICAL', 'FESTIVE', 'JOYFUL', 'MERRY',
+  'BRIGHT', 'CHEERFUL', 'SPARKLING', 'COZY',
+  'WONDER', 'JOLLY', 'SNOWY', 'GLOWING',
+  'HAPPY', 'WARM', 'SHINY', 'BLESSED'
+];
+
+function buildHeadlineUI(container) {
+  const selectedWords = [];
+  
+  // Instructions
+  const instructions = document.createElement('div');
+  instructions.className = 'headline-instructions';
+  instructions.textContent = 'Choose 4 words';
+  container.appendChild(instructions);
+  
+  // Word grid
+  const wordGrid = document.createElement('div');
+  wordGrid.className = 'word-grid';
+  
+  adjectives.forEach(word => {
+    const wordBox = document.createElement('div');
+    wordBox.className = 'word-box';
+    wordBox.textContent = word;
+    
+    wordBox.addEventListener('click', () => {
+      if (wordBox.classList.contains('selected')) {
+        // Deselect
+        wordBox.classList.remove('selected');
+        const idx = selectedWords.indexOf(word);
+        if (idx > -1) selectedWords.splice(idx, 1);
+      } else if (selectedWords.length < 4) {
+        // Select
+        wordBox.classList.add('selected');
+        selectedWords.push(word);
+      }
+      
+      // If 4 words selected, show generator
+      if (selectedWords.length === 4) {
+        wordGrid.style.display = 'none';
+        instructions.textContent = selectedWords.join(' • ');
+        showHeadlineGenerator(container, selectedWords);
+      }
+    });
+    
+    wordGrid.appendChild(wordBox);
+  });
+  
+  container.appendChild(wordGrid);
+}
+
+function showHeadlineGenerator(container, words) {
+  const genContainer = document.createElement('div');
+  genContainer.className = 'headline-generator';
+  
+  const preview = document.createElement('div');
+  preview.className = 'headline-preview';
+  
+  const regenBtn = document.createElement('button');
+  regenBtn.className = 'export-btn';
+  regenBtn.textContent = 'Regenerate';
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'export-btn';
+  confirmBtn.textContent = 'Confirm';
+  
+  function generateHeadline() {
+    const shuffled = [...words].sort(() => Math.random() - 0.5);
+    const text = shuffled.join(' ');
+    preview.textContent = text;
+    
+    // Apply random styles
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff'];
+    const shadows = [
+      '2px 2px 4px rgba(0,0,0,0.5)',
+      '0 0 10px rgba(255,255,255,0.8)',
+      '3px 3px 0 #000',
+      '0 0 20px rgba(255,0,0,0.5)'
+    ];
+    
+    preview.style.color = colors[Math.floor(Math.random() * colors.length)];
+    preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
+    preview.style.fontWeight = Math.random() > 0.5 ? 'bold' : 'normal';
+    preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
+    preview.style.textDecoration = Math.random() > 0.8 ? 'underline' : 'none';
+    
+    // Store the text for spawning
+    preview.dataset.headlineText = text;
+    preview.dataset.headlineColor = preview.style.color;
+    preview.dataset.headlineShadow = preview.style.textShadow;
+    preview.dataset.headlineWeight = preview.style.fontWeight;
+    preview.dataset.headlineStyle = preview.style.fontStyle;
+    preview.dataset.headlineDecoration = preview.style.textDecoration;
+  }
+  
+  regenBtn.addEventListener('click', generateHeadline);
+  
+  confirmBtn.addEventListener('click', () => {
+    spawnHeadline(
+      preview.dataset.headlineText,
+      preview.dataset.headlineColor,
+      preview.dataset.headlineShadow,
+      preview.dataset.headlineWeight,
+      preview.dataset.headlineStyle,
+      preview.dataset.headlineDecoration
+    );
+    closePopup();
+  });
+  
+  genContainer.appendChild(preview);
+  genContainer.appendChild(regenBtn);
+  genContainer.appendChild(confirmBtn);
+  container.appendChild(genContainer);
+  
+  // Generate initial headline
+  generateHeadline();
+}
+
+function spawnHeadline(text, color, shadow, weight, style, decoration) {
+  const stage = document.getElementById('stage');
+  
+  // Remove existing headline if any
+  if (currentHeadline) {
+    currentHeadline.remove();
+  }
+  
+  // Create headline element
+  const wrapper = document.createElement('div');
+  wrapper.classList.add('sticker-wrapper', 'headline-layer');
+  wrapper.setAttribute('data-is-headline', 'true');
+  wrapper.scale = 1;
+  wrapper.angle = 0;
+  
+  const textEl = document.createElement('div');
+  textEl.className = 'headline-text';
+  textEl.textContent = text;
+  textEl.style.color = color;
+  textEl.style.textShadow = shadow;
+  textEl.style.fontWeight = weight;
+  textEl.style.fontStyle = style;
+  textEl.style.textDecoration = decoration;
+  
+  const scaleHandle = document.createElement('div');
+  scaleHandle.classList.add('scale-handle');
+  
+  const rotHandle = document.createElement('div');
+  rotHandle.classList.add('rot-handle');
+  
+  wrapper.appendChild(textEl);
+  wrapper.appendChild(scaleHandle);
+  wrapper.appendChild(rotHandle);
+  
+  stage.appendChild(wrapper);
+  wrapper.style.zIndex = 5000; // Headline on top of everything
+  
+  // Position at center AFTER appending so we can measure dimensions
+  // Use offsetWidth/Height to get actual unscaled dimensions
+  const width = wrapper.offsetWidth;
+  const height = wrapper.offsetHeight;
+  const centerX = (STAGE_W / 2) - (width / 2);
+  const centerY = (STAGE_H / 2) - (height / 2);
+  wrapper.setAttribute('data-x', centerX);
+  wrapper.setAttribute('data-y', centerY);
+  
+  applyTransform(wrapper);
+  makeInteractiveText(wrapper, 'headline-text');
+  
+  deselectAll();
+  wrapper.classList.add('selected');
+  
+  currentHeadline = wrapper;
+}
+
+//------------------------------------------------------
+// STICKER BAR UNLOCK
+//------------------------------------------------------
+let stickersUnlocked = false;
+
+function unlockStickers() {
+  if (stickersUnlocked) return; // Already unlocked
+  
+  const stickerBar = document.getElementById('sticker-bar');
+  stickerBar.classList.add('unlocked');
+  stickersUnlocked = true;
+}
+
+//------------------------------------------------------
+// COMPANY NAME MANAGEMENT
+//------------------------------------------------------
+let currentCompanyName = null; // Track the current company name
+
+const companyPrefixes = ['Next', 'Bright', 'Peak', 'Prime', 'Future', 'Smart', 'Pro', 'Meta', 'Quantum', 'Spark'];
+const companyRoots = ['Vision', 'Wave', 'Flow', 'Pulse', 'Shift', 'Core', 'Force', 'Edge', 'Rise', 'Link'];
+const companySuffixes = ['Labs', 'Tech', 'Systems', 'Group', 'Dynamics', 'Solutions', 'Works', 'Ventures', 'Studios', 'Co'];
+
+function buildCompanyNameUI(container) {
+  const genContainer = document.createElement('div');
+  genContainer.className = 'company-generator';
+  
+  const preview = document.createElement('div');
+  preview.className = 'company-preview';
+  
+  const regenBtn = document.createElement('button');
+  regenBtn.className = 'export-btn';
+  regenBtn.textContent = 'Regenerate';
+  
+  const regenNameBtn = document.createElement('button');
+  regenNameBtn.className = 'export-btn';
+  regenNameBtn.textContent = 'Regenerate Name';
+  
+  const regenStyleBtn = document.createElement('button');
+  regenStyleBtn.className = 'export-btn';
+  regenStyleBtn.textContent = 'Regenerate Style';
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'export-btn';
+  confirmBtn.textContent = 'Confirm';
+  
+  function generateName() {
+    const prefix = companyPrefixes[Math.floor(Math.random() * companyPrefixes.length)];
+    const root = companyRoots[Math.floor(Math.random() * companyRoots.length)];
+    const suffix = companySuffixes[Math.floor(Math.random() * companySuffixes.length)];
+    
+    // Randomly choose format: "Prefix+Root", "Root+Suffix", or "Prefix+Root+Suffix"
+    const format = Math.floor(Math.random() * 3);
+    let name;
+    if (format === 0) name = prefix + root;
+    else if (format === 1) name = root + suffix;
+    else name = prefix + root + ' ' + suffix;
+    
+    preview.textContent = name;
+    preview.dataset.companyName = name;
+  }
+  
+  function generateStyle() {
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff8800', '#8800ff'];
+    const shadows = [
+      '2px 2px 4px rgba(0,0,0,0.5)',
+      '0 0 10px rgba(255,255,255,0.8)',
+      '3px 3px 0 #000',
+      '0 0 20px rgba(0,255,255,0.5)',
+      '4px 4px 8px rgba(0,0,0,0.7)'
+    ];
+    
+    preview.style.color = colors[Math.floor(Math.random() * colors.length)];
+    preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
+    preview.style.fontWeight = Math.random() > 0.5 ? 'bold' : 'normal';
+    preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
+    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : 'none';
+    preview.style.letterSpacing = Math.random() > 0.5 ? '2px' : 'normal';
+    
+    preview.dataset.companyColor = preview.style.color;
+    preview.dataset.companyShadow = preview.style.textShadow;
+    preview.dataset.companyWeight = preview.style.fontWeight;
+    preview.dataset.companyStyle = preview.style.fontStyle;
+    preview.dataset.companyTransform = preview.style.textTransform;
+    preview.dataset.companySpacing = preview.style.letterSpacing;
+  }
+  
+  function regenerateAll() {
+    generateName();
+    generateStyle();
+  }
+  
+  regenBtn.addEventListener('click', regenerateAll);
+  regenNameBtn.addEventListener('click', generateName);
+  regenStyleBtn.addEventListener('click', generateStyle);
+  
+  confirmBtn.addEventListener('click', () => {
+    spawnCompanyName(
+      preview.dataset.companyName,
+      preview.dataset.companyColor,
+      preview.dataset.companyShadow,
+      preview.dataset.companyWeight,
+      preview.dataset.companyStyle,
+      preview.dataset.companyTransform,
+      preview.dataset.companySpacing
+    );
+    closePopup();
+  });
+  
+  const buttonRow = document.createElement('div');
+  buttonRow.className = 'button-row';
+  buttonRow.appendChild(regenNameBtn);
+  buttonRow.appendChild(regenStyleBtn);
+  
+  genContainer.appendChild(preview);
+  genContainer.appendChild(regenBtn);
+  genContainer.appendChild(buttonRow);
+  genContainer.appendChild(confirmBtn);
+  container.appendChild(genContainer);
+  
+  // Generate initial name and style
+  regenerateAll();
+}
+
+function spawnCompanyName(text, color, shadow, weight, style, transform, spacing) {
+  const stage = document.getElementById('stage');
+  
+  // Remove existing company name if any
+  if (currentCompanyName) {
+    currentCompanyName.remove();
+  }
+  
+  // Create company name element
+  const wrapper = document.createElement('div');
+  wrapper.classList.add('sticker-wrapper', 'company-layer');
+  wrapper.setAttribute('data-is-company', 'true');
+  wrapper.scale = 1;
+  wrapper.angle = 0;
+  
+  const textEl = document.createElement('div');
+  textEl.className = 'company-text';
+  textEl.textContent = text;
+  textEl.style.color = color;
+  textEl.style.textShadow = shadow;
+  textEl.style.fontWeight = weight;
+  textEl.style.fontStyle = style;
+  textEl.style.textTransform = transform;
+  textEl.style.letterSpacing = spacing;
+  
+  const scaleHandle = document.createElement('div');
+  scaleHandle.classList.add('scale-handle');
+  
+  const rotHandle = document.createElement('div');
+  rotHandle.classList.add('rot-handle');
+  
+  wrapper.appendChild(textEl);
+  wrapper.appendChild(scaleHandle);
+  wrapper.appendChild(rotHandle);
+  
+  stage.appendChild(wrapper);
+  
+  // Z-INDEX HIERARCHY:
+  // Headline: 5000
+  // Company: 4000
+  // CTA: 3000
+  // Hero: 2000
+  // Stickers: 100-999
+  // BG: stage background
+  wrapper.style.zIndex = 4000;
+  
+  // Position at center AFTER appending so we can measure dimensions
+  // Use offsetWidth/Height to get actual unscaled dimensions
+  const width = wrapper.offsetWidth;
+  const height = wrapper.offsetHeight;
+  const centerX = (STAGE_W / 2) - (width / 2);
+  const centerY = (STAGE_H / 2) - (height / 2);
+  wrapper.setAttribute('data-x', centerX);
+  wrapper.setAttribute('data-y', centerY);
+  
+  applyTransform(wrapper);
+  makeInteractiveText(wrapper, 'company-text');
+  
+  deselectAll();
+  wrapper.classList.add('selected');
+  
+  currentCompanyName = wrapper;
+}
+
+//------------------------------------------------------
+// CTA BUTTON MANAGEMENT
+//------------------------------------------------------
+let currentCTAButton = null; // Track the current CTA button
+
+const ctaVerbs = ['Get', 'Learn', 'Start', 'Discover', 'Join', 'Try', 'Unlock', 'Explore', 'Claim', 'Grab'];
+const ctaActions = ['Started', 'More', 'Now', 'Today', 'Free', 'Yours', 'Here', 'It', 'This', 'Access'];
+
+function buildCTAButtonUI(container) {
+  const genContainer = document.createElement('div');
+  genContainer.className = 'cta-generator';
+  
+  const preview = document.createElement('div');
+  preview.className = 'cta-preview';
+  
+  const regenBtn = document.createElement('button');
+  regenBtn.className = 'export-btn';
+  regenBtn.textContent = 'Regenerate';
+  
+  const regenTextBtn = document.createElement('button');
+  regenTextBtn.className = 'export-btn';
+  regenTextBtn.textContent = 'Regenerate Text';
+  
+  const regenTextStyleBtn = document.createElement('button');
+  regenTextStyleBtn.className = 'export-btn';
+  regenTextStyleBtn.textContent = 'Regenerate Text Style';
+  
+  const regenButtonStyleBtn = document.createElement('button');
+  regenButtonStyleBtn.className = 'export-btn';
+  regenButtonStyleBtn.textContent = 'Regenerate Button Style';
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'export-btn';
+  confirmBtn.textContent = 'Confirm';
+  
+  function generateText() {
+    const verb = ctaVerbs[Math.floor(Math.random() * ctaVerbs.length)];
+    const action = ctaActions[Math.floor(Math.random() * ctaActions.length)];
+    const text = verb + ' ' + action;
+    
+    preview.textContent = text;
+    preview.dataset.ctaText = text;
+  }
+  
+  function generateTextStyle() {
+    const colors = ['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+    const shadows = [
+      '2px 2px 4px rgba(0,0,0,0.8)',
+      '0 0 5px rgba(255,255,255,0.8)',
+      '1px 1px 2px rgba(0,0,0,0.5)',
+      'none'
+    ];
+    
+    preview.style.color = colors[Math.floor(Math.random() * colors.length)];
+    preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
+    preview.style.fontWeight = Math.random() > 0.5 ? 'bold' : 'normal';
+    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : 'none';
+    
+    preview.dataset.ctaTextColor = preview.style.color;
+    preview.dataset.ctaTextShadow = preview.style.textShadow;
+    preview.dataset.ctaTextWeight = preview.style.fontWeight;
+    preview.dataset.ctaTextTransform = preview.style.textTransform;
+  }
+  
+  function generateButtonStyle() {
+    const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff'];
+    const gradients = [
+      `linear-gradient(135deg, ${bgColors[0]}, ${bgColors[1]})`,
+      `linear-gradient(90deg, ${bgColors[2]}, ${bgColors[3]})`,
+      `radial-gradient(circle, ${bgColors[4]}, ${bgColors[5]})`,
+      bgColors[Math.floor(Math.random() * bgColors.length)]
+    ];
+    
+    const borderRadii = ['0px', '8px', '20px', '50px', '50%'];
+    const borders = [
+      '2px solid #fff',
+      '3px solid #000',
+      '4px solid rgba(255,255,255,0.5)',
+      'none'
+    ];
+    const boxShadows = [
+      '0 4px 8px rgba(0,0,0,0.3)',
+      '0 8px 16px rgba(0,0,0,0.5)',
+      '0 0 20px rgba(255,255,255,0.5)',
+      'inset 0 2px 4px rgba(255,255,255,0.3)',
+      'none'
+    ];
+    
+    const bg = gradients[Math.floor(Math.random() * gradients.length)];
+    const borderRadius = borderRadii[Math.floor(Math.random() * borderRadii.length)];
+    const border = borders[Math.floor(Math.random() * borders.length)];
+    const boxShadow = boxShadows[Math.floor(Math.random() * boxShadows.length)];
+    
+    preview.style.background = bg;
+    preview.style.borderRadius = borderRadius;
+    preview.style.border = border;
+    preview.style.boxShadow = boxShadow;
+    
+    preview.dataset.ctaBg = bg;
+    preview.dataset.ctaBorderRadius = borderRadius;
+    preview.dataset.ctaBorder = border;
+    preview.dataset.ctaBoxShadow = boxShadow;
+  }
+  
+  function regenerateAll() {
+    generateText();
+    generateTextStyle();
+    generateButtonStyle();
+  }
+  
+  regenBtn.addEventListener('click', regenerateAll);
+  regenTextBtn.addEventListener('click', generateText);
+  regenTextStyleBtn.addEventListener('click', generateTextStyle);
+  regenButtonStyleBtn.addEventListener('click', generateButtonStyle);
+  
+  confirmBtn.addEventListener('click', () => {
+    spawnCTAButton(
+      preview.dataset.ctaText,
+      preview.dataset.ctaTextColor,
+      preview.dataset.ctaTextShadow,
+      preview.dataset.ctaTextWeight,
+      preview.dataset.ctaTextTransform,
+      preview.dataset.ctaBg,
+      preview.dataset.ctaBorderRadius,
+      preview.dataset.ctaBorder,
+      preview.dataset.ctaBoxShadow
+    );
+    closePopup();
+  });
+  
+  const buttonRow1 = document.createElement('div');
+  buttonRow1.className = 'button-row';
+  buttonRow1.appendChild(regenTextBtn);
+  buttonRow1.appendChild(regenTextStyleBtn);
+  
+  const buttonRow2 = document.createElement('div');
+  buttonRow2.className = 'button-row';
+  buttonRow2.appendChild(regenButtonStyleBtn);
+  
+  genContainer.appendChild(preview);
+  genContainer.appendChild(regenBtn);
+  genContainer.appendChild(buttonRow1);
+  genContainer.appendChild(buttonRow2);
+  genContainer.appendChild(confirmBtn);
+  container.appendChild(genContainer);
+  
+  // Generate initial CTA
+  regenerateAll();
+}
+
+function spawnCTAButton(text, textColor, textShadow, textWeight, textTransform, bg, borderRadius, border, boxShadow) {
+  const stage = document.getElementById('stage');
+  
+  // Remove existing CTA button if any
+  if (currentCTAButton) {
+    currentCTAButton.remove();
+  }
+  
+  // Create CTA button element
+  const wrapper = document.createElement('div');
+  wrapper.classList.add('sticker-wrapper', 'cta-layer');
+  wrapper.setAttribute('data-is-cta', 'true');
+  wrapper.scale = 1;
+  wrapper.angle = 0;
+  
+  const buttonEl = document.createElement('div');
+  buttonEl.className = 'cta-button';
+  buttonEl.textContent = text;
+  buttonEl.style.color = textColor;
+  buttonEl.style.textShadow = textShadow;
+  buttonEl.style.fontWeight = textWeight;
+  buttonEl.style.textTransform = textTransform;
+  buttonEl.style.background = bg;
+  buttonEl.style.borderRadius = borderRadius;
+  buttonEl.style.border = border;
+  buttonEl.style.boxShadow = boxShadow;
+  
+  const scaleHandle = document.createElement('div');
+  scaleHandle.classList.add('scale-handle');
+  
+  const rotHandle = document.createElement('div');
+  rotHandle.classList.add('rot-handle');
+  
+  wrapper.appendChild(buttonEl);
+  wrapper.appendChild(scaleHandle);
+  wrapper.appendChild(rotHandle);
+  
+  stage.appendChild(wrapper);
+  
+  // Z-INDEX HIERARCHY:
+  // Headline: 5000
+  // Company: 4000
+  // CTA: 3000
+  // Hero: 2000
+  // Stickers: 100-999
+  // BG: stage background
+  wrapper.style.zIndex = 3000;
+  
+  // Position at lower center (lower third)
+  const width = wrapper.offsetWidth;
+  const height = wrapper.offsetHeight;
+  const centerX = (STAGE_W / 2) - (width / 2);
+  const lowerThirdY = (STAGE_H * 0.7) - (height / 2); // 70% down from top
+  wrapper.setAttribute('data-x', centerX);
+  wrapper.setAttribute('data-y', lowerThirdY);
+  
+  applyTransform(wrapper);
+  makeInteractiveText(wrapper, 'cta-button');
+  
+  deselectAll();
+  wrapper.classList.add('selected');
+  
+  currentCTAButton = wrapper;
+}
 
 //------------------------------------------------------
 // LANDSCAPE ORIENTATION FOR MOBILE
@@ -230,11 +891,15 @@ document.addEventListener("pointerdown", e => {
 //------------------------------------------------------
 // STICKER CREATION
 //------------------------------------------------------
-function createStickerAt(srcUrl, x, y) {
+function createStickerAt(srcUrl, x, y, isHero = false) {
     const stage = document.getElementById("stage");
 
     const wrapper = document.createElement("div");
     wrapper.classList.add("sticker-wrapper");
+    if (isHero) {
+        wrapper.classList.add("hero-layer");
+        wrapper.setAttribute("data-is-hero", "true");
+    }
     wrapper.scale = 1;
     wrapper.angle = 0;
 
@@ -277,7 +942,7 @@ function createStickerAt(srcUrl, x, y) {
 	}
 
     applyTransform(wrapper);
-    makeInteractive(wrapper);
+    makeInteractive(wrapper, isHero);
 
     deselectAll();
     wrapper.classList.add("selected");
@@ -353,12 +1018,14 @@ interact('.sticker-src').draggable({
 //------------------------------------------------------
 // INTERACTIVE STICKERS
 //------------------------------------------------------
-function makeInteractive(el) {
+function makeInteractive(el, isHero = false) {
 
     el.addEventListener("pointerdown", () => {
 	deselectAll();
 	el.classList.add("selected");
-	bringStickerToFront(el);            // <-- add this line
+	if (!isHero) {
+	    bringStickerToFront(el);  // only manage z-index for stickers, not heroes
+	}
 });
 
     // Drag to move
@@ -433,8 +1100,73 @@ interact(rotHandle).draggable({
   }
 });
 
-    // Delete on double click
-    el.addEventListener("dblclick", () => el.remove());
+    // Delete on double click (only for stickers, not heroes)
+    if (!isHero) {
+        el.addEventListener("dblclick", () => el.remove());
+    }
+}
+
+function makeInteractiveText(el, textClassName) {
+    el.addEventListener("pointerdown", () => {
+        deselectAll();
+        el.classList.add("selected");
+    });
+
+    // Drag to move
+    interact(el).draggable({
+        allowFrom: `.${textClassName}`,
+        listeners: {
+            start(){ el.classList.add("dragging"); },
+            move(event) {
+                const s = uiScale ? uiScale() : 1;
+                const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx / s;
+                const y = (parseFloat(el.getAttribute("data-y")) || 0) + event.dy / s;
+                el.setAttribute("data-x", x);
+                el.setAttribute("data-y", y);
+                applyTransform(el);
+            },
+            end(){ el.classList.remove("dragging"); }
+        }
+    });
+
+    // Desktop scale
+    const scaleHandle = el.querySelector(".scale-handle");
+    interact(scaleHandle).draggable({
+        listeners: {
+            start() {
+                scaleHandle.classList.add("dragging");
+                document.body.classList.add("scaling");
+            },
+            move(event) {
+                const s = uiScale ? uiScale() : 1;
+                el.scale = Math.max(0.1, el.scale + (event.dx / s) * 0.01);
+                applyTransform(el);
+            },
+            end() {
+                scaleHandle.classList.remove("dragging");
+                document.body.classList.remove("scaling");
+            }
+        }
+    });
+
+    // Desktop rotate
+    const rotHandle = el.querySelector(".rot-handle");
+    interact(rotHandle).draggable({
+        listeners: {
+            start() {
+                rotHandle.classList.add("dragging");
+                document.body.classList.add("rotating");
+            },
+            move(event) {
+                el.angle += event.dx * 0.5;
+                applyTransform(el);
+            },
+            end() {
+                rotHandle.classList.remove("dragging");
+                document.body.classList.remove("rotating");
+            }
+        }
+    });
 }
 
 const fsBtn  = document.getElementById('btn-fullscreen');
@@ -611,7 +1343,12 @@ function bringStickerToFront(el){
 
   // compact if we hit the ceiling (keeps numbers small)
   if (STICKER_Z_CUR >= STICKER_Z_MAX) {
+    // Only manage z-index for actual stickers, not heroes/text layers
     const stickers = Array.from(document.querySelectorAll('#stage .sticker-wrapper'))
+      .filter(s => !s.hasAttribute('data-is-hero') && 
+                   !s.hasAttribute('data-is-headline') && 
+                   !s.hasAttribute('data-is-company') &&
+                   !s.hasAttribute('data-is-cta'))
       .sort((a,b) => (parseInt(a.style.zIndex||STICKER_Z_MIN,10) - parseInt(b.style.zIndex||STICKER_Z_MIN,10)));
     STICKER_Z_CUR = STICKER_Z_MIN;
     for (const s of stickers) s.style.zIndex = ++STICKER_Z_CUR;
