@@ -29,19 +29,23 @@
   <div id="app"><!-- grid frame -->
 
     <!-- SIDEBAR -->
-   <!-- SIDEBAR -->
-	<aside id="sidebar">
-	  <button class="category" data-panel="bg">BG</button>
-	  <button class="category" data-panel="headline">Headline</button>
-	  <button class="category" data-panel="claim">Claim</button>
-	  <button class="category" data-panel="cta">CTA</button>
-	  <button class="category" data-panel="company">Company</button>
-	  <button class="category" data-panel="export">Export</button>
-	</aside>
+    <aside id="sidebar">
+      <button class="category" data-panel="bg">BG</button>
+      <button class="category" data-panel="headline">Headline</button>
+      <button class="category" data-panel="claim">Claim</button>
+      <button class="category" data-panel="cta">CTA</button>
+      <button class="category" data-panel="company">Company</button>
+      <button class="category" data-panel="export">Export</button>
+    </aside>
 
-
-    <!-- STAGE (fixed 2:1) -->
-    <main id="stage"></main>
+    <!-- STAGE (fixed 2:1) + local overlay host -->
+    <div id="stage-wrap">
+      <main id="stage"></main>
+      <!-- overlay sits above the stage; starts hidden -->
+      <div id="overlay" class="hidden" aria-hidden="true">
+        <div id="popup"><!-- content injected by JS --></div>
+      </div>
+    </div>
 
     <!-- STICKER BAR (under the stage only) -->
     <div id="sticker-bar">
@@ -50,11 +54,6 @@
       <img class="sticker-src" src="assets/stickers/BG6.webp" />
       <img class="sticker-src" src="assets/stickers/giphy.gif" />
       <button id="btn-fullscreen" class="fs-btn-inbar" aria-pressed="false" title="Toggle fullscreen">⛶</button>
-    </div>
-
-    <!-- OVERLAY (covers stage + sticker-bar; popup sits inside with margins) -->
-    <div id="overlay" class="hidden">
-      <div id="popup"><!-- content injected by JS --></div>
     </div>
 
     <!-- BG DATA SOURCE (hidden; easy to maintain list) -->

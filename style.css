@@ -8,7 +8,7 @@
   --stickerbar-h: 100px;
   --stage-bg: #fff;
   
-    /* frame size derived from parts */
+  /* frame size derived from parts */
   --frame-w: calc(var(--sidebar-w) + var(--stage-w));
   --frame-h: calc(var(--stage-h) + var(--stickerbar-h));
 
@@ -22,46 +22,38 @@
 }
 
 html, body { 
-	margin:0; 
-	height:100%; }
+  margin:0; 
+  height:100%; 
+}
 body { 
-	font-family: sans-serif; 
-	background:#fff; }
+  font-family: sans-serif; 
+  background:#fff; 
+}
 
 /* viewport shell that centers the frame */
 #root{
   display:flex;
-  justify-content:flex-start;   /* was “top left” — invalid */
-  align-items:flex-start;       /* was “top left” — invalid */
+  justify-content:flex-start;
+  align-items:flex-start;
   height:100vh;
   width:100vw;
   overflow:auto;
   background:#fff;
 }
-}
 
-/* the grid “frame” (your #app) has fixed logical size, then is scaled */
-#app{
-
-}
-
-/* main app row: sidebar | panel | stage */
 /* Frame: 3 columns (sidebar | panel | stage), 2 rows (stage | sticker bar) */
-#app{ 
-  width: var(--frame-w);
-  height: var(--frame-h);
+#app{
+  width: calc(var(--sidebar-w) + var(--stage-w));
+  height: calc(var(--stage-h) + var(--stickerbar-h));
   transform: scale(var(--ui-scale));
   transform-origin: top left;
   display: grid;
   grid-template-columns: var(--sidebar-w) var(--stage-w);
   grid-template-rows: var(--stage-h) var(--stickerbar-h);
   gap: 0;
-  /* allow page scrolling if viewport smaller than full frame */
-  min-width: calc(var(--sidebar-w) + var(--panel-w) + var(--stage-w));
+  min-width: calc(var(--sidebar-w) + var(--stage-w));
   min-height: calc(var(--stage-h) + var(--stickerbar-h));
-  
 }
-
 
 /* Sidebar occupies left column, only the stage row (not the sticker bar row) */
 #sidebar{
@@ -78,6 +70,7 @@ body {
   box-sizing: border-box;
   overflow: hidden; /* fixed width, no reflow */
 }
+
 .category{
   padding: 10px;
   background: #333;
@@ -90,52 +83,119 @@ body {
 
 /* Export buttons */
 .export-btn {
-    margin-top: 10px;
-    padding: 8px;
-    border: none;
-    background: #555;
-    color: #fff;
-    cursor: pointer;
+  margin-top: 10px;
+  padding: 8px;
+  border: none;
+  background: #555;
+  color: #fff;
+  cursor: pointer;
 }
 
+.export-btn[disabled]{ 
+  opacity:.5; 
+  cursor:not-allowed; 
+}
 
 .hidden{ display: none; }
-.lbl{ display:block; margin:8px 0 4px; font-size:12px; color:#333; }
+.lbl{ display:block; margin:8px 0 4px; font-size:12px; color:#fff; }
 .num{ width:80px; }
 .btn-row{ margin-top:12px; display:flex; gap:8px; }
-.progress{ margin-top:8px; font-size:12px; color:#333; }
-.export-btn{ padding:8px 10px; border:0; background:#555; color:#fff; cursor:pointer; }
-.export-btn[disabled]{ opacity:.5; cursor:not-allowed; }
-
+.progress{ margin-top:8px; font-size:12px; color:#fff; }
 
 /* BACKGROUND OPTIONS */
 .bg-option {
-    width: 100%;
-    height: 80px;
-    background-size: cover;
-    background-position: center;
-    margin-bottom: 10px;
-    cursor: pointer;
-    border: 1px solid #ccc;
+  width: 100%;
+  height: 80px;
+  background-size: cover;
+  background-position: center;
+  margin-bottom: 10px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+}
+
+/* positioned container for stage + overlay */
+#stage-wrap{
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  width: var(--stage-w);
+  height: var(--stage-h);
 }
 
 /* Stage: fixed box; never flexes, never covered */
 #stage{
-  grid-column: 3;
-  grid-row: 1;
-  width: var(--stage-w);
-  height: var(--stage-h);
-  background-color: var(--stage-bg);
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
   background-size: cover;
   background-position: center;
-  position: relative;
   overflow: hidden;
   box-sizing: border-box;
+  z-index: 1;                  /* under the overlay */
 }
 
-/* Sticker bar: only under the stage (column 3, row 2) */
+/* overlay that floats above stage, with margin from edges */
+#overlay{
+  position: absolute;
+  inset: 24px;                       /* margin from stage edge */
+  background: rgba(0,0,0,0.85);
+  border: 1px solid #fff;
+  border-radius: 12px;
+  padding: 16px;
+  color: #fff;
+  overflow: auto;
+  z-index: 5;
+  pointer-events: none;
+}
+
+#overlay.open{
+  display:block;
+  pointer-events: auto;
+}
+
+/* while overlay is open, block interacting with the editor under it */
+.modal-open #sidebar,
+.modal-open #sticker-bar,
+.modal-open #stage { 
+  pointer-events: none; 
+  filter: brightness(.75); 
+}
+
+/* ===== BG OVERLAY ONLY (grid) ===== */
+.overlay-grid{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.bg-card{
+  background:#222;
+  border:1px solid #444;
+  border-radius:10px;
+  overflow:hidden;
+}
+
+.bg-card .thumb{
+  aspect-ratio: 1 / 1;              /* square tile */
+  background:#111 center/cover no-repeat;
+}
+
+.bg-card .caption{
+  padding:6px 8px;
+  font-size:12px;
+  text-align:center;
+  border-top:1px solid #444;
+}
+
+.bg-card:hover{ 
+  border-color:#fff; 
+  cursor:pointer; 
+}
+
+/* Sticker bar: only under the stage (column 2, row 2) */
 #sticker-bar{
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 2;
   height: var(--stickerbar-h);
   background: #ddd;
@@ -149,19 +209,18 @@ body {
 
 /* Sticker thumbnails */
 .sticker-src{
-z-index: 100;
+  z-index: 100;
   height: 60px;
   cursor: grab;
   user-drag: none;
   -webkit-user-drag: none;
 }
 
-
 /* STICKER WRAPPER */
 .sticker-wrapper {
   position: absolute;
   touch-action: none;
-  transform-origin: rop left;
+  transform-origin: center center;
 }
 
 /* Sticker image */
@@ -192,21 +251,23 @@ z-index: 100;
 .scale-handle{
   position:absolute;
   width:18px; height:18px;
-  bottom:-12px; right:-12px;   /* keep your current corner */
+  bottom:-12px; right:-12px;
   background:#fff;
   border:2px solid #000;
   border-radius:3px;
   z-index:2;
   pointer-events:auto;
 }
+
 .scale-handle::before{
   content:"";
   position:absolute;
-  inset:-5px;                  /* enlarge hover target */
-  cursor: se-resize;           /* native diagonal arrows */
+  inset:-5px;
+  cursor: se-resize;
 }
+
 .scale-handle::after{
-  content:"⤡";                 /* diagonal glyph */
+  content:"⤡";
   position:absolute;
   left:50%; top:50%;
   transform:translate(-50%,-50%);
@@ -217,6 +278,7 @@ z-index: 100;
   pointer-events:none;
   opacity:.5;
 }
+
 .scale-handle:hover::after,
 .scale-handle.dragging::after{ opacity:1; }
 
@@ -233,12 +295,14 @@ z-index: 100;
   pointer-events:auto;
   cursor: grab;
 }
+
 .rot-handle::before{
   content:"";
   position:absolute;
-  inset:-14px;                 /* enlarge hover target */
+  inset:-14px;
   cursor: grab;
 }
+
 .rot-handle::after{
   content:"↻";
   position:absolute;
@@ -251,23 +315,16 @@ z-index: 100;
   pointer-events:none;
   opacity:.5;
 }
+
 .rot-handle:hover::after,
 .rot-handle.dragging::after{ opacity:1; }
 
-/* Drag/scale/rotate feedback (you already wire these classes in JS) */
+/* Drag/scale/rotate feedback */
 .sticker-wrapper.dragging img { cursor: grabbing; }
 .scale-handle.dragging        { cursor: se-resize !important; }
 .rot-handle.dragging          { cursor: grabbing !important; }
 body.scaling,  body.scaling  * { cursor: se-resize !important; }
 body.rotating, body.rotating * { cursor: grabbing  !important; }
-
-
-
-
-#sticker-bar {
-  position: relative;            /* new */
-  padding-right: 44px;           /* prevents stickers under the button */
-}
 
 /* Fullscreen button (bottom-right of viewport, not scaled) */
 .fs-btn-inbar{
@@ -283,60 +340,31 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   opacity: .85;
   cursor: pointer;
 }
-.fs-btn-inbar:hover{ opacity: 1; }
 
+.fs-btn-inbar:hover{ opacity: 1; }
 
 /* Future non-sticker layers that must sit above stickers */
 .headline-layer,
 .cta-layer,
 .hero-layer {
   position: absolute;
-  z-index: 2000;   /* safely above the sticker bubble (100..999) */
+  z-index: 2000;
   pointer-events: auto;
 }
 
 /* Fullscreen ON (class-based, works everywhere) */
 #root.fs-on{
-  background:#000;             /* black bars */
-  justify-content:center;      /* center horizontally */
-  align-items:center;          /* center vertically */
-  overflow:hidden;             /* no scrollbars in fullscreen */
+  background:#000;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
 }
+
 #root.fs-on #app{
-  transform-origin:center center; /* scale from center while FS */
+  transform-origin:center center;
 }
 
-/* ==== POPUP OVERLAY ====================================================== */
-#overlay{
-  grid-column: 2;                 /* stage column */
-  grid-row: 1 / span 2;           /* covers stage + sticker bar */
-  position: relative;
-  z-index: 1500;
-  pointer-events: none;
-}
-#overlay.hidden{ display:none; }
-#overlay.open{
-  display:block;
-  pointer-events: auto;           /* blocks stage & sticker bar */
-}
-
-#popup{
-  position: absolute;
-  top: var(--popup-pad);
-  left: var(--popup-pad);
-  right: var(--popup-pad);
-  bottom: calc(var(--stickerbar-h) + var(--popup-pad));
-  background: var(--popup-bg);
-  border: var(--popup-bw) solid #fff;
-  border-radius: var(--popup-br);
-  color: #fff;
-  box-sizing: border-box;
-  padding: 16px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
+/* ==== POPUP CONTENT ====================================================== */
 .popup-head{
   font-size: 14px;
   font-weight: 600;
@@ -365,11 +393,13 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   flex-direction: column;
   cursor: pointer;
 }
+
 .bg-thumb{
   aspect-ratio: 1 / 1;
   width: 100%;
   background: #222 center / cover no-repeat;
 }
+
 .bg-thumb > img{
   width: 100%;
   height: 100%;
@@ -377,6 +407,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   display: block;
   background: #222;
 }
+
 .bg-caption{
   padding: 6px 8px;
   font-size: 11px;
@@ -388,6 +419,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   text-overflow: ellipsis;
   border-top: 1px solid #fff;
 }
+
 .bg-card:hover{
   outline: 2px solid #fff;
   outline-offset: -2px;
