@@ -582,7 +582,7 @@ function updateUIScale(){
   const scaleW = window.innerWidth  / frameW;
   const scaleH = window.innerHeight / frameH;
   const fit    = Math.min(scaleW, scaleH);
-  const s      = isFullscreen() ? fit : Math.min(fit, 1);  // upscale only in FS
+  const s      = fit;  // allow scaling > 100% in all modes
   document.documentElement.style.setProperty('--ui-scale', String(s));
 }
 
