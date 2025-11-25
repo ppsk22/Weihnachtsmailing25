@@ -145,7 +145,7 @@ body {
   padding: 16px;
   color: #fff;
   overflow: auto;
-  z-index: 5;
+  z-index: 10000;                    /* way above stickers (100-999) and other layers (2000) */
   pointer-events: none;
 }
 
@@ -155,11 +155,17 @@ body {
 }
 
 /* while overlay is open, block interacting with the editor under it */
-.modal-open #sidebar,
-.modal-open #sticker-bar,
-.modal-open #stage { 
-  pointer-events: none; 
+body.modal-open #sidebar,
+body.modal-open #sticker-bar,
+body.modal-open #stage { 
+  pointer-events: none !important;
   filter: brightness(.75); 
+}
+
+/* Ensure ALL descendants are also blocked */
+body.modal-open #stage *,
+body.modal-open #sticker-bar * {
+  pointer-events: none !important;
 }
 
 /* ===== BG OVERLAY ONLY (grid) ===== */

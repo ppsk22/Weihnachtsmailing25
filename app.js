@@ -1,10 +1,3 @@
-// ==== CONSTANTS =============================================
-const STAGE_W = 1200;
-const STAGE_H = 600;
-const STICKER_BASE_W = 150;
-const STICKER_MIN_PX = 100;
-const STICKER_MAX_FRAC = 0.9;
-
 // ==== POPUP OVER STAGE (NEW) =============================================
 
 // Elements
@@ -21,12 +14,30 @@ function closePopup(){
   overlay.classList.add('hidden');
   popup.innerHTML = '';
   document.body.classList.remove('modal-open');
+  
+  // Re-enable interact.js
+  document.querySelectorAll('.sticker-wrapper').forEach(el => {
+    if (el.interactable) el.interactable().draggable(true);
+    const sh = el.querySelector('.scale-handle');
+    const rh = el.querySelector('.rot-handle');
+    if (sh && sh.interactable) sh.interactable().draggable(true);
+    if (rh && rh.interactable) rh.interactable().draggable(true);
+  });
 }
 function openPopup(kind){
   overlay.classList.remove('hidden');
   overlay.classList.add('open');
   popup.innerHTML = '';
   document.body.classList.add('modal-open');
+  
+  // Disable interact.js
+  document.querySelectorAll('.sticker-wrapper').forEach(el => {
+    if (el.interactable) el.interactable().draggable(false);
+    const sh = el.querySelector('.scale-handle');
+    const rh = el.querySelector('.rot-handle');
+    if (sh && sh.interactable) sh.interactable().draggable(false);
+    if (rh && rh.interactable) rh.interactable().draggable(false);
+  });
 
   const head = document.createElement('div');
   head.className = 'popup-head';
@@ -109,7 +120,7 @@ function buildExportUI(container){
   `;
   container.appendChild(wrap);
 
-  // Wire up the controls after they're in the DOM
+  // Re-bind the existing handlers to these freshly created elements
   wireExportControls();
 }
 
@@ -187,7 +198,7 @@ function createStickerAt(srcUrl, x, y) {
 
 
     stage.appendChild(wrapper);
-	wrapper.style.zIndex = STICKER_Z_MIN;   // ensure it's inside the sticker range
+	wrapper.style.zIndex = STICKER_Z_MIN;   // ensure it’s inside the sticker range
 	bringStickerToFront(wrapper);           // new sticker starts on top of stickers
 
 	// normalize initial scale and position once image size is known
@@ -214,20 +225,7 @@ function createStickerAt(srcUrl, x, y) {
 function applyTransform(el) {
     const x = parseFloat(el.getAttribute("data-x")) || 0;
     const y = parseFloat(el.getAttribute("data-y")) || 0;
-    
-    // Get base image dimensions
-    const img = el.querySelector('img');
-    const baseW = parseFloat(img?.style.width) || 150;
-    const baseH = (img && img.naturalWidth && img.naturalHeight)
-      ? baseW * (img.naturalHeight / img.naturalWidth)
-      : baseW;
-    
-    // Calculate center point
-    const cx = x + baseW / 2;
-    const cy = y + baseH / 2;
-    
-    // Apply transform from center
-    el.style.transform = `translate(${cx}px, ${cy}px) scale(${el.scale}) rotate(${el.angle}deg)`;
+    el.style.transform = `translate(${x}px, ${y}px) scale(${el.scale}) rotate(${el.angle}deg)`;
 }
 
 //------------------------------------------------------
@@ -253,140 +251,192 @@ interact('.sticker-src').draggable({
 
       spawningWrapper = createStickerAt(event.target.src, x0, y0);
 
-      // clamp immediately so it can't start off-stage
+      // clamp immediately so it can’t start off-stage
       clampStickerPosition(spawningWrapper);
       applyTransform(spawningWrapper);
     },
+
     move (event) {
       if (!spawningWrapper) return;
+
       const stage = document.getElementById("stage");
       const r = stage.getBoundingClientRect();
       const s = uiScale();
 
-      const newX = (event.clientX - r.left) / s - 75;
-      const newY = (event.clientY - r.top)  / s - 75;
+      const x = (event.clientX - r.left) / s - 75;
+      const y = (event.clientY - r.top)  / s - 75;
 
-      spawningWrapper.setAttribute("data-x", newX);
-      spawningWrapper.setAttribute("data-y", newY);
+      spawningWrapper.setAttribute("data-x", x);
+      spawningWrapper.setAttribute("data-y", y);
 
+      // keep center inside stage while dragging in
       clampStickerPosition(spawningWrapper);
       applyTransform(spawningWrapper);
     },
+
     end () {
+      if (spawningWrapper) {
+        // final snap-in just in case
+        clampStickerPosition(spawningWrapper);
+        applyTransform(spawningWrapper);
+      }
       spawningWrapper = null;
     }
   }
 });
 
+
+
 //------------------------------------------------------
-// INTERACT.JS DRAG/SCALE/ROTATE on .sticker-wrapper
+// INTERACTIVE STICKERS
 //------------------------------------------------------
 function makeInteractive(el) {
 
-  // Select on click
-  el.addEventListener("pointerdown", () => {
-    deselectAll();
-    el.classList.add("selected");
-    bringStickerToFront(el);
-  });
+    el.addEventListener("pointerdown", () => {
+	deselectAll();
+	el.classList.add("selected");
+	bringStickerToFront(el);            // <-- add this line
+});
 
-  // DRAG: on the <img> child to move
-  interact(el).draggable({
-    allowFrom: "img",
-    listeners: {
-      start() { 
-        el.classList.add("dragging"); 
-      },
-      move(event) {
-        const s = uiScale ? uiScale() : 1;
-        const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx / s;
-        const y = (parseFloat(el.getAttribute("data-y")) || 0) + event.dy / s;
-        el.setAttribute("data-x", x);
-        el.setAttribute("data-y", y);
-        clampStickerPosition(el);
-        applyTransform(el);
-      },
-      end() { 
-        el.classList.remove("dragging"); 
-      }
-    }
-  });
+    // Drag to move
+	interact(el).draggable({
+  allowFrom: "img",
+  listeners: {
+    start(){ el.classList.add("dragging"); },
+    move(event) {
+      const s = uiScale ? uiScale() : 1;
+      const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx / s;
+      const y = (parseFloat(el.getAttribute("data-y")) || 0) + event.dy / s;
+      el.setAttribute("data-x", x);
+      el.setAttribute("data-y", y);
+	  clampStickerPosition(el);
+      applyTransform(el);
+    },
+    end(){ el.classList.remove("dragging"); }
+  }
+});
 
-  // MOBILE PINCH + ROTATE GESTURES
-  interact(el).gesturable({
-    listeners: {
-      move(event) {
-        el.scale = clampStickerScale(el.scale * (1 + event.ds));
-        el.angle += event.da;
-        clampStickerPosition(el);
-        applyTransform(el);
-      }
-    }
-  });
 
-  // DESKTOP SCALE: on the .scale-handle
+    // Mobile pinch + rotate
+    interact(el).gesturable({
+	  listeners: {
+		move(event) {
+		  el.scale = clampStickerScale(el.scale * (1 + event.ds));
+		  el.angle += event.da;
+		  clampStickerPosition(el);
+		  applyTransform(el);
+		}
+	  }
+	});
+
+
+    // Desktop scale
   const scaleHandle = el.querySelector(".scale-handle");
-  interact(scaleHandle).draggable({
-    listeners: {
-      start() {
-        scaleHandle.classList.add("dragging");
-        document.body.classList.add("scaling");
-      },
-      move(event) {
-        const s = uiScale ? uiScale() : 1;
-        el.scale = clampStickerScale(el.scale + (event.dx / s) * 0.01);
-        clampStickerPosition(el);
-        applyTransform(el);
-      },
-      end() {
-        scaleHandle.classList.remove("dragging");
-        document.body.classList.remove("scaling");
-      }
+interact(scaleHandle).draggable({
+  listeners: {
+    start() {
+      scaleHandle.classList.add("dragging");
+      document.body.classList.add("scaling");     // <— NEW: force se-resize
+    },
+    move(event) {
+	  const s = uiScale ? uiScale() : 1;
+	  el.scale = clampStickerScale(el.scale + (event.dx / s) * 0.01);
+	  clampStickerPosition(el);
+	  applyTransform(el);
+	},
+    end() {
+      scaleHandle.classList.remove("dragging");
+      document.body.classList.remove("scaling");  // <— NEW
     }
-  });
-
-  // DESKTOP ROTATE: on the .rot-handle
-  const rotHandle = el.querySelector(".rot-handle");
-  interact(rotHandle).draggable({
-    listeners: {
-      start() {
-        rotHandle.classList.add("dragging");
-        document.body.classList.add("rotating");
-      },
-      move(event) {
-        el.angle += event.dx * 0.5;
-        applyTransform(el);
-      },
-      end() {
-        rotHandle.classList.remove("dragging");
-        document.body.classList.remove("rotating");
-      }
+  }
+});
+    // Desktop rotate
+    // rotate handle feedback
+const rotHandle = el.querySelector(".rot-handle");
+interact(rotHandle).draggable({
+  listeners: {
+    start() {
+      rotHandle.classList.add("dragging");
+      document.body.classList.add("rotating");    // <— NEW: force grabbing
+    },
+    move(event) {
+      el.angle += event.dx * 0.5;
+      applyTransform(el);
+    },
+    end() {
+      rotHandle.classList.remove("dragging");
+      document.body.classList.remove("rotating"); // <— NEW
     }
-  });
+  }
+});
 
-  // DELETE on double click
-  el.addEventListener("dblclick", () => el.remove());
+    // Delete on double click
+    el.addEventListener("dblclick", () => el.remove());
 }
 
-//------------------------------------------------------
-// CLAMPING HELPERS
-//------------------------------------------------------
+const fsBtn  = document.getElementById('btn-fullscreen');
+const fsHost = document.getElementById('root'); // fullscreen the scaling shell
+
+function setFsButton(isFull){
+  fsBtn.setAttribute('aria-pressed', String(isFull));
+  fsBtn.textContent = isFull ? '⏏' : '⛶'; // optional icon swap
+}
+
+fsBtn.addEventListener('click', async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await fsHost.requestFullscreen({ navigationUI: 'hide' });
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (e) { console.error(e); }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  const isFull = !!document.fullscreenElement;
+  setFsButton(isFull);
+  // re-run your scaler so the frame fits fullscreen viewport
+  if (typeof updateUIScale === 'function') updateUIScale();
+});
+
+// initialize
+setFsButton(false);
+
+const STAGE_W = 1200;
+const STAGE_H = 600;
+
+
+// enforce the same size on the DOM element too
+const __stage = document.getElementById("stage");
+if (__stage) {
+  __stage.style.width = STAGE_W + "px";
+  __stage.style.height = STAGE_H + "px";
+}
+
+// reflect JS constants into CSS vars (so layout reserves space correctly)
+document.documentElement.style.setProperty('--stage-w', STAGE_W + 'px');
+document.documentElement.style.setProperty('--stage-h', STAGE_H + 'px');
+
+// ---- STICKER SCALE LIMITS -------------------------------------------------
+const STICKER_MIN_PX   = 100;
+const STICKER_MAX_FRAC = 0.9;             // 90% of min(stageW, stageH)
+const STICKER_BASE_W   = 150;             // your createStickerAt default
+
 function stickerMinScale() {
   return Math.max(0.05, STICKER_MIN_PX / STICKER_BASE_W);
 }
-
 function stickerMaxScale() {
   const maxPx = Math.floor(Math.min(STAGE_W, STAGE_H) * STICKER_MAX_FRAC);
   return Math.max(stickerMinScale() + 0.01, maxPx / STICKER_BASE_W);
 }
-
 function clampStickerScale(s) {
   const lo = stickerMinScale();
   const hi = stickerMaxScale();
   return Math.min(hi, Math.max(lo, s));
 }
 
-function clampStickerPosition(el) {
+
+function clampStickerPosition(el){
   // current translate (top-left in unscaled wrapper space)
   let x = parseFloat(el.getAttribute('data-x')) || 0;
   let y = parseFloat(el.getAttribute('data-y')) || 0;
@@ -418,52 +468,64 @@ function clampStickerPosition(el) {
   el.setAttribute('data-y', y);
 }
 
-//------------------------------------------------------
-// FULLSCREEN TOGGLE (optional)
-//------------------------------------------------------
-const btnFullscreen = document.getElementById("btn-fullscreen");
-btnFullscreen?.addEventListener("click", () => {
-  const root = document.getElementById("root");
-  const isFS = root.classList.contains("fs-on");
-  root.classList.toggle("fs-on", !isFS);
-  btnFullscreen.setAttribute("aria-pressed", String(!isFS));
-  updateUIScale(); // recalc scale on toggle
-});
 
-//------------------------------------------------------
-// RESPONSIVE SCALE
-//------------------------------------------------------
-function updateUIScale() {
-  const root = document.getElementById("root");
-  const vw = root.clientWidth;
-  const vh = root.clientHeight;
 
-  // default logical sizes
-  let sw = STAGE_W;
-  let sh = STAGE_H;
 
-  // read the CSS var
-  const cssW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stage-w")) || STAGE_W;
-  const cssH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stage-h")) || STAGE_H;
 
-  const sidebarW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sidebar-w")) || 80;
-  const stickerH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stickerbar-h")) || 100;
 
-  const frameW = cssW + sidebarW;
-  const frameH = cssH + stickerH;
 
-  const scaleX = vw / frameW;
-  const scaleY = vh / frameH;
-  const scale = Math.min(scaleX, scaleY, 1);
+// logical dimensions (match your CSS tokens)
+const SIDEBAR_W = 80;
+const PANEL_W = 200;
+const STICKERBAR_H = 100;
 
-  document.documentElement.style.setProperty("--ui-scale", scale);
+// reflect layout tokens into CSS (optional but consistent)
+document.documentElement.style.setProperty('--sidebar-w', SIDEBAR_W + 'px');
+document.documentElement.style.setProperty('--panel-w', PANEL_W + 'px');
+document.documentElement.style.setProperty('--stickerbar-h', STICKERBAR_H + 'px');
+
+
+
+// scale the whole frame to fit viewport (no upscaling)
+function isFullscreen() {
+  return document.fullscreenElement === fsHost ||
+         document.webkitFullscreenElement === fsHost ||
+         document.mozFullScreenElement === fsHost ||
+         document.msFullscreenElement === fsHost;
+}
+
+function syncFullscreenUI(){
+  const on = isFullscreen();
+  fsHost.classList.toggle('fs-on', on);  // <— drives CSS
+  setFsButton(on);
+  updateUIScale();                       // allows upscaling in FS
+}
+
+// listen for all vendor events
+document.addEventListener('fullscreenchange',       syncFullscreenUI);
+document.addEventListener('webkitfullscreenchange', syncFullscreenUI);
+document.addEventListener('mozfullscreenchange',    syncFullscreenUI);
+document.addEventListener('MSFullscreenChange',     syncFullscreenUI);
+
+// call once on load to normalize state
+syncFullscreenUI();
+
+
+function updateUIScale(){
+  const frameW = SIDEBAR_W + STAGE_W;  // no panel anymore, using overlay
+  const frameH = STAGE_H + STICKERBAR_H;
+  const scaleW = window.innerWidth  / frameW;
+  const scaleH = window.innerHeight / frameH;
+  const fit    = Math.min(scaleW, scaleH);
+  const s      = isFullscreen() ? fit : Math.min(fit, 1);  // upscale only in FS
+  document.documentElement.style.setProperty('--ui-scale', String(s));
 }
 
 window.addEventListener('resize', updateUIScale);
 updateUIScale();
     
 
-// ---- STICKER Z-INDEX BUBBLE --------------------------------------------
+	// ---- STICKER Z-INDEX BUBBLE --------------------------------------------
 // Stickers live only inside this range. Other layers (Headline/CTA/etc.)
 // can use z-indexes above this range and will always sit on top.
 const STICKER_Z_MIN = 100;
@@ -502,166 +564,185 @@ function wireExportControls(){
   // Update the readout
   fpsInput.addEventListener("input", () => { fpsVal.textContent = fpsInput.value; });
 
-  // PNG EXPORT
-  btnPNG.addEventListener("click", async () => {
-    const stage = document.getElementById("stage");
-    const canvas = await html2canvas(stage, {
-      width: STAGE_W,
-      height: STAGE_H,
-      scale: 1,
-      useCORS: true,
-      backgroundColor: null
-    });
-    const link = document.createElement("a");
-    link.download = "banner.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  });
-
-  // GIF EXPORT
-  btnGIF.addEventListener("click", async () => {
-    if (typeof window.__gif_parseGIF !== "function" ||
-        typeof window.__gif_decompressFrames !== "function") {
-      console.error("gifuct-js not loaded"); 
-      alert("GIF library not loaded. Please refresh the page.");
-      return;
-    }
-    if (typeof GIFEncoder !== "function") {
-      console.error("jsgif not loaded"); 
-      alert("GIF encoder not loaded. Please refresh the page.");
-      return;
-    }
-
-    // options
-    const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
-    const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
-    const TOTAL = FPS * DURATION_S;
-    const FRAME_MS = Math.round(1000 / FPS);
-
-    // lock UI
-    let CANCELLED = false;
-    btnPNG.disabled = true;
-    btnGIF.disabled = true;
-    btnCancel.style.display = "inline-block";
-    btnCancel.onclick = () => { CANCELLED = true; };
-    progEl.textContent = `Preloading… 0/${TOTAL}`;
-
-    // stage + buffer
-    const stage = document.getElementById("stage");
-    const W = STAGE_W;
-    const H = STAGE_H;
-
-    const buf  = document.createElement("canvas");
-    buf.width  = W; buf.height = H;
-    const ctx  = buf.getContext("2d", { willReadFrequently: true });
-
-    // background (inline url("..."))
-    const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
-    const bgURL   = bgMatch ? bgMatch[1] : null;
-    const bgImg   = bgURL ? await loadImage(bgURL) : null;
-
-    // collect stickers now
-    const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
-
-    // preload
-    const stickers = await Promise.all(wrappers.map(async (w) => {
-      const domImg = w.querySelector("img");
-      const src    = domImg.getAttribute("src");
-      const x      = parseFloat(w.getAttribute("data-x")) || 0;
-      const y      = parseFloat(w.getAttribute("data-y")) || 0;
-      const scale  = w.scale || 1;
-      const angle  = w.angle || 0;
-      const domW   = domImg.naturalWidth  || domImg.width  || 150;
-      const domH   = domImg.naturalHeight || domImg.height || 150;
-
-      if (/\.gif(?:[?#].*)?$/i.test(src)) {
-        const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-        const gif  = window.__gif_parseGIF(ab);
-        const frs  = window.__gif_decompressFrames(gif, true);
-        const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-        const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-        return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH };
-      } else {
-        const bmp = await loadImage(src);
-        return { kind: "static", img: bmp, x, y, scale, angle, domW, domH };
-      }
-    }));
-
-    // encoder
-    const enc = new GIFEncoder();
-    enc.setRepeat(0);
-    enc.setDelay(FRAME_MS);
-    enc.setQuality(10);
-    enc.start();
-
-    // render loop
-    for (let i = 0; i < TOTAL; i++) {
-      if (CANCELLED) break;
-
-      ctx.clearRect(0, 0, W, H);
-      if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
-
-      for (const s of stickers) {
-        ctx.save();
-        ctx.translate(s.x, s.y);
-        ctx.rotate((s.angle || 0) * Math.PI / 180);
-        ctx.scale(s.scale || 1, s.scale || 1);
-
-        if (s.kind === "static") {
-          ctx.drawImage(s.img, 0, 0, s.domW, s.domH);
-        } else {
-          const elapsed = i * FRAME_MS;
-          const mod     = elapsed % s.totalDur;
-          let acc = 0, idx = 0;
-          for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-          const f = s.frames[idx % s.frames.length];
-
-          if (f.disposalType === 2) {
-            ctx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
-          }
-
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width; pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          ctx.drawImage(pc, f.dims.left, f.dims.top);
-        }
-        ctx.restore();
-      }
-
-      enc.addFrame(ctx);
-      progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
-      await sleep(FRAME_MS);
-    }
-
-    // finish / cancel
-    if (!CANCELLED) {
-      enc.finish();
-      const binary = enc.stream().getData();
-      const url = "data:image/gif;base64," + btoa(binary);
-      const a = document.createElement("a");
-      a.href = url; a.download = "banner.gif"; a.click();
-      progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
-    } else {
-      progEl.textContent = "Cancelled.";
-    }
-
-    // unlock UI
-    btnPNG.disabled = false;
-    btnGIF.disabled = false;
-    btnCancel.style.display = "none";
-
-    // helpers
-    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-    function loadImage(url) {
-      return new Promise((res, rej) => {
-        if (!url) return res(null);
-        const im = new Image();
-        im.crossOrigin = "anonymous";
-        im.onload = () => res(im);
-        im.onerror = rej;
-        im.src = url;
-      });
-    }
-  });
+  // Attach your existing PNG/GIF logic to these buttons.
+  // sure it references these IDs (it does).
+  // IMPORTANT: remove any old, page-load-time bindings (step 3).
 }
+
+
+// shared cancel flag
+let EXPORT_CANCELLED = false;
+btnCancel?.addEventListener("click", () => { EXPORT_CANCELLED = true; });
+
+//------------------------------------------------------
+// PNG EXPORT (unchanged logic; uses html2canvas)
+//------------------------------------------------------
+btnPNG?.addEventListener("click", async () => {
+  const stage = document.getElementById("stage");
+  const canvas = await html2canvas(stage, {
+    width: STAGE_W,
+    height: STAGE_H,
+    scale: 1,
+    useCORS: true,
+    backgroundColor: null
+  });
+  const link = document.createElement("a");
+  link.download = "banner.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+});
+
+//------------------------------------------------------
+// GIF EXPORT — working logic + FPS/DUR + progress/cancel
+// deps loaded before app.js:
+//   - __gif_parseGIF / __gif_decompressFrames (gifuct-js via ESM shim)
+//   - GIFEncoder (jsgif: LZWEncoder.js + NeuQuant.js + GIFEncoder.js)
+//------------------------------------------------------
+document.getElementById("export-gif").addEventListener("click", async () => {
+  if (typeof window.__gif_parseGIF !== "function" ||
+      typeof window.__gif_decompressFrames !== "function") {
+    console.error("gifuct-js not loaded"); return;
+  }
+  if (typeof GIFEncoder !== "function") {
+    console.error("jsgif not loaded"); return;
+  }
+
+  // UI bits (must exist in your Export panel)
+  const fpsInput = document.getElementById("gif-fps");
+  const durInput = document.getElementById("gif-duration");
+  const progEl   = document.getElementById("export-progress");
+  const btnPNG   = document.getElementById("export-png");
+  const btnGIF   = document.getElementById("export-gif");
+  const btnCancel= document.getElementById("export-cancel");
+
+  // options
+  const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
+  const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
+  const TOTAL = FPS * DURATION_S;
+  const FRAME_MS = Math.round(1000 / FPS);
+
+  // lock UI
+  let CANCELLED = false;
+  if (btnPNG) btnPNG.disabled = true;
+  if (btnGIF) btnGIF.disabled = true;
+  if (btnCancel) { btnCancel.style.display = "inline-block"; btnCancel.onclick = () => { CANCELLED = true; }; }
+  if (progEl) progEl.textContent = `Preloading… 0/${TOTAL}`;
+
+  // stage + buffer
+  const stage = document.getElementById("stage");
+  const W = STAGE_W;
+  const H = STAGE_H;
+
+  const buf  = document.createElement("canvas");
+  buf.width  = W; buf.height = H;
+  const ctx  = buf.getContext("2d", { willReadFrequently: true });
+
+  // background (inline url("..."))
+  const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+  const bgURL   = bgMatch ? bgMatch[1] : null;
+  const bgImg   = bgURL ? await loadImage(bgURL) : null;
+
+  // collect stickers now
+  const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
+
+  // preload (unchanged logic you had)
+  const stickers = await Promise.all(wrappers.map(async (w) => {
+    const domImg = w.querySelector("img");
+    const src    = domImg.getAttribute("src");
+    const x      = parseFloat(w.getAttribute("data-x")) || 0;
+    const y      = parseFloat(w.getAttribute("data-y")) || 0;
+    const scale  = w.scale || 1;
+    const angle  = w.angle || 0;
+    const domW   = domImg.naturalWidth  || domImg.width  || 150;
+    const domH   = domImg.naturalHeight || domImg.height || 150;
+
+    if (/\.gif(?:[?#].*)?$/i.test(src)) {
+      const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+      const gif  = window.__gif_parseGIF(ab);
+      const frs  = window.__gif_decompressFrames(gif, true); // [{patch, dims, delay, disposalType}, ...]
+      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+      const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
+      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH };
+    } else {
+      const bmp = await loadImage(src);
+      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH };
+    }
+  }));
+
+  // encoder (unchanged)
+  const enc = new GIFEncoder();
+  enc.setRepeat(0);
+  enc.setDelay(FRAME_MS);
+  enc.setQuality(10);
+  enc.start();
+
+  // render loop (unchanged drawing logic)
+  for (let i = 0; i < TOTAL; i++) {
+    if (CANCELLED) break;
+
+    ctx.clearRect(0, 0, W, H);
+    if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
+
+    for (const s of stickers) {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate((s.angle || 0) * Math.PI / 180);
+      ctx.scale(s.scale || 1, s.scale || 1);
+
+      if (s.kind === "static") {
+        ctx.drawImage(s.img, 0, 0, s.domW, s.domH);
+      } else {
+        const elapsed = i * FRAME_MS;
+        const mod     = elapsed % s.totalDur;
+        let acc = 0, idx = 0;
+        for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
+        const f = s.frames[idx % s.frames.length];
+
+        if (f.disposalType === 2) {
+          ctx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
+        }
+
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width; pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        ctx.drawImage(pc, f.dims.left, f.dims.top);
+      }
+      ctx.restore();
+    }
+
+    enc.addFrame(ctx);
+    if (progEl) progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
+    await sleep(FRAME_MS);
+  }
+
+  // finish / cancel
+  if (!CANCELLED) {
+    enc.finish();
+    const binary = enc.stream().getData(); // binary string
+    const url = "data:image/gif;base64," + btoa(binary);
+    const a = document.createElement("a");
+    a.href = url; a.download = "banner.gif"; a.click();
+    if (progEl) progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
+  } else {
+    if (progEl) progEl.textContent = "Cancelled.";
+  }
+
+  // unlock UI
+  if (btnPNG) btnPNG.disabled = false;
+  if (btnGIF) btnGIF.disabled = false;
+  if (btnCancel) btnCancel.style.display = "none";
+
+  // helpers
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  function loadImage(url) {
+    return new Promise((res, rej) => {
+      if (!url) return res(null);
+      const im = new Image();
+      im.crossOrigin = "anonymous";
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+  }
+});
