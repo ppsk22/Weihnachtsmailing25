@@ -926,8 +926,14 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
 
 
     stage.appendChild(wrapper);
-	wrapper.style.zIndex = STICKER_Z_MIN;   // ensure it’s inside the sticker range
-	bringStickerToFront(wrapper);           // new sticker starts on top of stickers
+	
+	// Heroes get higher z-index (above stickers) and don't participate in z-order shuffling
+	if (isHero) {
+	    wrapper.style.zIndex = 2000;  // hero layer above stickers (100-999)
+	} else {
+	    wrapper.style.zIndex = STICKER_Z_MIN;
+	    bringStickerToFront(wrapper);
+	}
 
 	// normalize initial scale and position once image size is known
 	wrapper.scale = clampStickerScale(wrapper.scale);
