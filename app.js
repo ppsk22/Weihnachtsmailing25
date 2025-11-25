@@ -620,7 +620,7 @@ function wireExportControls(){
 
     const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
-    // preload stickers and calculate their center positions for rendering
+    // preload stickers - keep top-left coordinates to match CSS transform
     const stickers = await Promise.all(wrappers.map(async (w) => {
       const domImg = w.querySelector("img");
       const src    = domImg.getAttribute("src");
@@ -631,11 +631,9 @@ function wireExportControls(){
       const domW   = domImg.naturalWidth  || domImg.width  || 150;
       const domH   = domImg.naturalHeight || domImg.height || 150;
       
-      // Calculate center position for canvas rendering
+      // Get base dimensions to match CSS transform-origin: center behavior
       const baseW = parseFloat(domImg.style.width) || 150;
       const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
-      const cx = x + baseW / 2;  // center x
-      const cy = y + baseH / 2;  // center y
 
       if (/\.gif(?:[?#].*)?$/i.test(src)) {
         const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
@@ -643,10 +641,10 @@ function wireExportControls(){
         const frs  = window.__gif_decompressFrames(gif, true);
         const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
         const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-        return { kind: "anim", frames: frs, delays, totalDur, cx, cy, scale, angle, domW, domH };
+        return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH };
       } else {
         const bmp = await loadImage(src);
-        return { kind: "static", img: bmp, cx, cy, scale, angle, domW, domH };
+        return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH };
       }
     }));
 
@@ -664,11 +662,15 @@ function wireExportControls(){
 
       for (const s of stickers) {
         ctx.save();
-        ctx.translate(s.cx, s.cy);  // translate to center
+        // Match CSS: translate(x, y) scale(s) rotate(r) with transform-origin: center
+        // Step 1: translate to top-left position
+        ctx.translate(s.x, s.y);
+        // Step 2: move to element's center (transform-origin: center)
+        ctx.translate(s.baseW / 2, s.baseH / 2);
+        // Step 3: apply rotation and scale (now around center)
         ctx.rotate((s.angle || 0) * Math.PI / 180);
         ctx.scale(s.scale || 1, s.scale || 1);
-        
-        // Draw from center, so offset by half dimensions
+        // Step 4: draw offset so center is at origin
         const offsetX = -s.domW / 2;
         const offsetY = -s.domH / 2;
 
