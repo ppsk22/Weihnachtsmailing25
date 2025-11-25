@@ -3,9 +3,9 @@
   /* set these; your JS also overrides --stage-w/--stage-h at runtime */
   --stage-w: 1200px;          /* or 600px */
   --stage-h: 600px;           /* or 300px */
-  --sidebar-w: 80px;
+  --sidebar-w: 240px;         /* increased to 240px for 2:1 editor ratio */
   --panel-w: 200px;
-  --stickerbar-h: 100px;
+  --stickerbar-h: 120px;      /* comfortable height for mobile tapping */
   --stage-bg: #fff;
   
   /* frame size derived from parts */
@@ -55,30 +55,42 @@ body {
   min-height: calc(var(--stage-h) + var(--stickerbar-h));
 }
 
-/* Sidebar occupies left column, only the stage row (not the sticker bar row) */
+/* Sidebar occupies left column, spanning both rows */
 #sidebar{
   grid-column: 1;
-  grid-row: 1 / -1;          /* or 1 / span 2 */
+  grid-row: 1 / 3;           /* span both rows - full height */
   width: var(--sidebar-w);
-  height: auto;              /* let grid set the full height */
   background: #222;
   color: #fff;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 8px;
+  padding: 30px 0;           /* padding top and bottom */
   box-sizing: border-box;
-  overflow: hidden; /* fixed width, no reflow */
+  overflow: hidden;
+  border-right: 2px solid #fff; /* white line on sidebar's right side */
 }
 
 .category{
-  padding: 10px;
-  background: #333;
+  flex: 1;                   /* each button takes equal space */
+  padding: 0;
+  background: transparent;   /* no button background */
   cursor: pointer;
   text-align: center;
   user-select: none;
-  border: none;
-  color: #fff;
+  border: none;              /* no borders between buttons */
+  color: rgba(255, 255, 255, 0.4); /* grey/transparent numbers */
+  font-size: 28px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;    /* smooth transition */
+}
+
+.category:hover,
+.category.active {
+  background: transparent;   /* keep transparent on hover */
+  color: rgba(255, 255, 255, 1); /* fully white on hover or when active */
 }
 
 /* Export buttons */
@@ -120,6 +132,7 @@ body {
   position: relative;
   width: var(--stage-w);
   height: var(--stage-h);
+  box-sizing: border-box;
 }
 
 /* Stage: fixed box; never flexes, never covered */
@@ -127,12 +140,12 @@ body {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #000;
+  background: #000;          /* pure black for stage */
   background-size: cover;
   background-position: center;
   overflow: hidden;
   box-sizing: border-box;
-  z-index: 1;                  /* under the overlay */
+  z-index: 1;
 }
 
 /* overlay that floats above stage, with margin from edges */
@@ -204,11 +217,12 @@ body.modal-open #sticker-bar * {
   grid-column: 2;
   grid-row: 2;
   height: var(--stickerbar-h);
-  background: #ddd;
+  background: #2a2a2a;       /* dark gray, different from sidebar (#222) and stage (#000) */
+  border-top: 2px solid #fff; /* white line between stage and sticker bar */
   display: flex;
-  gap: 10px;
+  gap: 16px;                 /* comfortable spacing */
   align-items: center;
-  padding: 10px;
+  padding: 14px;             /* comfortable padding */
   overflow-x: auto;
   box-sizing: border-box;
 }
@@ -216,10 +230,12 @@ body.modal-open #sticker-bar * {
 /* Sticker thumbnails */
 .sticker-src{
   z-index: 100;
-  height: 60px;
+  height: 80px;              /* comfortable size for tapping */
   cursor: grab;
   user-drag: none;
   -webkit-user-drag: none;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 /* STICKER WRAPPER */
@@ -256,11 +272,11 @@ body.modal-open #sticker-bar * {
 /* SCALE HANDLE (with larger invisible hit area + glyph) */
 .scale-handle{
   position:absolute;
-  width:18px; height:18px;
-  bottom:-12px; right:-12px;
+  width:32px; height:32px;   /* increased from 18px for touch */
+  bottom:-16px; right:-16px;
   background:#fff;
   border:2px solid #000;
-  border-radius:3px;
+  border-radius:4px;
   z-index:2;
   pointer-events:auto;
 }
@@ -268,7 +284,7 @@ body.modal-open #sticker-bar * {
 .scale-handle::before{
   content:"";
   position:absolute;
-  inset:-5px;
+  inset:-8px;                /* larger touch area */
   cursor: se-resize;
 }
 
@@ -277,7 +293,7 @@ body.modal-open #sticker-bar * {
   position:absolute;
   left:50%; top:50%;
   transform:translate(-50%,-50%);
-  font-size:12px;
+  font-size:16px;            /* larger icon */
   line-height:1;
   color:#000;
   text-shadow:0 1px 0 #fff;
@@ -291,8 +307,8 @@ body.modal-open #sticker-bar * {
 /* ROTATE HANDLE (with larger invisible hit area + glyph) */
 .rot-handle{
   position:absolute;
-  width:18px; height:18px;
-  top:-24px; left:50%;
+  width:32px; height:32px;   /* increased from 18px for touch */
+  top:-40px; left:50%;       /* moved up more for space */
   transform:translateX(-50%);
   background:#fff;
   border:2px solid #000;
@@ -305,7 +321,7 @@ body.modal-open #sticker-bar * {
 .rot-handle::before{
   content:"";
   position:absolute;
-  inset:-14px;
+  inset:-16px;               /* larger touch area */
   cursor: grab;
 }
 
@@ -313,6 +329,14 @@ body.modal-open #sticker-bar * {
   content:"↻";
   position:absolute;
   left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  font-size:16px;            /* larger icon */
+  line-height:1;
+  color:#000;
+  text-shadow:0 1px 0 #fff;
+  pointer-events:none;
+  opacity:.5;
+}
   transform:translate(-50%,-50%);
   font-size:12px;
   line-height:1;
@@ -339,15 +363,21 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   bottom: 8px;
   width: 32px;
   height: 32px;
-  border: none;
+  border: 2px solid #fff;    /* white outline */
   border-radius: 6px;
-  background: #222;
+  background: #222;          /* dark like before */
   color: #fff;
-  opacity: .85;
+  opacity: 1;                /* fully opaque */
   cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.fs-btn-inbar:hover{ opacity: 1; }
+.fs-btn-inbar:hover{ 
+  background: #333;          /* slightly lighter on hover */
+}
 
 /* Future non-sticker layers that must sit above stickers */
 .headline-layer,

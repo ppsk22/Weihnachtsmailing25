@@ -15,6 +15,11 @@ function closePopup(){
   popup.innerHTML = '';
   document.body.classList.remove('modal-open');
   
+  // Remove active state from all buttons
+  document.querySelectorAll('#sidebar .category').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
   // Re-enable interact.js
   document.querySelectorAll('.sticker-wrapper').forEach(el => {
     if (el.interactable) el.interactable().draggable(true);
@@ -29,6 +34,15 @@ function openPopup(kind){
   overlay.classList.add('open');
   popup.innerHTML = '';
   document.body.classList.add('modal-open');
+  
+  // Set active state on the button that opened this popup
+  document.querySelectorAll('#sidebar .category').forEach(btn => {
+    if (btn.getAttribute('data-panel') === kind) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
   
   // Disable interact.js
   document.querySelectorAll('.sticker-wrapper').forEach(el => {
@@ -150,6 +164,55 @@ overlay.addEventListener('click', (e) => {
 
 // Stage starts black
 document.getElementById('stage').style.backgroundColor = '#000';
+
+//------------------------------------------------------
+// LANDSCAPE ORIENTATION FOR MOBILE
+//------------------------------------------------------
+function checkOrientation() {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isPortrait = window.innerHeight > window.innerWidth;
+  
+  if (isMobile && isPortrait) {
+    // Show rotation message
+    let rotateMsg = document.getElementById('rotate-message');
+    if (!rotateMsg) {
+      rotateMsg = document.createElement('div');
+      rotateMsg.id = 'rotate-message';
+      rotateMsg.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        z-index: 99999;
+        font-family: sans-serif;
+      `;
+      rotateMsg.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 20px;">↻</div>
+        <div style="font-size: 18px;">Please rotate your device</div>
+        <div style="font-size: 14px; opacity: 0.7; margin-top: 10px;">This app works best in landscape mode</div>
+      `;
+      document.body.appendChild(rotateMsg);
+    }
+    rotateMsg.style.display = 'flex';
+  } else {
+    const rotateMsg = document.getElementById('rotate-message');
+    if (rotateMsg) {
+      rotateMsg.style.display = 'none';
+    }
+  }
+}
+
+// Check on load and on orientation change
+checkOrientation();
+window.addEventListener('orientationchange', checkOrientation);
+window.addEventListener('resize', checkOrientation);
 
 
 //------------------------------------------------------
@@ -385,6 +448,8 @@ function setFsButton(isFull){
 fsBtn.addEventListener('click', async () => {
   try {
     if (!document.fullscreenElement) {
+      // Scroll to top before entering fullscreen to prevent offset issues on mobile
+      window.scrollTo(0, 0);
       await fsHost.requestFullscreen({ navigationUI: 'hide' });
     } else {
       await document.exitFullscreen();
@@ -418,9 +483,9 @@ document.documentElement.style.setProperty('--stage-w', STAGE_W + 'px');
 document.documentElement.style.setProperty('--stage-h', STAGE_H + 'px');
 
 // ---- STICKER SCALE LIMITS -------------------------------------------------
-const STICKER_MIN_PX   = 100;
+const STICKER_MIN_PX   = 120;             // increased from 100 for mobile
 const STICKER_MAX_FRAC = 0.9;             // 90% of min(stageW, stageH)
-const STICKER_BASE_W   = 150;             // your createStickerAt default
+const STICKER_BASE_W   = 250;             // increased from 200 for better visibility
 
 function stickerMinScale() {
   return Math.max(0.05, STICKER_MIN_PX / STICKER_BASE_W);
@@ -475,9 +540,9 @@ function clampStickerPosition(el){
 
 
 // logical dimensions (match your CSS tokens)
-const SIDEBAR_W = 80;
+const SIDEBAR_W = 240;           // increased to 240 for 2:1 editor ratio
 const PANEL_W = 200;
-const STICKERBAR_H = 100;
+const STICKERBAR_H = 120;        // comfortable height for mobile
 
 // reflect layout tokens into CSS (optional but consistent)
 document.documentElement.style.setProperty('--sidebar-w', SIDEBAR_W + 'px');
