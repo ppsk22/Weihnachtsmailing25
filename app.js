@@ -568,8 +568,12 @@ function wireExportControls(){
   btnPNG.addEventListener("click", async () => {
     const stage = document.getElementById("stage");
     const canvas = await html2canvas(stage, {
+      x: 0,
+      y: 0,
       width: STAGE_W,
       height: STAGE_H,
+      windowWidth: STAGE_W,
+      windowHeight: STAGE_H,
       scale: 1,
       useCORS: true,
       backgroundColor: null
@@ -670,12 +674,12 @@ function wireExportControls(){
         // Step 3: apply rotation and scale (now around center)
         ctx.rotate((s.angle || 0) * Math.PI / 180);
         ctx.scale(s.scale || 1, s.scale || 1);
-        // Step 4: draw offset so center is at origin
-        const offsetX = -s.domW / 2;
-        const offsetY = -s.domH / 2;
+        // Step 4: draw using BASE dimensions (CSS-sized), offset so center is at origin
+        const offsetX = -s.baseW / 2;
+        const offsetY = -s.baseH / 2;
 
         if (s.kind === "static") {
-          ctx.drawImage(s.img, offsetX, offsetY, s.domW, s.domH);
+          ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
         } else {
           const elapsed = i * FRAME_MS;
           const mod     = elapsed % s.totalDur;
