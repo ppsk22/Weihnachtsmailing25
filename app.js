@@ -645,27 +645,35 @@ document.getElementById("export-gif").addEventListener("click", async () => {
   // collect stickers now
   const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
-  // preload (unchanged logic you had)
+  // preload stickers and calculate their center positions for rendering
   const stickers = await Promise.all(wrappers.map(async (w) => {
     const domImg = w.querySelector("img");
     const src    = domImg.getAttribute("src");
-    const x      = parseFloat(w.getAttribute("data-x")) || 0;
-    const y      = parseFloat(w.getAttribute("data-y")) || 0;
+    const x      = parseFloat(w.getAttribute("data-x")) || 0;  // top-left
+    const y      = parseFloat(w.getAttribute("data-y")) || 0;  // top-left
     const scale  = w.scale || 1;
     const angle  = w.angle || 0;
     const domW   = domImg.naturalWidth  || domImg.width  || 150;
     const domH   = domImg.naturalHeight || domImg.height || 150;
+    
+    // Calculate center position for canvas rendering
+    // With transform-origin: center, the visual center is at x + (domW * scale / 2), y + (domH * scale / 2)
+    // But for canvas, we need the center in unscaled space, then apply scale
+    const baseW = parseFloat(domImg.style.width) || 150;
+    const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
+    const cx = x + baseW / 2;  // center x
+    const cy = y + baseH / 2;  // center y
 
     if (/\.gif(?:[?#].*)?$/i.test(src)) {
       const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
       const gif  = window.__gif_parseGIF(ab);
-      const frs  = window.__gif_decompressFrames(gif, true); // [{patch, dims, delay, disposalType}, ...]
+      const frs  = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH };
+      return { kind: "anim", frames: frs, delays, totalDur, cx, cy, scale, angle, domW, domH };
     } else {
       const bmp = await loadImage(src);
-      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH };
+      return { kind: "static", img: bmp, cx, cy, scale, angle, domW, domH };
     }
   }));
 
@@ -685,12 +693,16 @@ document.getElementById("export-gif").addEventListener("click", async () => {
 
     for (const s of stickers) {
       ctx.save();
-      ctx.translate(s.x, s.y);
+      ctx.translate(s.cx, s.cy);  // translate to center
       ctx.rotate((s.angle || 0) * Math.PI / 180);
       ctx.scale(s.scale || 1, s.scale || 1);
+      
+      // Draw from center, so offset by half dimensions
+      const offsetX = -s.domW / 2;
+      const offsetY = -s.domH / 2;
 
       if (s.kind === "static") {
-        ctx.drawImage(s.img, 0, 0, s.domW, s.domH);
+        ctx.drawImage(s.img, offsetX, offsetY, s.domW, s.domH);
       } else {
         const elapsed = i * FRAME_MS;
         const mod     = elapsed % s.totalDur;
@@ -699,14 +711,14 @@ document.getElementById("export-gif").addEventListener("click", async () => {
         const f = s.frames[idx % s.frames.length];
 
         if (f.disposalType === 2) {
-          ctx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
+          ctx.clearRect(f.dims.left + offsetX, f.dims.top + offsetY, f.dims.width, f.dims.height);
         }
 
         const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
         const pc = document.createElement("canvas");
         pc.width = f.dims.width; pc.height = f.dims.height;
         pc.getContext("2d").putImageData(patch, 0, 0);
-        ctx.drawImage(pc, f.dims.left, f.dims.top);
+        ctx.drawImage(pc, f.dims.left + offsetX, f.dims.top + offsetY);
       }
       ctx.restore();
     }
