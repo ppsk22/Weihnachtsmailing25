@@ -33,8 +33,8 @@ body {
 /* viewport shell that centers the frame */
 #root{
   display:flex;
-  justify-content:flex-start;
-  align-items:flex-start;
+  justify-content:center;  /* center horizontally */
+  align-items:center;      /* center vertically */
   height:100vh;
   width:100vw;
   overflow:auto;
@@ -46,13 +46,17 @@ body {
   width: calc(var(--sidebar-w) + var(--stage-w));
   height: calc(var(--stage-h) + var(--stickerbar-h));
   transform: scale(var(--ui-scale));
-  transform-origin: top left;
+  transform-origin: center center;  /* center since app is centered */
   display: grid;
   grid-template-columns: var(--sidebar-w) var(--stage-w);
   grid-template-rows: var(--stage-h) var(--stickerbar-h);
   gap: 0;
   min-width: calc(var(--sidebar-w) + var(--stage-w));
   min-height: calc(var(--stage-h) + var(--stickerbar-h));
+  border: 8px solid #e0e0e0;    /* slightly grey outline */
+  border-radius: 16px;           /* rounded corners */
+  box-sizing: content-box;
+  overflow: hidden;             /* clip content to rounded corners */
 }
 
 /* Sidebar occupies left column, spanning both rows */

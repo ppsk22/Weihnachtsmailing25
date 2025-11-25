@@ -577,10 +577,17 @@ syncFullscreenUI();
 
 
 function updateUIScale(){
-  const frameW = SIDEBAR_W + STAGE_W;  // no panel anymore, using overlay
-  const frameH = STAGE_H + STICKERBAR_H;
-  const scaleW = window.innerWidth  / frameW;
-  const scaleH = window.innerHeight / frameH;
+  const BORDER_WIDTH = 8;  // 8px border on each side = 16px total width/height
+  const SCROLLBAR_BUFFER = 20;  // buffer for potential scrollbars
+  
+  const frameW = SIDEBAR_W + STAGE_W + (BORDER_WIDTH * 2);  // include borders
+  const frameH = STAGE_H + STICKERBAR_H + (BORDER_WIDTH * 2);  // include borders
+  
+  const availableW = window.innerWidth - SCROLLBAR_BUFFER;
+  const availableH = window.innerHeight - SCROLLBAR_BUFFER;
+  
+  const scaleW = availableW / frameW;
+  const scaleH = availableH / frameH;
   const fit    = Math.min(scaleW, scaleH);
   const s      = fit;  // allow scaling > 100% in all modes
   document.documentElement.style.setProperty('--ui-scale', String(s));
