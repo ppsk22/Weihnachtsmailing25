@@ -564,197 +564,166 @@ function wireExportControls(){
   // Update the readout
   fpsInput.addEventListener("input", () => { fpsVal.textContent = fpsInput.value; });
 
-  // Attach your existing PNG/GIF logic to these buttons.
-  // sure it references these IDs (it does).
-  // IMPORTANT: remove any old, page-load-time bindings (step 3).
-}
-
-
-// shared cancel flag
-let EXPORT_CANCELLED = false;
-btnCancel?.addEventListener("click", () => { EXPORT_CANCELLED = true; });
-
-//------------------------------------------------------
-// PNG EXPORT (unchanged logic; uses html2canvas)
-//------------------------------------------------------
-btnPNG?.addEventListener("click", async () => {
-  const stage = document.getElementById("stage");
-  const canvas = await html2canvas(stage, {
-    width: STAGE_W,
-    height: STAGE_H,
-    scale: 1,
-    useCORS: true,
-    backgroundColor: null
-  });
-  const link = document.createElement("a");
-  link.download = "banner.png";
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-});
-
-//------------------------------------------------------
-// GIF EXPORT — working logic + FPS/DUR + progress/cancel
-// deps loaded before app.js:
-//   - __gif_parseGIF / __gif_decompressFrames (gifuct-js via ESM shim)
-//   - GIFEncoder (jsgif: LZWEncoder.js + NeuQuant.js + GIFEncoder.js)
-//------------------------------------------------------
-document.getElementById("export-gif").addEventListener("click", async () => {
-  if (typeof window.__gif_parseGIF !== "function" ||
-      typeof window.__gif_decompressFrames !== "function") {
-    console.error("gifuct-js not loaded"); return;
-  }
-  if (typeof GIFEncoder !== "function") {
-    console.error("jsgif not loaded"); return;
-  }
-
-  // UI bits (must exist in your Export panel)
-  const fpsInput = document.getElementById("gif-fps");
-  const durInput = document.getElementById("gif-duration");
-  const progEl   = document.getElementById("export-progress");
-  const btnPNG   = document.getElementById("export-png");
-  const btnGIF   = document.getElementById("export-gif");
-  const btnCancel= document.getElementById("export-cancel");
-
-  // options
-  const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
-  const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
-  const TOTAL = FPS * DURATION_S;
-  const FRAME_MS = Math.round(1000 / FPS);
-
-  // lock UI
-  let CANCELLED = false;
-  if (btnPNG) btnPNG.disabled = true;
-  if (btnGIF) btnGIF.disabled = true;
-  if (btnCancel) { btnCancel.style.display = "inline-block"; btnCancel.onclick = () => { CANCELLED = true; }; }
-  if (progEl) progEl.textContent = `Preloading… 0/${TOTAL}`;
-
-  // stage + buffer
-  const stage = document.getElementById("stage");
-  const W = STAGE_W;
-  const H = STAGE_H;
-
-  const buf  = document.createElement("canvas");
-  buf.width  = W; buf.height = H;
-  const ctx  = buf.getContext("2d", { willReadFrequently: true });
-
-  // background (inline url("..."))
-  const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
-  const bgURL   = bgMatch ? bgMatch[1] : null;
-  const bgImg   = bgURL ? await loadImage(bgURL) : null;
-
-  // collect stickers now
-  const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
-
-  // preload stickers and calculate their center positions for rendering
-  const stickers = await Promise.all(wrappers.map(async (w) => {
-    const domImg = w.querySelector("img");
-    const src    = domImg.getAttribute("src");
-    const x      = parseFloat(w.getAttribute("data-x")) || 0;  // top-left
-    const y      = parseFloat(w.getAttribute("data-y")) || 0;  // top-left
-    const scale  = w.scale || 1;
-    const angle  = w.angle || 0;
-    const domW   = domImg.naturalWidth  || domImg.width  || 150;
-    const domH   = domImg.naturalHeight || domImg.height || 150;
-    
-    // Calculate center position for canvas rendering
-    // With transform-origin: center, the visual center is at x + (domW * scale / 2), y + (domH * scale / 2)
-    // But for canvas, we need the center in unscaled space, then apply scale
-    const baseW = parseFloat(domImg.style.width) || 150;
-    const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
-    const cx = x + baseW / 2;  // center x
-    const cy = y + baseH / 2;  // center y
-
-    if (/\.gif(?:[?#].*)?$/i.test(src)) {
-      const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-      const gif  = window.__gif_parseGIF(ab);
-      const frs  = window.__gif_decompressFrames(gif, true);
-      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-      const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, cx, cy, scale, angle, domW, domH };
-    } else {
-      const bmp = await loadImage(src);
-      return { kind: "static", img: bmp, cx, cy, scale, angle, domW, domH };
-    }
-  }));
-
-  // encoder (unchanged)
-  const enc = new GIFEncoder();
-  enc.setRepeat(0);
-  enc.setDelay(FRAME_MS);
-  enc.setQuality(10);
-  enc.start();
-
-  // render loop (unchanged drawing logic)
-  for (let i = 0; i < TOTAL; i++) {
-    if (CANCELLED) break;
-
-    ctx.clearRect(0, 0, W, H);
-    if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
-
-    for (const s of stickers) {
-      ctx.save();
-      ctx.translate(s.cx, s.cy);  // translate to center
-      ctx.rotate((s.angle || 0) * Math.PI / 180);
-      ctx.scale(s.scale || 1, s.scale || 1);
-      
-      // Draw from center, so offset by half dimensions
-      const offsetX = -s.domW / 2;
-      const offsetY = -s.domH / 2;
-
-      if (s.kind === "static") {
-        ctx.drawImage(s.img, offsetX, offsetY, s.domW, s.domH);
-      } else {
-        const elapsed = i * FRAME_MS;
-        const mod     = elapsed % s.totalDur;
-        let acc = 0, idx = 0;
-        for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-        const f = s.frames[idx % s.frames.length];
-
-        if (f.disposalType === 2) {
-          ctx.clearRect(f.dims.left + offsetX, f.dims.top + offsetY, f.dims.width, f.dims.height);
-        }
-
-        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-        const pc = document.createElement("canvas");
-        pc.width = f.dims.width; pc.height = f.dims.height;
-        pc.getContext("2d").putImageData(patch, 0, 0);
-        ctx.drawImage(pc, f.dims.left + offsetX, f.dims.top + offsetY);
-      }
-      ctx.restore();
-    }
-
-    enc.addFrame(ctx);
-    if (progEl) progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
-    await sleep(FRAME_MS);
-  }
-
-  // finish / cancel
-  if (!CANCELLED) {
-    enc.finish();
-    const binary = enc.stream().getData(); // binary string
-    const url = "data:image/gif;base64," + btoa(binary);
-    const a = document.createElement("a");
-    a.href = url; a.download = "banner.gif"; a.click();
-    if (progEl) progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
-  } else {
-    if (progEl) progEl.textContent = "Cancelled.";
-  }
-
-  // unlock UI
-  if (btnPNG) btnPNG.disabled = false;
-  if (btnGIF) btnGIF.disabled = false;
-  if (btnCancel) btnCancel.style.display = "none";
-
-  // helpers
-  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-  function loadImage(url) {
-    return new Promise((res, rej) => {
-      if (!url) return res(null);
-      const im = new Image();
-      im.crossOrigin = "anonymous";
-      im.onload = () => res(im);
-      im.onerror = rej;
-      im.src = url;
+  // PNG EXPORT
+  btnPNG.addEventListener("click", async () => {
+    const stage = document.getElementById("stage");
+    const canvas = await html2canvas(stage, {
+      width: STAGE_W,
+      height: STAGE_H,
+      scale: 1,
+      useCORS: true,
+      backgroundColor: null
     });
-  }
-});
+    const link = document.createElement("a");
+    link.download = "banner.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+
+  // GIF EXPORT
+  btnGIF.addEventListener("click", async () => {
+    if (typeof window.__gif_parseGIF !== "function" ||
+        typeof window.__gif_decompressFrames !== "function") {
+      console.error("gifuct-js not loaded"); 
+      alert("GIF library not loaded. Please refresh the page.");
+      return;
+    }
+    if (typeof GIFEncoder !== "function") {
+      console.error("jsgif not loaded"); 
+      alert("GIF encoder not loaded. Please refresh the page.");
+      return;
+    }
+
+    const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
+    const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
+    const TOTAL = FPS * DURATION_S;
+    const FRAME_MS = Math.round(1000 / FPS);
+
+    let CANCELLED = false;
+    btnPNG.disabled = true;
+    btnGIF.disabled = true;
+    btnCancel.style.display = "inline-block";
+    btnCancel.onclick = () => { CANCELLED = true; };
+    progEl.textContent = `Preloading… 0/${TOTAL}`;
+
+    const stage = document.getElementById("stage");
+    const W = STAGE_W;
+    const H = STAGE_H;
+
+    const buf  = document.createElement("canvas");
+    buf.width  = W; buf.height = H;
+    const ctx  = buf.getContext("2d", { willReadFrequently: true });
+
+    const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+    const bgURL   = bgMatch ? bgMatch[1] : null;
+    const bgImg   = bgURL ? await loadImage(bgURL) : null;
+
+    const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
+
+    // preload stickers and calculate their center positions for rendering
+    const stickers = await Promise.all(wrappers.map(async (w) => {
+      const domImg = w.querySelector("img");
+      const src    = domImg.getAttribute("src");
+      const x      = parseFloat(w.getAttribute("data-x")) || 0;  // top-left
+      const y      = parseFloat(w.getAttribute("data-y")) || 0;  // top-left
+      const scale  = w.scale || 1;
+      const angle  = w.angle || 0;
+      const domW   = domImg.naturalWidth  || domImg.width  || 150;
+      const domH   = domImg.naturalHeight || domImg.height || 150;
+      
+      // Calculate center position for canvas rendering
+      const baseW = parseFloat(domImg.style.width) || 150;
+      const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
+      const cx = x + baseW / 2;  // center x
+      const cy = y + baseH / 2;  // center y
+
+      if (/\.gif(?:[?#].*)?$/i.test(src)) {
+        const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+        const gif  = window.__gif_parseGIF(ab);
+        const frs  = window.__gif_decompressFrames(gif, true);
+        const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+        const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
+        return { kind: "anim", frames: frs, delays, totalDur, cx, cy, scale, angle, domW, domH };
+      } else {
+        const bmp = await loadImage(src);
+        return { kind: "static", img: bmp, cx, cy, scale, angle, domW, domH };
+      }
+    }));
+
+    const enc = new GIFEncoder();
+    enc.setRepeat(0);
+    enc.setDelay(FRAME_MS);
+    enc.setQuality(10);
+    enc.start();
+
+    for (let i = 0; i < TOTAL; i++) {
+      if (CANCELLED) break;
+
+      ctx.clearRect(0, 0, W, H);
+      if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
+
+      for (const s of stickers) {
+        ctx.save();
+        ctx.translate(s.cx, s.cy);  // translate to center
+        ctx.rotate((s.angle || 0) * Math.PI / 180);
+        ctx.scale(s.scale || 1, s.scale || 1);
+        
+        // Draw from center, so offset by half dimensions
+        const offsetX = -s.domW / 2;
+        const offsetY = -s.domH / 2;
+
+        if (s.kind === "static") {
+          ctx.drawImage(s.img, offsetX, offsetY, s.domW, s.domH);
+        } else {
+          const elapsed = i * FRAME_MS;
+          const mod     = elapsed % s.totalDur;
+          let acc = 0, idx = 0;
+          for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
+          const f = s.frames[idx % s.frames.length];
+
+          if (f.disposalType === 2) {
+            ctx.clearRect(f.dims.left + offsetX, f.dims.top + offsetY, f.dims.width, f.dims.height);
+          }
+
+          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+          const pc = document.createElement("canvas");
+          pc.width = f.dims.width; pc.height = f.dims.height;
+          pc.getContext("2d").putImageData(patch, 0, 0);
+          ctx.drawImage(pc, f.dims.left + offsetX, f.dims.top + offsetY);
+        }
+        ctx.restore();
+      }
+
+      enc.addFrame(ctx);
+      progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
+      await sleep(FRAME_MS);
+    }
+
+    if (!CANCELLED) {
+      enc.finish();
+      const binary = enc.stream().getData();
+      const url = "data:image/gif;base64," + btoa(binary);
+      const a = document.createElement("a");
+      a.href = url; a.download = "banner.gif"; a.click();
+      progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
+    } else {
+      progEl.textContent = "Cancelled.";
+    }
+
+    btnPNG.disabled = false;
+    btnGIF.disabled = false;
+    btnCancel.style.display = "none";
+
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+    function loadImage(url) {
+      return new Promise((res, rej) => {
+        if (!url) return res(null);
+        const im = new Image();
+        im.crossOrigin = "anonymous";
+        im.onload = () => res(im);
+        im.onerror = rej;
+        im.src = url;
+      });
+    }
+  });
+}
