@@ -662,7 +662,30 @@ function wireExportControls(){
       if (CANCELLED) break;
 
       ctx.clearRect(0, 0, W, H);
-      if (bgImg) ctx.drawImage(bgImg, 0, 0, W, H);
+      
+      // Draw background with "cover" behavior (like CSS background-size: cover)
+      if (bgImg) {
+        const imgRatio = bgImg.width / bgImg.height;
+        const canvasRatio = W / H;
+        
+        let drawW, drawH, drawX, drawY;
+        
+        if (imgRatio > canvasRatio) {
+          // Image is wider - fit to height
+          drawH = H;
+          drawW = H * imgRatio;
+          drawX = (W - drawW) / 2;
+          drawY = 0;
+        } else {
+          // Image is taller - fit to width
+          drawW = W;
+          drawH = W / imgRatio;
+          drawX = 0;
+          drawY = (H - drawH) / 2;
+        }
+        
+        ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+      }
 
       for (const s of stickers) {
         ctx.save();
@@ -681,21 +704,33 @@ function wireExportControls(){
         if (s.kind === "static") {
           ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
         } else {
+          // Animated GIF: need to scale frames from natural size to base size
           const elapsed = i * FRAME_MS;
           const mod     = elapsed % s.totalDur;
           let acc = 0, idx = 0;
           for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
           const f = s.frames[idx % s.frames.length];
 
+          // Create a temporary canvas for the full GIF frame at natural size
+          const fullGif = document.createElement("canvas");
+          fullGif.width = s.domW;
+          fullGif.height = s.domH;
+          const fullCtx = fullGif.getContext("2d");
+
           if (f.disposalType === 2) {
-            ctx.clearRect(f.dims.left + offsetX, f.dims.top + offsetY, f.dims.width, f.dims.height);
+            fullCtx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
           }
 
+          // Draw the patch at natural size
           const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
           const pc = document.createElement("canvas");
-          pc.width = f.dims.width; pc.height = f.dims.height;
+          pc.width = f.dims.width; 
+          pc.height = f.dims.height;
           pc.getContext("2d").putImageData(patch, 0, 0);
-          ctx.drawImage(pc, f.dims.left + offsetX, f.dims.top + offsetY);
+          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
+
+          // Now draw the full frame scaled to base dimensions
+          ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
         }
         ctx.restore();
       }
