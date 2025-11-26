@@ -221,6 +221,11 @@ overlay.addEventListener('click', (e) => {
   if (e.target === overlay) closePopup();
 });
 
+// Prevent clicks inside popup from closing overlay
+popup.addEventListener('click', (e) => {
+  e.stopPropagation();
+});
+
 // Stage starts black
 document.getElementById('stage').style.backgroundColor = '#000';
 
@@ -323,6 +328,10 @@ function showHeadlineGenerator(container, words) {
   function generateHeadline() {
     const shuffled = [...words].sort(() => Math.random() - 0.5);
     const text = shuffled.join(' ');
+    
+    // CLEAR all previous styles for true randomness!
+    preview.style.cssText = '';
+    preview.className = 'headline-preview';
     preview.textContent = text;
     
     // Apply TRASHY random styles! 🎉
@@ -367,7 +376,7 @@ function showHeadlineGenerator(container, words) {
     
     // Extra trashy effects!
     if (Math.random() > 0.8) preview.style.transform = `skewX(${Math.floor(Math.random() * 20 - 10)}deg)`;
-    if (Math.random() > 0.8) {  // 20% chance for background (more balanced!)
+    if (Math.random() > 0.9) {  // 10% chance for background (more rare!)
       preview.style.background = `linear-gradient(90deg, ${colors[Math.floor(Math.random() * colors.length)]}, ${colors[Math.floor(Math.random() * colors.length)]})`;
       preview.style.padding = '8px 16px';
       if (Math.random() > 0.5) preview.style.borderRadius = `${Math.floor(Math.random() * 20)}px`; // Random rounded corners!
@@ -547,6 +556,11 @@ function buildCompanyNameUI(container) {
   }
   
   function generateStyle() {
+    // CLEAR all previous styles for true randomness!
+    preview.style.cssText = '';
+    preview.className = 'company-preview';
+    preview.textContent = preview.dataset.companyName; // Restore text
+    
     const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff8800', '#8800ff', '#ff1493', '#00ff7f', '#ffa500'];
     const shadows = [
       '2px 2px 4px rgba(0,0,0,0.5)',
@@ -580,7 +594,7 @@ function buildCompanyNameUI(container) {
     
     // Extra trashy effects!
     if (Math.random() > 0.8) preview.style.transform = `skewX(${Math.floor(Math.random() * 20 - 10)}deg)`;
-    if (Math.random() > 0.8) {  // 20% chance for background (same as headline!)
+    if (Math.random() > 0.9) {  // 10% chance for background (more rare!)
       preview.style.background = `linear-gradient(90deg, ${colors[Math.floor(Math.random() * colors.length)]}, ${colors[Math.floor(Math.random() * colors.length)]})`;
       preview.style.padding = '8px 16px';
       if (Math.random() > 0.5) preview.style.borderRadius = `${Math.floor(Math.random() * 20)}px`; // Random rounded corners!
@@ -763,46 +777,129 @@ function buildCTAButtonUI(container) {
   }
   
   function generateTextStyle() {
-    const colors = ['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff'];
+    // Clear text styles only (keep button styles)
+    const currentBg = preview.style.background;
+    const currentBorderRadius = preview.style.borderRadius;
+    const currentBorder = preview.style.border;
+    const currentBoxShadow = preview.style.boxShadow;
+    const currentButtonTransform = preview.style.transform;
+    const currentText = preview.textContent;
+    
+    preview.style.cssText = '';
+    preview.className = 'cta-preview';
+    preview.textContent = currentText;
+    
+    // Restore button styles
+    preview.style.background = currentBg;
+    preview.style.borderRadius = currentBorderRadius;
+    preview.style.border = currentBorder;
+    preview.style.boxShadow = currentBoxShadow;
+    preview.style.transform = currentButtonTransform;
+    
+    const colors = ['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff1493', '#00ff7f', '#ffa500'];
     const shadows = [
       '2px 2px 4px rgba(0,0,0,0.8)',
       '0 0 5px rgba(255,255,255,0.8)',
       '1px 1px 2px rgba(0,0,0,0.5)',
+      '0 0 10px rgba(255,0,255,0.8)',
+      '3px 3px 0 #000',
+      '-2px -2px 0 #fff, 2px 2px 0 #000',
+      '0 0 15px rgba(255,255,0,0.8)',
       'none'
+    ];
+    
+    const fontFamilies = [
+      'Arial, sans-serif',
+      'Impact, fantasy',
+      'Comic Sans MS, cursive',
+      'Courier New, monospace',
+      'Georgia, serif',
+      'Brush Script MT, cursive',
+      'Verdana, sans-serif'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
     preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
-    preview.style.fontWeight = Math.random() > 0.5 ? 'bold' : 'normal';
-    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : 'none';
+    preview.style.fontWeight = Math.random() > 0.3 ? 'bold' : 'normal';
+    preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
+    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : (Math.random() > 0.7 ? 'lowercase' : 'none');
+    preview.style.fontFamily = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
+    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 6) - 1 + 'px') : 'normal';
+    
+    // Extra trashy text effects!
+    if (Math.random() > 0.85) preview.style.webkitTextStroke = `${Math.floor(Math.random() * 2) + 1}px ${colors[Math.floor(Math.random() * colors.length)]}`;
+    if (Math.random() > 0.9) preview.style.textDecoration = 'underline';
     
     preview.dataset.ctaTextColor = preview.style.color;
     preview.dataset.ctaTextShadow = preview.style.textShadow;
     preview.dataset.ctaTextWeight = preview.style.fontWeight;
+    preview.dataset.ctaTextStyle = preview.style.fontStyle;
     preview.dataset.ctaTextTransform = preview.style.textTransform;
+    preview.dataset.ctaTextFontFamily = preview.style.fontFamily;
+    preview.dataset.ctaTextLetterSpacing = preview.style.letterSpacing;
+    preview.dataset.ctaTextStroke = preview.style.webkitTextStroke || 'none';
+    preview.dataset.ctaTextDecoration = preview.style.textDecoration || 'none';
   }
   
   function generateButtonStyle() {
-    const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff'];
+    // Clear button styles only (keep text styles)
+    const currentColor = preview.style.color;
+    const currentTextShadow = preview.style.textShadow;
+    const currentFontWeight = preview.style.fontWeight;
+    const currentFontStyle = preview.style.fontStyle;
+    const currentTextTransform = preview.style.textTransform;
+    const currentFontFamily = preview.style.fontFamily;
+    const currentLetterSpacing = preview.style.letterSpacing;
+    const currentTextStroke = preview.style.webkitTextStroke;
+    const currentTextDecoration = preview.style.textDecoration;
+    const currentText = preview.textContent;
+    
+    preview.style.cssText = '';
+    preview.className = 'cta-preview';
+    preview.textContent = currentText;
+    
+    // Restore text styles
+    preview.style.color = currentColor;
+    preview.style.textShadow = currentTextShadow;
+    preview.style.fontWeight = currentFontWeight;
+    preview.style.fontStyle = currentFontStyle;
+    preview.style.textTransform = currentTextTransform;
+    preview.style.fontFamily = currentFontFamily;
+    preview.style.letterSpacing = currentLetterSpacing;
+    preview.style.webkitTextStroke = currentTextStroke;
+    preview.style.textDecoration = currentTextDecoration;
+    
+    const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493', '#ffa500', '#00ff7f', '#ffff00'];
     const gradients = [
-      `linear-gradient(135deg, ${bgColors[0]}, ${bgColors[1]})`,
-      `linear-gradient(90deg, ${bgColors[2]}, ${bgColors[3]})`,
-      `radial-gradient(circle, ${bgColors[4]}, ${bgColors[5]})`,
+      `linear-gradient(135deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
+      `linear-gradient(90deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
+      `linear-gradient(45deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
+      `radial-gradient(circle, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
+      `linear-gradient(180deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
       bgColors[Math.floor(Math.random() * bgColors.length)]
     ];
     
-    const borderRadii = ['0px', '8px', '20px', '50px', '50%'];
+    const borderRadii = ['0px', '4px', '8px', '12px', '20px', '30px', '50px', '50%'];
     const borders = [
       '2px solid #fff',
       '3px solid #000',
       '4px solid rgba(255,255,255,0.5)',
+      `3px solid ${bgColors[Math.floor(Math.random() * bgColors.length)]}`,
+      '2px dashed #fff',
+      '3px dotted #000',
+      `4px double ${bgColors[Math.floor(Math.random() * bgColors.length)]}`,
       'none'
     ];
     const boxShadows = [
       '0 4px 8px rgba(0,0,0,0.3)',
       '0 8px 16px rgba(0,0,0,0.5)',
       '0 0 20px rgba(255,255,255,0.5)',
+      '0 0 30px rgba(255,0,255,0.6)',
       'inset 0 2px 4px rgba(255,255,255,0.3)',
+      '5px 5px 0 #000',
+      '0 0 15px rgba(0,255,255,0.8)',
+      '-3px -3px 0 #fff, 3px 3px 0 #000',
+      '0 10px 20px rgba(0,0,0,0.4)',
       'none'
     ];
     
@@ -816,10 +913,17 @@ function buildCTAButtonUI(container) {
     preview.style.border = border;
     preview.style.boxShadow = boxShadow;
     
+    // Extra trashy button effects!
+    let transform = 'none';
+    if (Math.random() > 0.85) transform = `rotate(${Math.floor(Math.random() * 10 - 5)}deg)`;
+    if (Math.random() > 0.9) transform = `skew(${Math.floor(Math.random() * 10 - 5)}deg, ${Math.floor(Math.random() * 10 - 5)}deg)`;
+    preview.style.transform = transform;
+    
     preview.dataset.ctaBg = bg;
     preview.dataset.ctaBorderRadius = borderRadius;
     preview.dataset.ctaBorder = border;
     preview.dataset.ctaBoxShadow = boxShadow;
+    preview.dataset.ctaTransform = transform;
   }
   
   function regenerateAll() {
@@ -839,11 +943,17 @@ function buildCTAButtonUI(container) {
       preview.dataset.ctaTextColor,
       preview.dataset.ctaTextShadow,
       preview.dataset.ctaTextWeight,
+      preview.dataset.ctaTextStyle,
       preview.dataset.ctaTextTransform,
+      preview.dataset.ctaTextFontFamily,
+      preview.dataset.ctaTextLetterSpacing,
+      preview.dataset.ctaTextStroke,
+      preview.dataset.ctaTextDecoration,
       preview.dataset.ctaBg,
       preview.dataset.ctaBorderRadius,
       preview.dataset.ctaBorder,
-      preview.dataset.ctaBoxShadow
+      preview.dataset.ctaBoxShadow,
+      preview.dataset.ctaTransform
     );
     closePopup();
   });
@@ -868,7 +978,7 @@ function buildCTAButtonUI(container) {
   regenerateAll();
 }
 
-function spawnCTAButton(text, textColor, textShadow, textWeight, textTransform, bg, borderRadius, border, boxShadow) {
+function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, boxShadow, buttonTransform) {
   const stage = document.getElementById('stage');
   
   // Remove existing CTA button if any
@@ -889,11 +999,17 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textTransform, 
   buttonEl.style.color = textColor;
   buttonEl.style.textShadow = textShadow;
   buttonEl.style.fontWeight = textWeight;
+  buttonEl.style.fontStyle = textStyle;
   buttonEl.style.textTransform = textTransform;
+  buttonEl.style.fontFamily = textFontFamily;
+  buttonEl.style.letterSpacing = textLetterSpacing;
+  if (textStroke !== 'none') buttonEl.style.webkitTextStroke = textStroke;
+  if (textDecoration !== 'none') buttonEl.style.textDecoration = textDecoration;
   buttonEl.style.background = bg;
   buttonEl.style.borderRadius = borderRadius;
   buttonEl.style.border = border;
   buttonEl.style.boxShadow = boxShadow;
+  if (buttonTransform !== 'none') buttonEl.style.transform = buttonTransform;
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -1238,7 +1354,11 @@ function makeInteractiveText(el, textClassName) {
                 el.setAttribute("data-y", y);
                 applyTransform(el);
             },
-            end(){ el.classList.remove("dragging"); }
+            end(){ 
+                el.classList.remove("dragging");
+                clampTextPosition(el);  // Clamp position when drag ends
+                applyTransform(el);
+            }
         }
     });
 
@@ -1359,6 +1479,33 @@ function clampStickerPosition(el){
   const baseH = (img && img.naturalWidth && img.naturalHeight)
     ? baseW * (img.naturalHeight / img.naturalWidth)
     : baseW;
+
+  // logical (unscaled) center
+  let cx = x + baseW / 2;
+  let cy = y + baseH / 2;
+
+  // clamp the center to the stage bounds in *logical* coords
+  if (cx < 0)        cx = 0;
+  if (cx > STAGE_W)  cx = STAGE_W;
+  if (cy < 0)        cy = 0;
+  if (cy > STAGE_H)  cy = STAGE_H;
+
+  // convert back to top-left (still unscaled)
+  x = cx - baseW / 2;
+  y = cy - baseH / 2;
+
+  el.setAttribute('data-x', x);
+  el.setAttribute('data-y', y);
+}
+
+function clampTextPosition(el){
+  // current translate (top-left in unscaled wrapper space)
+  let x = parseFloat(el.getAttribute('data-x')) || 0;
+  let y = parseFloat(el.getAttribute('data-y')) || 0;
+
+  // For text elements, use offsetWidth/offsetHeight (unscaled dimensions)
+  const baseW = el.offsetWidth;
+  const baseH = el.offsetHeight;
 
   // logical (unscaled) center
   let cx = x + baseW / 2;
