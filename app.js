@@ -35,6 +35,9 @@ function openPopup(kind){
   popup.innerHTML = '';
   document.body.classList.add('modal-open');
   
+  // Reset scroll position to top
+  overlay.scrollTop = 0;
+  
   // Set active state on the button that opened this popup
   document.querySelectorAll('#sidebar .category').forEach(btn => {
     if (btn.getAttribute('data-panel') === kind) {
@@ -134,7 +137,7 @@ function buildBGGrid(container){
   container.appendChild(wrap);
 }
 
-// Build Hero grid - uses #hero-data from HTML in random order
+// Build Hero grid - uses #hero-data from HTML in random order, no captions
 function buildHeroGrid(container){
   const source = Array.from(document.querySelectorAll('#hero-data .hero-option'));
   
@@ -156,12 +159,8 @@ function buildHeroGrid(container){
     img.alt = basename(url);
     thumb.appendChild(img);
 
-    const cap = document.createElement('div');
-    cap.className = 'bg-caption';
-    cap.textContent = basename(url);
-
     card.appendChild(thumb);
-    card.appendChild(cap);
+    // No caption added - just the image
     wrap.appendChild(card);
 
     card.addEventListener('click', () => {
