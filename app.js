@@ -134,14 +134,18 @@ function buildBGGrid(container){
   container.appendChild(wrap);
 }
 
-// Build Hero grid - similar to BG grid but spawns hero on stage
+// Build Hero grid - uses #hero-data from HTML in random order
 function buildHeroGrid(container){
-  const source = document.querySelectorAll('#bg-data .bg-option'); // Use BG images for now
+  const source = Array.from(document.querySelectorAll('#hero-data .hero-option'));
+  
+  // Randomize the order
+  const shuffled = source.sort(() => Math.random() - 0.5);
+  
   const wrap = document.createElement('div');
   wrap.className = 'bg-grid';
 
-  source.forEach(opt => {
-    const url = opt.getAttribute('data-bg');
+  shuffled.forEach(opt => {
+    const url = opt.getAttribute('data-hero');
     const card = document.createElement('div');
     card.className = 'bg-card';
 
