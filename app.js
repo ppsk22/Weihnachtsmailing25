@@ -237,9 +237,9 @@ function spawnHero(imageUrl) {
     currentHero.remove();
   }
   
-  // Image is 150px wide (set in createStickerAt)
+  // Image is set to STICKER_BASE_W in createStickerAt (250px)
   // To center the image: top-left = stage_center - (image_size / 2)
-  const imageSize = 150;
+  const imageSize = 300;  // Bigger hero spawn!
   const centerX = (STAGE_W / 2) - (imageSize / 2);
   const centerY = (STAGE_H / 2) - (imageSize / 2);
   
@@ -325,20 +325,54 @@ function showHeadlineGenerator(container, words) {
     const text = shuffled.join(' ');
     preview.textContent = text;
     
-    // Apply random styles
-    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff'];
+    // Apply TRASHY random styles! 🎉
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff1493', '#00ff7f', '#ffa500', '#ff69b4'];
     const shadows = [
       '2px 2px 4px rgba(0,0,0,0.5)',
       '0 0 10px rgba(255,255,255,0.8)',
       '3px 3px 0 #000',
-      '0 0 20px rgba(255,0,0,0.5)'
+      '0 0 20px rgba(255,0,0,0.5)',
+      '5px 5px 10px rgba(0,0,0,0.8)',
+      '0 0 30px rgba(255,0,255,0.8)',
+      '-2px -2px 0 #fff, 2px 2px 0 #000',
+      '0 0 5px #fff, 0 0 10px #fff, 0 0 15px #ff00ff, 0 0 20px #ff00ff',
+      '1px 1px 0 #000, 2px 2px 0 #fff, 3px 3px 0 #000',
+      'inset 0 0 10px rgba(255,255,255,0.5)'
+    ];
+    
+    const transforms = [
+      'none',
+      'uppercase',
+      'lowercase',
+      'capitalize'
+    ];
+    
+    const fontFamilies = [
+      'Arial, sans-serif',
+      'Impact, fantasy',
+      'Comic Sans MS, cursive',
+      'Courier New, monospace',
+      'Georgia, serif',
+      'Brush Script MT, cursive'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
     preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
-    preview.style.fontWeight = Math.random() > 0.5 ? 'bold' : 'normal';
+    preview.style.fontWeight = Math.random() > 0.3 ? 'bold' : 'normal';
     preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
-    preview.style.textDecoration = Math.random() > 0.8 ? 'underline' : 'none';
+    preview.style.textDecoration = Math.random() > 0.8 ? 'underline' : 'none'; // Only underline, no line-through
+    preview.style.textTransform = transforms[Math.floor(Math.random() * transforms.length)];
+    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 8) - 2 + 'px') : 'normal';
+    preview.style.fontFamily = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
+    
+    // Extra trashy effects!
+    if (Math.random() > 0.8) preview.style.transform = `skewX(${Math.floor(Math.random() * 20 - 10)}deg)`;
+    if (Math.random() > 0.8) {  // 20% chance for background (more balanced!)
+      preview.style.background = `linear-gradient(90deg, ${colors[Math.floor(Math.random() * colors.length)]}, ${colors[Math.floor(Math.random() * colors.length)]})`;
+      preview.style.padding = '8px 16px';
+      if (Math.random() > 0.5) preview.style.borderRadius = `${Math.floor(Math.random() * 20)}px`; // Random rounded corners!
+    }
+    if (Math.random() > 0.85) preview.style.webkitTextStroke = `${Math.floor(Math.random() * 3)}px ${colors[Math.floor(Math.random() * colors.length)]}`;
     
     // Store the text for spawning
     preview.dataset.headlineText = text;
@@ -347,6 +381,14 @@ function showHeadlineGenerator(container, words) {
     preview.dataset.headlineWeight = preview.style.fontWeight;
     preview.dataset.headlineStyle = preview.style.fontStyle;
     preview.dataset.headlineDecoration = preview.style.textDecoration;
+    preview.dataset.headlineTransform = preview.style.textTransform;
+    preview.dataset.headlineLetterSpacing = preview.style.letterSpacing;
+    preview.dataset.headlineFontFamily = preview.style.fontFamily;
+    preview.dataset.headlineExtraTransform = preview.style.transform || 'none';
+    preview.dataset.headlineBackground = preview.style.background || 'none';
+    preview.dataset.headlineStroke = preview.style.webkitTextStroke || 'none';
+    preview.dataset.headlinePadding = preview.style.padding || 'none';
+    preview.dataset.headlineBorderRadius = preview.style.borderRadius || 'none';
   }
   
   regenBtn.addEventListener('click', generateHeadline);
@@ -358,7 +400,15 @@ function showHeadlineGenerator(container, words) {
       preview.dataset.headlineShadow,
       preview.dataset.headlineWeight,
       preview.dataset.headlineStyle,
-      preview.dataset.headlineDecoration
+      preview.dataset.headlineDecoration,
+      preview.dataset.headlineTransform,
+      preview.dataset.headlineLetterSpacing,
+      preview.dataset.headlineFontFamily,
+      preview.dataset.headlineExtraTransform,
+      preview.dataset.headlineBackground,
+      preview.dataset.headlineStroke,
+      preview.dataset.headlinePadding,
+      preview.dataset.headlineBorderRadius
     );
     closePopup();
   });
@@ -372,7 +422,7 @@ function showHeadlineGenerator(container, words) {
   generateHeadline();
 }
 
-function spawnHeadline(text, color, shadow, weight, style, decoration) {
+function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius) {
   const stage = document.getElementById('stage');
   
   // Remove existing headline if any
@@ -395,6 +445,14 @@ function spawnHeadline(text, color, shadow, weight, style, decoration) {
   textEl.style.fontWeight = weight;
   textEl.style.fontStyle = style;
   textEl.style.textDecoration = decoration;
+  textEl.style.textTransform = transform;
+  textEl.style.letterSpacing = letterSpacing;
+  textEl.style.fontFamily = fontFamily;
+  if (extraTransform !== 'none') textEl.style.transform = extraTransform;
+  if (background !== 'none') textEl.style.background = background;
+  if (stroke !== 'none') textEl.style.webkitTextStroke = stroke;
+  if (padding !== 'none') textEl.style.padding = padding;
+  if (borderRadius !== 'none') textEl.style.borderRadius = borderRadius;
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -489,21 +547,46 @@ function buildCompanyNameUI(container) {
   }
   
   function generateStyle() {
-    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff8800', '#8800ff'];
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff8800', '#8800ff', '#ff1493', '#00ff7f', '#ffa500'];
     const shadows = [
       '2px 2px 4px rgba(0,0,0,0.5)',
       '0 0 10px rgba(255,255,255,0.8)',
       '3px 3px 0 #000',
       '0 0 20px rgba(0,255,255,0.5)',
-      '4px 4px 8px rgba(0,0,0,0.7)'
+      '4px 4px 8px rgba(0,0,0,0.7)',
+      '0 0 30px rgba(255,255,0,0.8)',
+      '-3px -3px 0 #fff, 3px 3px 0 #000',
+      '0 0 5px #fff, 0 0 15px #ff00ff',
+      '2px 2px 0 #000, 4px 4px 0 #fff'
+    ];
+    
+    const fontFamilies = [
+      'Arial, sans-serif',
+      'Impact, fantasy',
+      'Comic Sans MS, cursive',
+      'Courier New, monospace',
+      'Georgia, serif',
+      'Brush Script MT, cursive',
+      'Times New Roman, serif'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
     preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
-    preview.style.fontWeight = Math.random() > 0.5 ? 'bold' : 'normal';
+    preview.style.fontWeight = Math.random() > 0.3 ? 'bold' : 'normal';
     preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
-    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : 'none';
-    preview.style.letterSpacing = Math.random() > 0.5 ? '2px' : 'normal';
+    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : (Math.random() > 0.7 ? 'lowercase' : 'none');
+    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 10) - 2 + 'px') : 'normal';
+    preview.style.fontFamily = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
+    
+    // Extra trashy effects!
+    if (Math.random() > 0.8) preview.style.transform = `skewX(${Math.floor(Math.random() * 20 - 10)}deg)`;
+    if (Math.random() > 0.8) {  // 20% chance for background (same as headline!)
+      preview.style.background = `linear-gradient(90deg, ${colors[Math.floor(Math.random() * colors.length)]}, ${colors[Math.floor(Math.random() * colors.length)]})`;
+      preview.style.padding = '8px 16px';
+      if (Math.random() > 0.5) preview.style.borderRadius = `${Math.floor(Math.random() * 20)}px`; // Random rounded corners!
+    }
+    if (Math.random() > 0.85) preview.style.webkitTextStroke = `${Math.floor(Math.random() * 3)}px ${colors[Math.floor(Math.random() * colors.length)]}`;
+    if (Math.random() > 0.9) preview.style.textDecoration = 'underline'; // Only underline, no line-through
     
     preview.dataset.companyColor = preview.style.color;
     preview.dataset.companyShadow = preview.style.textShadow;
@@ -511,6 +594,13 @@ function buildCompanyNameUI(container) {
     preview.dataset.companyStyle = preview.style.fontStyle;
     preview.dataset.companyTransform = preview.style.textTransform;
     preview.dataset.companySpacing = preview.style.letterSpacing;
+    preview.dataset.companyFontFamily = preview.style.fontFamily;
+    preview.dataset.companyExtraTransform = preview.style.transform || 'none';
+    preview.dataset.companyStroke = preview.style.webkitTextStroke || 'none';
+    preview.dataset.companyDecoration = preview.style.textDecoration || 'none';
+    preview.dataset.companyBackground = preview.style.background || 'none';
+    preview.dataset.companyPadding = preview.style.padding || 'none';
+    preview.dataset.companyBorderRadius = preview.style.borderRadius || 'none';
   }
   
   function regenerateAll() {
@@ -530,7 +620,14 @@ function buildCompanyNameUI(container) {
       preview.dataset.companyWeight,
       preview.dataset.companyStyle,
       preview.dataset.companyTransform,
-      preview.dataset.companySpacing
+      preview.dataset.companySpacing,
+      preview.dataset.companyFontFamily,
+      preview.dataset.companyExtraTransform,
+      preview.dataset.companyStroke,
+      preview.dataset.companyDecoration,
+      preview.dataset.companyBackground,
+      preview.dataset.companyPadding,
+      preview.dataset.companyBorderRadius
     );
     closePopup();
   });
@@ -550,7 +647,7 @@ function buildCompanyNameUI(container) {
   regenerateAll();
 }
 
-function spawnCompanyName(text, color, shadow, weight, style, transform, spacing) {
+function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius) {
   const stage = document.getElementById('stage');
   
   // Remove existing company name if any
@@ -574,6 +671,13 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
   textEl.style.fontStyle = style;
   textEl.style.textTransform = transform;
   textEl.style.letterSpacing = spacing;
+  textEl.style.fontFamily = fontFamily;
+  if (extraTransform !== 'none') textEl.style.transform = extraTransform;
+  if (stroke !== 'none') textEl.style.webkitTextStroke = stroke;
+  if (decoration !== 'none') textEl.style.textDecoration = decoration;
+  if (background !== 'none') textEl.style.background = background;
+  if (padding !== 'none') textEl.style.padding = padding;
+  if (borderRadius !== 'none') textEl.style.borderRadius = borderRadius;
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -911,7 +1015,7 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
 
     const img = document.createElement("img");
     img.src = srcUrl;
-    img.style.width = "150px";
+    img.style.width = isHero ? "300px" : "150px";  // Heroes spawn bigger!
 
     const scaleHandle = document.createElement("div");
     scaleHandle.classList.add("scale-handle");
