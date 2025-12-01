@@ -1150,8 +1150,10 @@ function deselectAll() {
 }
 
 document.addEventListener("pointerdown", e => {
-    // Don't deselect if clicking on delete button
-    if (!e.target.closest(".sticker-wrapper") && !e.target.closest("#sticker-bar-delete-area")) {
+    // Don't deselect if clicking on delete button or effect tabs
+    if (!e.target.closest(".sticker-wrapper") && 
+        !e.target.closest("#sticker-bar-delete-area") &&
+        !e.target.closest("#sticker-effect-tabs")) {
         deselectAll();
     }
 });
@@ -1220,6 +1222,11 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
 
     deselectAll();
     wrapper.classList.add("selected");
+    
+    // Apply current effects to new sticker (if not hero)
+    if (!isHero && typeof updateStickerEffects === 'function') {
+      updateStickerEffects();
+    }
 
     return wrapper;
 }
@@ -1429,15 +1436,17 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
 
 
 //------------------------------------------------------
-// DELETE BUTTON VISIBILITY MANAGEMENT
+// DELETE BUTTON & EFFECT TABS VISIBILITY MANAGEMENT
 //------------------------------------------------------
 function updateDeleteButtonVisibility() {
   const deleteButtonArea = document.getElementById('sticker-bar-delete-area');
+  const effectTabs = document.getElementById('sticker-effect-tabs');
+  const titleArea = document.getElementById('sticker-bar-title-area');
   if (!deleteButtonArea) return; // Not loaded yet
   
   const selectedSticker = document.querySelector('.sticker-wrapper.selected');
   
-  // Only show delete button if a regular sticker is selected (not hero, headline, company, cta)
+  // Only show delete button and effect tabs if a regular sticker is selected (not hero, headline, company, cta)
   if (selectedSticker && 
       !selectedSticker.hasAttribute('data-is-hero') && 
       !selectedSticker.hasAttribute('data-is-headline') &&
@@ -1445,8 +1454,12 @@ function updateDeleteButtonVisibility() {
       !selectedSticker.classList.contains('company-layer') &&
       !selectedSticker.classList.contains('cta-layer')) {
     deleteButtonArea.style.display = 'flex';
+    if (effectTabs) effectTabs.style.display = 'flex';
+    if (titleArea) titleArea.classList.add('tabs-visible');
   } else {
     deleteButtonArea.style.display = 'none';
+    if (effectTabs) effectTabs.style.display = 'none';
+    if (titleArea) titleArea.classList.remove('tabs-visible');
   }
 }
 
@@ -1535,11 +1548,6 @@ interact(rotHandle).draggable({
     }
   }
 });
-
-    // Delete on double click (only for stickers, not heroes)
-    if (!isHero) {
-        el.addEventListener("dblclick", () => el.remove());
-    }
 }
 
 function makeInteractiveText(el, textClassName) {
@@ -2075,6 +2083,304 @@ if (deleteButtonArea) {
         !selectedSticker.classList.contains('cta-layer')) {
       selectedSticker.remove();
       deleteButtonArea.style.display = 'none';
+    }
+  });
+}
+
+// ==== STICKER EFFECTS (Outline, Shadow, Glitter) =============================
+const effectOutline = document.getElementById('effect-outline');
+const effectShadow = document.getElementById('effect-shadow');
+const effectGlitter = document.getElementById('effect-glitter');
+
+function updateStickerEffects() {
+  const outlineChecked = effectOutline?.checked || false;
+  const shadowChecked = effectShadow?.checked || false;
+  
+  let filterParts = [];
+  
+  // Outline effect - multiple drop shadows to create border around transparent PNG
+  if (outlineChecked) {
+    filterParts.push(
+      'drop-shadow(2px 0 0 #000)',
+      'drop-shadow(-2px 0 0 #000)',
+      'drop-shadow(0 2px 0 #000)',
+      'drop-shadow(0 -2px 0 #000)'
+    );
+  }
+  
+  // Shadow effect - regular drop shadow
+  if (shadowChecked) {
+    filterParts.push('drop-shadow(4px 4px 6px rgba(0,0,0,0.7))');
+  }
+  
+  const filterValue = filterParts.length > 0 ? filterParts.join(' ') : 'none';
+  
+  // Apply to all stickers (not heroes, headlines, etc.)
+  document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer) img').forEach(img => {
+    img.style.filter = filterValue;
+  });
+}
+
+// Add event listeners to effect checkboxes
+if (effectOutline) {
+  effectOutline.addEventListener('change', updateStickerEffects);
+}
+if (effectShadow) {
+  effectShadow.addEventListener('change', updateStickerEffects);
+}
+
+// ==== GLITTER EFFECT SYSTEM ==================================================
+// Early 2000s MSN/MySpace trashy glitter colors - over the top and fancy cute!
+const GLITTER_COLORS = [
+  '#ff69b4', // hot pink
+  '#00ffff', // cyan/aqua
+  '#ffd700', // gold
+  '#ff00ff', // magenta
+  '#ffb6c1', // light pink
+  '#87ceeb', // baby blue
+  '#ff1493', // deep pink
+  '#7fffd4', // aquamarine
+  '#ffc0cb', // pink
+  '#e6e6fa', // lavender
+];
+
+let glitterCanvas = null;
+let glitterCtx = null;
+let glitterPixels = [];
+let glitterAnimationId = null;
+let glitterLastTime = 0;
+
+const GLITTER_SETTINGS = {
+  density: 0.15,
+  sizeMin: 1,
+  sizeMax: 5,
+  glitterAmount: 0.9,
+  glitterSpeed: 0.018,
+  jitter: 0.8,
+  crossChance: 0.7,
+  fps: 30
+};
+
+function initGlitterCanvas() {
+  if (glitterCanvas) return;
+  
+  const stage = document.getElementById('stage');
+  glitterCanvas = document.createElement('canvas');
+  glitterCanvas.id = 'glitter-canvas';
+  glitterCanvas.style.position = 'absolute';
+  glitterCanvas.style.top = '0';
+  glitterCanvas.style.left = '0';
+  glitterCanvas.style.width = '100%';
+  glitterCanvas.style.height = '100%';
+  glitterCanvas.style.pointerEvents = 'none';
+  glitterCanvas.style.zIndex = '9998'; // Above stickers but below UI
+  
+  // Get stage dimensions
+  const stageW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
+  const stageH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
+  glitterCanvas.width = stageW;
+  glitterCanvas.height = stageH;
+  
+  stage.appendChild(glitterCanvas);
+  glitterCtx = glitterCanvas.getContext('2d');
+}
+
+function removeGlitterCanvas() {
+  if (glitterCanvas) {
+    glitterCanvas.remove();
+    glitterCanvas = null;
+    glitterCtx = null;
+  }
+}
+
+function getStickerBounds() {
+  const stickers = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)');
+  const bounds = [];
+  
+  stickers.forEach(wrapper => {
+    const x = parseFloat(wrapper.getAttribute('data-x')) || 0;
+    const y = parseFloat(wrapper.getAttribute('data-y')) || 0;
+    const img = wrapper.querySelector('img');
+    if (!img) return;
+    
+    const scale = wrapper.scale || 1;
+    const w = img.offsetWidth * scale;
+    const h = img.offsetHeight * scale;
+    
+    bounds.push({
+      x: x,
+      y: y,
+      w: w,
+      h: h,
+      centerX: x + w / 2,
+      centerY: y + h / 2
+    });
+  });
+  
+  return bounds;
+}
+
+function regenerateGlitterPixels() {
+  const bounds = getStickerBounds();
+  glitterPixels = [];
+  
+  bounds.forEach(b => {
+    // Calculate pixel count based on sticker size
+    const area = b.w * b.h;
+    const count = Math.max(20, Math.floor(area * GLITTER_SETTINGS.density / 100));
+    
+    for (let i = 0; i < count; i++) {
+      glitterPixels.push(makeGlitterPixel(b));
+    }
+  });
+}
+
+function makeGlitterPixel(bounds) {
+  const size = Math.max(1, Math.round(randGlitterRange(GLITTER_SETTINGS.sizeMin, GLITTER_SETTINGS.sizeMax)));
+  
+  // Random position within bounds
+  const localX = Math.random() * bounds.w;
+  const localY = Math.random() * bounds.h;
+  
+  // Calculate distance from center for fade effect (0 = center, 1 = edge)
+  const distX = Math.abs(localX - bounds.w / 2) / (bounds.w / 2);
+  const distY = Math.abs(localY - bounds.h / 2) / (bounds.h / 2);
+  const distFromCenter = Math.sqrt(distX * distX + distY * distY) / Math.sqrt(2);
+  
+  // Fade multiplier - stronger at center, fades toward edges
+  const fadeMult = 1 - Math.pow(distFromCenter, 1.5);
+  
+  return {
+    x: bounds.x + localX,
+    y: bounds.y + localY,
+    baseSize: size,
+    alphaBase: (0.4 + Math.random() * 0.6) * fadeMult,
+    phase: Math.random() * Math.PI * 2,
+    speed: randGlitterRange(GLITTER_SETTINGS.glitterSpeed * 0.5, GLITTER_SETTINGS.glitterSpeed * 1.5),
+    localAmount: 0.4 + Math.random() * 0.6,
+    color: GLITTER_COLORS[Math.floor(Math.random() * GLITTER_COLORS.length)],
+    isCross: Math.random() < GLITTER_SETTINGS.crossChance,
+    bounds: bounds // Keep reference to update position
+  };
+}
+
+function randGlitterRange(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function updateGlitterPixelPositions() {
+  // Update pixel positions based on current sticker positions
+  const bounds = getStickerBounds();
+  
+  glitterPixels.forEach(p => {
+    // Find matching bounds (simple approach - reassign to closest)
+    if (bounds.length === 0) return;
+    
+    // Calculate relative position within original bounds
+    const relX = (p.x - p.bounds.x) / p.bounds.w;
+    const relY = (p.y - p.bounds.y) / p.bounds.h;
+    
+    // Find new bounds (this is simplified - assumes same order)
+    const newBounds = bounds.find(b => 
+      Math.abs(b.centerX - p.bounds.centerX) < 50 && 
+      Math.abs(b.centerY - p.bounds.centerY) < 50
+    ) || p.bounds;
+    
+    // Update position
+    p.x = newBounds.x + relX * newBounds.w;
+    p.y = newBounds.y + relY * newBounds.h;
+    p.bounds = newBounds;
+  });
+}
+
+function glitterLoop(timestamp) {
+  if (!effectGlitter?.checked) {
+    if (glitterCanvas) {
+      glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+    }
+    return;
+  }
+  
+  glitterAnimationId = requestAnimationFrame(glitterLoop);
+  
+  if (!glitterLastTime) glitterLastTime = timestamp;
+  const frameInterval = 1000 / GLITTER_SETTINGS.fps;
+  const delta = timestamp - glitterLastTime;
+  if (delta < frameInterval) return;
+  const dt = delta / (1000 / 60);
+  glitterLastTime = timestamp;
+  
+  // Check if sticker count changed - regenerate if needed
+  const currentStickerCount = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length;
+  if (glitterPixels.length === 0 || Math.abs(glitterPixels.length / 30 - currentStickerCount) > 1) {
+    regenerateGlitterPixels();
+  }
+  
+  // Update positions to follow stickers
+  updateGlitterPixelPositions();
+  
+  glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+  
+  for (let i = 0; i < glitterPixels.length; i++) {
+    const p = glitterPixels[i];
+    
+    p.phase += p.speed * dt;
+    const pulse = (1 + Math.sin(p.phase)) / 2; // 0..1
+    
+    const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+    const alpha = p.alphaBase * (0.3 + amount * pulse);
+    const size = p.baseSize * (0.7 + 0.7 * amount * pulse);
+    
+    // Slight jitter
+    const jitter = GLITTER_SETTINGS.jitter;
+    const jx = (Math.random() - 0.5) * jitter;
+    const jy = (Math.random() - 0.5) * jitter;
+    
+    glitterCtx.globalAlpha = alpha;
+    glitterCtx.fillStyle = p.color;
+    
+    const x = p.x + jx;
+    const y = p.y + jy;
+    
+    if (p.isCross && size >= 2) {
+      // Pixel cross shape
+      const s = Math.round(size);
+      const half = Math.floor(s / 2);
+      glitterCtx.fillRect(x - half, y, s, 1);  // horizontal
+      glitterCtx.fillRect(x, y - half, 1, s);  // vertical
+    } else {
+      glitterCtx.fillRect(x, y, size, size);   // simple pixel
+    }
+  }
+  
+  glitterCtx.globalAlpha = 1;
+}
+
+function startGlitter() {
+  initGlitterCanvas();
+  regenerateGlitterPixels();
+  glitterLastTime = 0;
+  if (!glitterAnimationId) {
+    glitterAnimationId = requestAnimationFrame(glitterLoop);
+  }
+}
+
+function stopGlitter() {
+  if (glitterAnimationId) {
+    cancelAnimationFrame(glitterAnimationId);
+    glitterAnimationId = null;
+  }
+  if (glitterCtx && glitterCanvas) {
+    glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+  }
+}
+
+if (effectGlitter) {
+  effectGlitter.addEventListener('change', () => {
+    if (effectGlitter.checked) {
+      startGlitter();
+    } else {
+      stopGlitter();
     }
   });
 }

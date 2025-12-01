@@ -299,12 +299,18 @@ body.modal-open #sticker-bar * {
   background: rgba(42, 42, 42, 0.95); /* Slightly transparent dark background */
   border: 2px solid #fff;
   border-left: none;
-  border-bottom-right-radius: 8px;  /* Rounded corner at bottom-right */
+  border-bottom-right-radius: 8px;  /* Rounded when tabs not visible */
   display: none;             /* Hidden by default, shown via JS when unlocked */
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  z-index: 150;              /* Above stickers */
+  z-index: 151;              /* Above stickers and slightly above tabs */
+  height: 38px;              /* Fixed height for alignment */
+}
+
+/* Remove rounded corner from title when effect tabs are visible */
+#sticker-bar-title-area.tabs-visible {
+  border-bottom-right-radius: 0;
 }
 
 #sticker-bar-title-area span {
@@ -312,6 +318,59 @@ body.modal-open #sticker-bar * {
   font-size: 14px;
   font-weight: bold;
   text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Effect tabs container - positioned right after title */
+#sticker-effect-tabs {
+  grid-column: 2;
+  grid-row: 2;
+  position: absolute;
+  left: 108px;  /* Overlap title's right border by 2px */
+  top: 0;
+  display: none;  /* Hidden by default */
+  align-items: stretch;  /* Make all tabs same height */
+  gap: 0;
+  z-index: 150;
+  height: 38px;  /* Match title height */
+}
+
+/* Individual effect tab */
+.effect-tab {
+  padding: 0 12px;
+  background: rgba(50, 50, 50, 0.95);  /* Slightly different from title */
+  border: 2px solid #fff;
+  border-left: none;  /* Connect tabs together */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.effect-tab:last-child {
+  border-bottom-right-radius: 8px;  /* Rounded corner on last tab */
+}
+
+.effect-tab:hover {
+  background: rgba(70, 70, 70, 0.95);
+}
+
+.effect-tab input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: #4CAF50;
+  margin: 0;
+}
+
+.effect-tab span {
+  color: #fff;
+  font-size: 12px;
+  font-weight: normal;  /* Lighter weight than title */
   text-transform: uppercase;
   letter-spacing: 1px;
 }
