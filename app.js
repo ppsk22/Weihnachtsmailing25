@@ -1678,18 +1678,172 @@ muteBtn.addEventListener('click', () => {
   // TODO: Actually mute/unmute audio when sound is added
 });
 
-// ==== SNOW BUTTON ====
+// ==== SNOW EFFECT ====
 const snowBtn = document.getElementById('btn-snow');
-let isSnowActive = false;
+let isSnowActive = true; // Enabled by default!
 
-snowBtn.addEventListener('click', () => {
-  isSnowActive = !isSnowActive;
-  snowBtn.setAttribute('aria-pressed', String(isSnowActive));
-  // TODO: Toggle snow effect when implemented
-});
+// Snow settings (from user's pixel snow example)
+const SNOW_SETTINGS = {
+  density: 0.01,
+  sizeMin: 1,
+  sizeMax: 3,
+  fallMin: 0.3,
+  fallMax: 1.2,
+  wind: -0.8,
+  wobbleAmp: 1.7,
+  wobbleSpeed: 0.012,
+  fps: 12
+};
+
+let snowCanvas = null;
+let snowCtx = null;
+let snowPixels = [];
+let snowAnimationId = null;
+let snowLastTime = 0;
 
 const STAGE_W = 1200;
 const STAGE_H = 600;
+
+function initSnowCanvas() {
+  if (snowCanvas) return;
+  
+  const stage = document.getElementById('stage');
+  snowCanvas = document.createElement('canvas');
+  snowCanvas.id = 'snow-canvas';
+  snowCanvas.width = STAGE_W;
+  snowCanvas.height = STAGE_H;
+  snowCanvas.style.position = 'absolute';
+  snowCanvas.style.top = '0';
+  snowCanvas.style.left = '0';
+  snowCanvas.style.width = '100%';
+  snowCanvas.style.height = '100%';
+  snowCanvas.style.pointerEvents = 'none';
+  snowCanvas.style.zIndex = '9999'; // Above everything
+  
+  stage.appendChild(snowCanvas);
+  snowCtx = snowCanvas.getContext('2d');
+}
+
+function removeSnowCanvas() {
+  if (snowCanvas) {
+    snowCanvas.remove();
+    snowCanvas = null;
+    snowCtx = null;
+  }
+}
+
+function regenerateSnowPixels() {
+  const area = STAGE_W * STAGE_H;
+  const count = Math.max(50, Math.floor(area * SNOW_SETTINGS.density / 10));
+  
+  snowPixels = [];
+  for (let i = 0; i < count; i++) {
+    snowPixels.push(makeSnowPixel());
+  }
+}
+
+function makeSnowPixel() {
+  return {
+    x: Math.random() * STAGE_W,
+    y: Math.random() * STAGE_H,
+    size: Math.max(1, Math.round(SNOW_SETTINGS.sizeMin + Math.random() * (SNOW_SETTINGS.sizeMax - SNOW_SETTINGS.sizeMin))),
+    vy: SNOW_SETTINGS.fallMin + Math.random() * (SNOW_SETTINGS.fallMax - SNOW_SETTINGS.fallMin),
+    baseVx: (Math.random() - 0.5) * 0.4,
+    alpha: 0.5 + Math.random() * 0.5,
+    wobblePhase: Math.random() * Math.PI * 2,
+    wobbleSpeed: SNOW_SETTINGS.wobbleSpeed * (0.5 + Math.random()),
+    wobbleAmp: SNOW_SETTINGS.wobbleAmp * (0.5 + Math.random())
+  };
+}
+
+function snowLoop(timestamp) {
+  if (!isSnowActive) {
+    if (snowCtx && snowCanvas) {
+      snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+    }
+    snowAnimationId = null;
+    return;
+  }
+  
+  snowAnimationId = requestAnimationFrame(snowLoop);
+  
+  if (!snowLastTime) snowLastTime = timestamp;
+  const frameInterval = 1000 / SNOW_SETTINGS.fps;
+  const delta = timestamp - snowLastTime;
+  if (delta < frameInterval) return;
+  const dt = delta / (1000 / 60);
+  snowLastTime = timestamp;
+  
+  snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+  
+  for (let i = 0; i < snowPixels.length; i++) {
+    const p = snowPixels[i];
+    
+    const vx = p.baseVx + SNOW_SETTINGS.wind;
+    p.y += p.vy * dt;
+    p.x += vx * dt;
+    p.wobblePhase += p.wobbleSpeed * dt;
+    const wobble = Math.sin(p.wobblePhase) * p.wobbleAmp;
+    const drawX = (p.x + wobble) | 0;
+    const drawY = p.y | 0;
+    
+    // Wrap around
+    if (p.y > STAGE_H + 10) {
+      p.y = -10;
+      p.x = Math.random() * STAGE_W;
+    }
+    if (drawX < -10) p.x = STAGE_W + 10;
+    if (drawX > STAGE_W + 10) p.x = -10;
+    
+    snowCtx.globalAlpha = p.alpha;
+    snowCtx.fillStyle = '#ffffff';
+    snowCtx.fillRect(drawX, drawY, p.size, p.size);
+  }
+  
+  snowCtx.globalAlpha = 1;
+}
+
+function startSnow() {
+  initSnowCanvas();
+  regenerateSnowPixels();
+  snowLastTime = 0;
+  if (snowAnimationId) {
+    cancelAnimationFrame(snowAnimationId);
+  }
+  snowAnimationId = requestAnimationFrame(snowLoop);
+}
+
+function stopSnow() {
+  isSnowActive = false;
+  if (snowAnimationId) {
+    cancelAnimationFrame(snowAnimationId);
+    snowAnimationId = null;
+  }
+  if (snowCtx && snowCanvas) {
+    snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+  }
+}
+
+// Snow button click handler
+snowBtn.addEventListener('click', () => {
+  isSnowActive = !isSnowActive;
+  snowBtn.setAttribute('aria-pressed', String(isSnowActive));
+  
+  if (isSnowActive) {
+    startSnow();
+  } else {
+    stopSnow();
+  }
+});
+
+// Initialize snow on page load (enabled by default)
+snowBtn.setAttribute('aria-pressed', 'true');
+// Wait a moment for stage to be ready, then start snow
+setTimeout(() => {
+  if (isSnowActive) {
+    startSnow();
+  }
+}, 100);
 
 
 // enforce the same size on the DOM element too
