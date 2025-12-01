@@ -284,6 +284,7 @@ function spawnHero(imageUrl) {
 // HEADLINE MANAGEMENT
 //------------------------------------------------------
 let currentHeadline = null; // Track the current headline
+let selectedHeadlineVibes = []; // Track selected vibes for use in company names
 
 // Adjectives grouped by vibe - user selects 4 to set the mood
 const adjectives = [
@@ -320,7 +321,6 @@ const headlineWordBanks = {
     verbs: ['shines', 'glows', 'arrives', 'falls', 'sparkles']
   }
 };
-
 
 // Word banks tied to hero categories
 const heroCategoryWordBanks = {
@@ -573,6 +573,9 @@ function buildHeadlineUI(container) {
       
       // If 4 words selected, show generator
       if (selectedWords.length === 4) {
+        // Store vibes globally for company name generator to use
+        selectedHeadlineVibes = [...selectedWords];
+        
         wordGrid.style.display = 'none';
         let vibesText = 'Vibes: ' + selectedWords.join(' • ');
         if (currentHeroCategory && currentHeroCategory !== 'other') {
@@ -807,11 +810,134 @@ function unlockStickers() {
 //------------------------------------------------------
 let currentCompanyName = null; // Track the current company name
 
+// Base company name parts
 const companyPrefixes = ['Next', 'Bright', 'Peak', 'Prime', 'Future', 'Smart', 'Pro', 'Meta', 'Quantum', 'Spark'];
 const companyRoots = ['Vision', 'Wave', 'Flow', 'Pulse', 'Shift', 'Core', 'Force', 'Edge', 'Rise', 'Link'];
 const companySuffixes = ['Labs', 'Tech', 'Systems', 'Group', 'Dynamics', 'Solutions', 'Works', 'Ventures', 'Studios', 'Co'];
 
+// Hero category-specific company name parts
+const categoryCompanyParts = {
+  motor: {
+    prefixes: ['Auto', 'Speed', 'Turbo', 'Drive', 'Motor', 'Road', 'Cruise', 'Velocity', 'Gear', 'Race'],
+    roots: ['Drive', 'Wheels', 'Motion', 'Cruise', 'Torque', 'Gear', 'Track', 'Lane', 'Mile', 'Rev'],
+    suffixes: ['Motors', 'Auto', 'Racing', 'Wheels', 'Drive', 'Automotive', 'Garage', 'Speed', 'Moto', 'Cars']
+  },
+  chemistry: {
+    prefixes: ['Bio', 'Chem', 'Syn', 'Lab', 'React', 'Atom', 'Molecule', 'Formula', 'Nano', 'Helix'],
+    roots: ['Chem', 'Lab', 'Synth', 'Fusion', 'Bond', 'Element', 'Catalyst', 'Compound', 'Cell', 'Gene'],
+    suffixes: ['Labs', 'Pharma', 'Chem', 'Science', 'Research', 'Biotech', 'Scientific', 'Laboratory', 'Rx', 'Med']
+  },
+  defence: {
+    prefixes: ['Shield', 'Guard', 'Fort', 'Armor', 'Secure', 'Iron', 'Steel', 'Titan', 'Valor', 'Alpha'],
+    roots: ['Guard', 'Shield', 'Armor', 'Force', 'Strong', 'Fortress', 'Bastion', 'Sentinel', 'Legion', 'Vanguard'],
+    suffixes: ['Defense', 'Security', 'Shield', 'Guard', 'Protection', 'Tactical', 'Arms', 'Force', 'Safe', 'Secure']
+  },
+  agriculture: {
+    prefixes: ['Farm', 'Agri', 'Green', 'Terra', 'Harvest', 'Seed', 'Field', 'Crop', 'Meadow', 'Grove'],
+    roots: ['Grow', 'Harvest', 'Field', 'Farm', 'Crop', 'Bloom', 'Root', 'Leaf', 'Grain', 'Soil'],
+    suffixes: ['Farms', 'Agri', 'Harvest', 'Fields', 'Growers', 'Agricultural', 'Organic', 'Natural', 'Ranch', 'Gardens']
+  },
+  drinks: {
+    prefixes: ['Fresh', 'Fizz', 'Brew', 'Pour', 'Chill', 'Refresh', 'Splash', 'Sip', 'Cool', 'Crisp'],
+    roots: ['Fizz', 'Brew', 'Pour', 'Sip', 'Taste', 'Drink', 'Blend', 'Mix', 'Splash', 'Drop'],
+    suffixes: ['Beverages', 'Drinks', 'Brewing', 'Refresh', 'Beverage', 'Sodas', 'Brews', 'Coolers', 'Spirits', 'Liquids']
+  },
+  other: {
+    prefixes: [],
+    roots: [],
+    suffixes: []
+  }
+};
+
+// Vibe-influenced company name parts
+const vibeCompanyParts = {
+  magic: {
+    prefixes: ['Mystic', 'Wonder', 'Dream', 'Enchant', 'Stellar', 'Cosmic', 'Luna', 'Astral'],
+    roots: ['Magic', 'Wonder', 'Dream', 'Star', 'Wish', 'Spark', 'Glow', 'Shine'],
+    suffixes: ['Magic', 'Dreams', 'Wonder', 'Wonders', 'Enchanted', 'Mystical', 'Cosmic', 'Stellar']
+  },
+  festive: {
+    prefixes: ['Joy', 'Cheer', 'Merry', 'Jubilee', 'Fest', 'Celebrate', 'Happy', 'Jolly'],
+    roots: ['Joy', 'Cheer', 'Fest', 'Gala', 'Party', 'Jubilee', 'Merry', 'Celebrate'],
+    suffixes: ['Celebrations', 'Festivities', 'Events', 'Joy', 'Party', 'Festive', 'Joyful', 'Cheer']
+  },
+  cozy: {
+    prefixes: ['Comfort', 'Warm', 'Home', 'Heart', 'Cozy', 'Soft', 'Gentle', 'Sweet'],
+    roots: ['Comfort', 'Warm', 'Home', 'Heart', 'Nest', 'Haven', 'Hearth', 'Snug'],
+    suffixes: ['Home', 'Comfort', 'Living', 'Warmth', 'Cozy', 'Hearts', 'Homes', 'Nest']
+  },
+  bright: {
+    prefixes: ['Bright', 'Shine', 'Glow', 'Radiant', 'Light', 'Brilliant', 'Solar', 'Dawn'],
+    roots: ['Light', 'Shine', 'Glow', 'Bright', 'Ray', 'Beam', 'Lumen', 'Radiance'],
+    suffixes: ['Light', 'Shine', 'Glow', 'Lighting', 'Bright', 'Radiant', 'Luminous', 'Solar']
+  }
+};
+
+function getMergedCompanyParts() {
+  // Start with base parts
+  const merged = {
+    prefixes: [...companyPrefixes],
+    roots: [...companyRoots],
+    suffixes: [...companySuffixes]
+  };
+  
+  // Add hero category parts (with extra weight - add twice)
+  if (currentHeroCategory && categoryCompanyParts[currentHeroCategory]) {
+    const catParts = categoryCompanyParts[currentHeroCategory];
+    merged.prefixes.push(...catParts.prefixes, ...catParts.prefixes);
+    merged.roots.push(...catParts.roots, ...catParts.roots);
+    merged.suffixes.push(...catParts.suffixes, ...catParts.suffixes);
+  }
+  
+  // Add vibe parts if vibes have been selected
+  if (selectedHeadlineVibes.length > 0) {
+    const vibes = getVibesFromSelection(selectedHeadlineVibes);
+    vibes.forEach(vibe => {
+      if (vibeCompanyParts[vibe]) {
+        const vibeParts = vibeCompanyParts[vibe];
+        merged.prefixes.push(...vibeParts.prefixes);
+        merged.roots.push(...vibeParts.roots);
+        merged.suffixes.push(...vibeParts.suffixes);
+      }
+    });
+  }
+  
+  return merged;
+}
+
 function buildCompanyNameUI(container) {
+  // Create a wrapper that fills the space (same structure as headline generator)
+  const wrapper = document.createElement('div');
+  wrapper.style.height = '100%';
+  wrapper.style.width = '100%';
+  wrapper.style.position = 'relative';
+  wrapper.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
+  // Show influences hint at top (using same class as headline instructions)
+  const influenceHint = document.createElement('div');
+  influenceHint.className = 'headline-instructions';
+  
+  let hints = [];
+  if (currentHeroCategory && currentHeroCategory !== 'other') {
+    const categoryNames = { motor: '🚗 Motor', chemistry: '🧪 Chemistry', defence: '🛡️ Defence', agriculture: '🚜 Agriculture', drinks: '🥤 Drinks' };
+    hints.push(categoryNames[currentHeroCategory]);
+  }
+  if (selectedHeadlineVibes.length > 0) {
+    const vibeEmojis = { magic: '✨', festive: '🎉', cozy: '🏠', bright: '☀️' };
+    const vibes = getVibesFromSelection(selectedHeadlineVibes);
+    const vibeIcons = vibes.map(v => vibeEmojis[v] || '').filter(Boolean).join('');
+    if (vibeIcons) hints.push(vibeIcons + ' Vibes');
+  }
+  
+  if (hints.length > 0) {
+    influenceHint.textContent = 'Influenced by: ' + hints.join(' + ');
+  } else {
+    influenceHint.textContent = 'Tip: Pick a hero & headline vibes first for themed names!';
+  }
+  wrapper.appendChild(influenceHint);
+  
   const genContainer = document.createElement('div');
   genContainer.className = 'company-generator';
   
@@ -835,16 +961,19 @@ function buildCompanyNameUI(container) {
   confirmBtn.textContent = 'Confirm';
   
   function generateName() {
-    const prefix = companyPrefixes[Math.floor(Math.random() * companyPrefixes.length)];
-    const root = companyRoots[Math.floor(Math.random() * companyRoots.length)];
-    const suffix = companySuffixes[Math.floor(Math.random() * companySuffixes.length)];
+    const parts = getMergedCompanyParts();
     
-    // Randomly choose format: "Prefix+Root", "Root+Suffix", or "Prefix+Root+Suffix"
-    const format = Math.floor(Math.random() * 3);
+    const prefix = parts.prefixes[Math.floor(Math.random() * parts.prefixes.length)];
+    const root = parts.roots[Math.floor(Math.random() * parts.roots.length)];
+    const suffix = parts.suffixes[Math.floor(Math.random() * parts.suffixes.length)];
+    
+    // Randomly choose format: "Prefix+Root", "Root+Suffix", or "Prefix+Root+Suffix", or just "PrefixSuffix"
+    const format = Math.floor(Math.random() * 4);
     let name;
     if (format === 0) name = prefix + root;
     else if (format === 1) name = root + suffix;
-    else name = prefix + root + ' ' + suffix;
+    else if (format === 2) name = prefix + root + ' ' + suffix;
+    else name = prefix + ' ' + suffix;
     
     preview.textContent = name;
     preview.dataset.companyName = name;
@@ -959,7 +1088,8 @@ function buildCompanyNameUI(container) {
   genContainer.appendChild(preview);
   genContainer.appendChild(buttonRow);
   genContainer.appendChild(buttonContainer);
-  container.appendChild(genContainer);
+  wrapper.appendChild(genContainer);
+  container.appendChild(wrapper);
   
   // Generate initial name and style
   regenerateAll();
