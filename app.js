@@ -3398,6 +3398,7 @@ function drawGlitterShape(x, y, size, shapeType) {
   }
 }
 
+
 function startGlitter() {
   initGlitterCanvas();
   randomizeStickerColors(); // Randomize colors each time glitter is enabled
