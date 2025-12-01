@@ -1,5 +1,63 @@
 // ==== POPUP OVER STAGE (NEW) =============================================
 
+// ==== GUIDED FLOW SYSTEM ====
+// Tracks user progress through the 7 steps
+// Step order: 'bg' (1), '2' (hero), '3' (headline), '4' (stickers), '5' (company), '6' (CTA), 'export' (7)
+const STEP_ORDER = ['bg', '2', '3', '4', '5', '6', 'export'];
+let currentStep = 0; // Index into STEP_ORDER (0 = bg, user starts here)
+let completedSteps = new Set(); // Track which steps have been completed
+
+function getStepIndex(panel) {
+  return STEP_ORDER.indexOf(panel);
+}
+
+function isStepUnlocked(panel) {
+  const stepIndex = getStepIndex(panel);
+  // A step is unlocked if it's the current step, any previous step, or the next step (blinking)
+  return stepIndex <= currentStep + 1;
+}
+
+function advanceToStep(stepIndex) {
+  if (stepIndex > currentStep) {
+    currentStep = stepIndex;
+    updateSidebarButtonStates();
+  }
+}
+
+function completeStep(panel) {
+  completedSteps.add(panel);
+  const stepIndex = getStepIndex(panel);
+  // Advance to next step if this was the current step
+  if (stepIndex === currentStep && currentStep < STEP_ORDER.length - 1) {
+    currentStep = stepIndex + 1;
+    updateSidebarButtonStates();
+  }
+}
+
+function updateSidebarButtonStates() {
+  document.querySelectorAll('#sidebar .category').forEach(btn => {
+    const panel = btn.getAttribute('data-panel');
+    const stepIndex = getStepIndex(panel);
+    
+    // Remove all state classes first
+    btn.classList.remove('locked', 'blinking', 'completed', 'current');
+    
+    if (stepIndex < currentStep) {
+      // Previous steps - completed, can revisit (white)
+      btn.classList.add('completed');
+    } else if (stepIndex === currentStep) {
+      // Current step - active, white, not blinking
+      btn.classList.add('current');
+    } else if (stepIndex === currentStep + 1) {
+      // Next step - blinking to attract attention
+      btn.classList.add('blinking');
+    } else {
+      // Future steps beyond next - locked/greyed out
+      btn.classList.add('locked');
+    }
+  });
+}
+
 // Elements
 const overlay = document.getElementById('overlay');
 const popup   = document.getElementById('popup');
@@ -74,11 +132,12 @@ function openPopup(kind){
 
   // Determine title based on kind
   let title = kind.toUpperCase();
-  if (kind === 'bg') title = 'PICK YOUR THEME';
-  if (kind === '2') title = 'PICK YOUR HERO';
-  if (kind === '3') title = 'CHOOSE YOUR HEADLINE';
-  if (kind === '5') title = 'CHOOSE YOUR COMPANY NAME';
-  if (kind === '6') title = 'CHOOSE YOUR CALL TO ACTION';
+  if (kind === 'bg') title = 'Set the Theme';
+  if (kind === '2') title = 'Chose your Showpiece';
+  if (kind === '3') title = 'Write your Slogan';
+  if (kind === '5') title = 'Unwrap the Sparkle';
+  if (kind === '6') title = 'Pick a festive Click-Me';
+  if (kind === 'export') title = 'Save & Celebrate';
 
   const head = document.createElement('div');
   head.className = 'popup-head';
@@ -106,6 +165,7 @@ function openPopup(kind){
   } else if (kind === '4'){
     // Button 4: Unlock stickers (no overlay needed)
     unlockStickers();
+    completeStep('4'); // Complete step 4
     closePopup();
     return; // Exit early, no overlay content
   } else if (kind === '5'){
@@ -161,6 +221,7 @@ function buildBGGrid(container){
     card.addEventListener('click', () => {
       const stage = document.getElementById('stage');
       stage.style.backgroundImage = `url(${url})`;
+      completeStep('bg'); // Complete step 1
       closePopup();
     });
   });
@@ -196,6 +257,7 @@ function buildHeroGrid(container){
 
     card.addEventListener('click', () => {
       spawnHero(url);
+      completeStep('2'); // Complete step 2
       closePopup();
     });
   });
@@ -233,6 +295,20 @@ function buildExportUI(container){
 document.querySelectorAll('#sidebar .category').forEach(btn => {
   btn.addEventListener('click', () => {
     const which = btn.getAttribute('data-panel'); // 'bg', 'export', etc.
+    const stepIndex = getStepIndex(which);
+    
+    // Check if this step is unlocked
+    if (!isStepUnlocked(which)) {
+      // Step is locked, don't do anything
+      return;
+    }
+    
+    // If clicking the next step (blinking), advance to it
+    if (stepIndex === currentStep + 1) {
+      currentStep = stepIndex;
+      updateSidebarButtonStates();
+    }
+    
     const isOpen = overlay.classList.contains('open');
     if (isOpen){
       const current = popup.querySelector('.popup-head span')?.textContent?.toLowerCase();
@@ -246,6 +322,13 @@ document.querySelectorAll('#sidebar .category').forEach(btn => {
     }
   });
 });
+
+// Initialize guided flow on page load
+setTimeout(() => {
+  updateSidebarButtonStates();
+  // Auto-open the BG selection overlay
+  openPopup('bg');
+}, 150);
 
 // Clicking the dim area closes the popup
 overlay.addEventListener('click', (e) => {
@@ -561,19 +644,8 @@ function buildHeadlineUI(container) {
   const instructions = document.createElement('div');
   instructions.className = 'headline-instructions';
   
-  // Show hero influence hint if hero is selected
-  let instructionText = 'Choose 4 vibes for your headline';
-  if (currentHeroCategory && currentHeroCategory !== 'other') {
-    const categoryNames = {
-      motor: '🚗 Motor',
-      chemistry: '🧪 Chemistry', 
-      defence: '🛡️ Defence',
-      agriculture: '🚜 Agriculture',
-      drinks: '🥤 Drinks'
-    };
-    instructionText += ` (+ ${categoryNames[currentHeroCategory]} vibes)`;
-  }
-  instructions.textContent = instructionText;
+  // Simple instruction text
+  instructions.textContent = 'chose 4 vibes';
   wrapper.appendChild(instructions);
   
   // Word grid
@@ -603,12 +675,12 @@ function buildHeadlineUI(container) {
         selectedHeadlineVibes = [...selectedWords];
         
         wordGrid.style.display = 'none';
-        let vibesText = 'Vibes: ' + selectedWords.join(' • ');
+        let vibesText = 'Vibes: ' + selectedWords.join(' / ');
         if (currentHeroCategory && currentHeroCategory !== 'other') {
           const categoryNames = {
-            motor: '🚗', chemistry: '🧪', defence: '🛡️', agriculture: '🚜', drinks: '🥤'
+            motor: 'Motor', chemistry: 'Chemistry', defence: 'Defence', agriculture: 'Agriculture', drinks: 'Drinks'
           };
-          vibesText += ' ' + categoryNames[currentHeroCategory];
+          vibesText += ' + ' + categoryNames[currentHeroCategory];
         }
         instructions.textContent = vibesText;
         showHeadlineGenerator(wrapper, selectedWords);
@@ -783,6 +855,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       preview.dataset.headlineBorder,
       preview.dataset.headlineBoxShadow
     );
+    completeStep('3'); // Complete step 3
     closePopup();
   });
   
@@ -996,14 +1069,11 @@ function buildCompanyNameUI(container) {
   
   let hints = [];
   if (currentHeroCategory && currentHeroCategory !== 'other') {
-    const categoryNames = { motor: '🚗 Motor', chemistry: '🧪 Chemistry', defence: '🛡️ Defence', agriculture: '🚜 Agriculture', drinks: '🥤 Drinks' };
+    const categoryNames = { motor: 'Motor', chemistry: 'Chemistry', defence: 'Defence', agriculture: 'Agriculture', drinks: 'Drinks' };
     hints.push(categoryNames[currentHeroCategory]);
   }
   if (selectedHeadlineVibes.length > 0) {
-    const vibeEmojis = { magic: '✨', festive: '🎉', cozy: '🏠', bright: '☀️' };
-    const vibes = getVibesFromSelection(selectedHeadlineVibes);
-    const vibeIcons = vibes.map(v => vibeEmojis[v] || '').filter(Boolean).join('');
-    if (vibeIcons) hints.push(vibeIcons + ' Vibes');
+    hints.push('Vibes');
   }
   
   if (hints.length > 0) {
@@ -1196,6 +1266,7 @@ function buildCompanyNameUI(container) {
       preview.dataset.companyBorder,
       preview.dataset.companyBoxShadow
     );
+    completeStep('5'); // Complete step 5
     closePopup();
   });
   
@@ -1674,6 +1745,7 @@ function buildCTAButtonUI(container) {
       preview.dataset.ctaBoxShadow,
       preview.dataset.ctaTransform
     );
+    completeStep('6'); // Complete step 6
     closePopup();
   });
   
@@ -1865,10 +1937,12 @@ function deselectAll() {
 }
 
 document.addEventListener("pointerdown", e => {
-    // Don't deselect if clicking on delete button or effect tabs
+    // Don't deselect if clicking on delete button or effect tabs (sticker or element bar)
     if (!e.target.closest(".sticker-wrapper") && 
         !e.target.closest("#sticker-bar-delete-area") &&
-        !e.target.closest("#sticker-effect-tabs")) {
+        !e.target.closest("#sticker-effect-tabs") &&
+        !e.target.closest("#element-bar-title-area") &&
+        !e.target.closest("#element-effect-tabs")) {
         deselectAll();
     }
 });
@@ -2174,27 +2248,79 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
 // DELETE BUTTON & EFFECT TABS VISIBILITY MANAGEMENT
 //------------------------------------------------------
 function updateDeleteButtonVisibility() {
-  const deleteButtonArea = document.getElementById('sticker-bar-delete-area');
-  const effectTabs = document.getElementById('sticker-effect-tabs');
-  const titleArea = document.getElementById('sticker-bar-title-area');
-  if (!deleteButtonArea) return; // Not loaded yet
+  // Sticker bar elements
+  const stickerDeleteArea = document.getElementById('sticker-bar-delete-area');
+  const stickerEffectTabs = document.getElementById('sticker-effect-tabs');
+  const stickerTitleArea = document.getElementById('sticker-bar-title-area');
   
-  const selectedSticker = document.querySelector('.sticker-wrapper.selected');
+  // Element bar elements (for hero/headline/company/cta) - NO delete button
+  const elementTitleArea = document.getElementById('element-bar-title-area');
+  const elementEffectTabs = document.getElementById('element-effect-tabs');
+  const elementTitle = document.getElementById('element-bar-title');
   
-  // Only show delete button and effect tabs if a regular sticker is selected (not hero, headline, company, cta)
-  if (selectedSticker && 
-      !selectedSticker.hasAttribute('data-is-hero') && 
-      !selectedSticker.hasAttribute('data-is-headline') &&
-      !selectedSticker.classList.contains('headline-layer') &&
-      !selectedSticker.classList.contains('company-layer') &&
-      !selectedSticker.classList.contains('cta-layer')) {
-    deleteButtonArea.style.display = 'flex';
-    if (effectTabs) effectTabs.style.display = 'flex';
-    if (titleArea) titleArea.classList.add('tabs-visible');
+  if (!stickerDeleteArea) return; // Not loaded yet
+  
+  const selectedWrapper = document.querySelector('.sticker-wrapper.selected');
+  
+  // Check what type of element is selected
+  const isHero = selectedWrapper && (selectedWrapper.hasAttribute('data-is-hero') || selectedWrapper.classList.contains('hero-layer'));
+  const isHeadline = selectedWrapper && (selectedWrapper.hasAttribute('data-is-headline') || selectedWrapper.classList.contains('headline-layer'));
+  const isCompany = selectedWrapper && (selectedWrapper.hasAttribute('data-is-company') || selectedWrapper.classList.contains('company-layer'));
+  const isCTA = selectedWrapper && (selectedWrapper.hasAttribute('data-is-cta') || selectedWrapper.classList.contains('cta-layer'));
+  const isSpecialElement = isHero || isHeadline || isCompany || isCTA;
+  const isRegularSticker = selectedWrapper && !isSpecialElement;
+  
+  // Handle sticker bar (only for regular stickers)
+  if (isRegularSticker) {
+    stickerDeleteArea.style.display = 'flex';
+    if (stickerEffectTabs) stickerEffectTabs.style.display = 'flex';
+    if (stickerTitleArea) stickerTitleArea.classList.add('tabs-visible');
   } else {
-    deleteButtonArea.style.display = 'none';
-    if (effectTabs) effectTabs.style.display = 'none';
-    if (titleArea) titleArea.classList.remove('tabs-visible');
+    stickerDeleteArea.style.display = 'none';
+    if (stickerEffectTabs) stickerEffectTabs.style.display = 'none';
+    if (stickerTitleArea) stickerTitleArea.classList.remove('tabs-visible');
+  }
+  
+  // Handle element bar (for hero/headline/company/cta) - NO delete button
+  if (isSpecialElement && elementTitleArea && elementEffectTabs) {
+    // Set the title based on element type
+    if (elementTitle) {
+      if (isHero) elementTitle.textContent = 'Hero';
+      else if (isHeadline) elementTitle.textContent = 'Headline';
+      else if (isCompany) elementTitle.textContent = 'Company';
+      else if (isCTA) elementTitle.textContent = 'CTA';
+    }
+    
+    // Show element bar
+    elementTitleArea.style.display = 'flex';
+    elementEffectTabs.style.display = 'flex';
+    
+    // Update checkbox states based on current element effects
+    updateElementEffectCheckboxes(selectedWrapper);
+  } else if (elementTitleArea && elementEffectTabs) {
+    // Hide element bar
+    elementTitleArea.style.display = 'none';
+    elementEffectTabs.style.display = 'none';
+  }
+}
+
+// Update element effect checkboxes based on current element state
+function updateElementEffectCheckboxes(wrapper) {
+  const glitterCheckbox = document.getElementById('element-effect-glitter');
+  const shadowCheckbox = document.getElementById('element-effect-shadow');
+  const outlineCheckbox = document.getElementById('element-effect-outline');
+  
+  if (!wrapper) return;
+  
+  // Check current effects on the element
+  if (glitterCheckbox) {
+    glitterCheckbox.checked = wrapper.hasAttribute('data-has-glitter') && wrapper.getAttribute('data-has-glitter') === 'true';
+  }
+  if (shadowCheckbox) {
+    shadowCheckbox.checked = wrapper.hasAttribute('data-has-shadow') && wrapper.getAttribute('data-has-shadow') === 'true';
+  }
+  if (outlineCheckbox) {
+    outlineCheckbox.checked = wrapper.hasAttribute('data-has-outline') && wrapper.getAttribute('data-has-outline') === 'true';
   }
 }
 
@@ -2401,7 +2527,7 @@ let isSnowActive = true; // Enabled by default!
 const SNOW_SETTINGS = {
   density: 0.01,
   sizeMin: 1,
-  sizeMax: 3,
+  sizeMax: 5,
   fallMin: 0.3,
   fallMax: 1.2,
   wind: -0.8,
@@ -2410,11 +2536,179 @@ const SNOW_SETTINGS = {
   fps: 12
 };
 
+// UI Overlay snow settings (lower density, same visual style)
+const UI_SNOW_SETTINGS = {
+  density: 0.0008,  // Very subtle, just a little snow
+  sizeMin: 1,
+  sizeMax: 5,
+  fallMin: 0.3,
+  fallMax: 1.2,
+  wind: -0.8,
+  wobbleAmp: 1.7,
+  wobbleSpeed: 0.012,
+  fps: 12
+};
+
+// Snow accumulation settings (fake accumulation on UI borders)
+const ACCUMULATION_SETTINGS = {
+  maxHeight: 12,           // Max snow pile height in pixels
+  growthRate: 0.008,       // Chance to grow per column per frame
+  resolution: 1.0,         // Resolution multiplier (higher = more columns/rows = smoother)
+  organicVariation: 0.4,   // How much the max height varies (0-1, creates hills/valleys)
+  verticalGravityBias: 4.0, // How much more snow accumulates at bottom vs top (1 = even, higher = more at bottom)
+  verticalThickness: 1.0,  // Multiplier for vertical accumulation width (1.0 = same as horizontal height)
+};
+
+// Computed from resolution
+let horizontalCols = 60;
+let verticalRows = 30;
+
+let horizontalAccumulation = []; // Bottom of stage (stage-stickerbar border)
+let verticalAccumulation = [];   // Left of stage (sidebar-stage border)
+let horizontalMaxHeights = [];   // Per-column max heights for organic look
+let verticalMaxWidths = [];      // Per-row max widths for organic look
+
+function initAccumulation() {
+  // Compute column/row counts from resolution
+  horizontalCols = Math.floor(60 * ACCUMULATION_SETTINGS.resolution);
+  verticalRows = Math.floor(30 * ACCUMULATION_SETTINGS.resolution);
+  
+  horizontalAccumulation = new Array(horizontalCols).fill(0);
+  verticalAccumulation = new Array(verticalRows).fill(0);
+  
+  // Generate organic max heights for each column (creates hills and valleys)
+  horizontalMaxHeights = [];
+  for (let i = 0; i < horizontalCols; i++) {
+    // Use sine waves + noise for organic look
+    const baseVariation = Math.sin(i * 0.3) * 0.3 + Math.sin(i * 0.7) * 0.2;
+    const noise = (Math.random() - 0.5) * ACCUMULATION_SETTINGS.organicVariation;
+    const variation = 1 - ACCUMULATION_SETTINGS.organicVariation * 0.5 + baseVariation * ACCUMULATION_SETTINGS.organicVariation + noise;
+    horizontalMaxHeights.push(Math.max(2, Math.floor(ACCUMULATION_SETTINGS.maxHeight * variation)));
+  }
+  
+  // Generate organic max widths for vertical accumulation
+  verticalMaxWidths = [];
+  for (let i = 0; i < verticalRows; i++) {
+    // More snow accumulates at the bottom - use gravity bias for stronger effect
+    const normalizedPos = i / verticalRows; // 0 at top, 1 at bottom
+    const gravityFactor = Math.pow(normalizedPos, 1 / ACCUMULATION_SETTINGS.verticalGravityBias);
+    const baseVariation = Math.sin(i * 0.4) * 0.2;
+    const noise = (Math.random() - 0.5) * ACCUMULATION_SETTINGS.organicVariation * 0.5;
+    const variation = gravityFactor + baseVariation * ACCUMULATION_SETTINGS.organicVariation + noise;
+    verticalMaxWidths.push(Math.max(0, Math.floor(ACCUMULATION_SETTINGS.maxHeight * ACCUMULATION_SETTINGS.verticalThickness * variation)));
+  }
+}
+
+function resetAccumulation() {
+  horizontalAccumulation = horizontalAccumulation.map(() => 0);
+  verticalAccumulation = verticalAccumulation.map(() => 0);
+}
+
+function updateAccumulation() {
+  // Randomly grow horizontal accumulation (bottom border)
+  for (let i = 0; i < horizontalAccumulation.length; i++) {
+    if (Math.random() < ACCUMULATION_SETTINGS.growthRate) {
+      const maxH = horizontalMaxHeights[i] || ACCUMULATION_SETTINGS.maxHeight;
+      if (horizontalAccumulation[i] < maxH) {
+        horizontalAccumulation[i] += 1;
+      }
+    }
+  }
+  
+  // Randomly grow vertical accumulation (right side of sidebar border)
+  for (let i = 0; i < verticalAccumulation.length; i++) {
+    // Higher chance to grow at bottom - use gravity bias for stronger effect
+    const normalizedPos = i / verticalAccumulation.length; // 0 at top, 1 at bottom
+    const growthChance = ACCUMULATION_SETTINGS.growthRate * Math.pow(normalizedPos, 1 / ACCUMULATION_SETTINGS.verticalGravityBias);
+    if (Math.random() < growthChance) {
+      const maxW = verticalMaxWidths[i] || 0;
+      if (verticalAccumulation[i] < maxW) {
+        verticalAccumulation[i] += 1;
+      }
+    }
+  }
+}
+
+function getAccumulationPositions() {
+  const app = document.getElementById('app');
+  if (!app) return null;
+  
+  const rect = app.getBoundingClientRect();
+  const scale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
+  const borderWidth = 8 * scale; // The app border
+  const sidebarWidth = 240 * scale;
+  const stageHeight = 600 * scale;
+  const stageWidth = 1200 * scale;
+  
+  // Account for the border offset
+  const appLeft = rect.left + borderWidth;
+  const appTop = rect.top + borderWidth;
+  
+  return {
+    // Horizontal border (bottom of stage, top of sticker bar)
+    horizontal: {
+      x: appLeft + sidebarWidth,
+      y: appTop + stageHeight,
+      width: stageWidth
+    },
+    // Vertical border (right of sidebar, left of stage)
+    vertical: {
+      x: appLeft + sidebarWidth,
+      y: appTop,
+      height: stageHeight
+    }
+  };
+}
+
+function drawAccumulation(ctx) {
+  const pos = getAccumulationPositions();
+  if (!pos) return;
+  
+  ctx.fillStyle = '#ffffff';
+  
+  // Draw horizontal accumulation (bottom of stage) - grows UPWARD
+  const hColWidth = pos.horizontal.width / horizontalCols;
+  for (let i = 0; i < horizontalAccumulation.length; i++) {
+    const h = horizontalAccumulation[i];
+    if (h <= 0) continue;
+    
+    const x = pos.horizontal.x + i * hColWidth;
+    const y = pos.horizontal.y - h;
+    
+    ctx.globalAlpha = 0.9;
+    ctx.fillRect(x, y, hColWidth + 1, h);
+  }
+  
+  // Draw vertical accumulation (left of stage) - grows to the RIGHT (into sidebar visually)
+  const vRowHeight = pos.vertical.height / verticalRows;
+  for (let i = 0; i < verticalAccumulation.length; i++) {
+    const w = verticalAccumulation[i];
+    if (w <= 0) continue;
+    
+    // Draw FROM the border going RIGHT (x stays at border, width extends right)
+    const x = pos.vertical.x;
+    const y = pos.vertical.y + i * vRowHeight;
+    
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x, y, w, vRowHeight + 1);
+  }
+  
+  ctx.globalAlpha = 1;
+}
+
+// Initialize accumulation
+initAccumulation();
+
 let snowCanvas = null;
 let snowCtx = null;
 let snowPixels = [];
 let snowAnimationId = null;
 let snowLastTime = 0;
+
+// UI overlay snow (covers entire app including UI)
+let uiSnowCanvas = null;
+let uiSnowCtx = null;
+let uiSnowPixels = [];
 
 const STAGE_W = 1200;
 const STAGE_H = 600;
@@ -2439,6 +2733,45 @@ function initSnowCanvas() {
   snowCtx = snowCanvas.getContext('2d');
 }
 
+// UI Overlay snow canvas (covers entire viewport)
+function initUISnowCanvas() {
+  if (uiSnowCanvas) return;
+  
+  uiSnowCanvas = document.createElement('canvas');
+  uiSnowCanvas.id = 'ui-snow-canvas';
+  uiSnowCanvas.style.position = 'fixed';
+  uiSnowCanvas.style.top = '0';
+  uiSnowCanvas.style.left = '0';
+  uiSnowCanvas.style.width = '100vw';
+  uiSnowCanvas.style.height = '100vh';
+  uiSnowCanvas.style.pointerEvents = 'none';
+  uiSnowCanvas.style.zIndex = '500'; // Above most UI but below element effects bar
+  
+  // Set canvas size to viewport
+  uiSnowCanvas.width = window.innerWidth;
+  uiSnowCanvas.height = window.innerHeight;
+  
+  document.body.appendChild(uiSnowCanvas);
+  uiSnowCtx = uiSnowCanvas.getContext('2d');
+  
+  // Handle resize
+  window.addEventListener('resize', () => {
+    if (uiSnowCanvas) {
+      uiSnowCanvas.width = window.innerWidth;
+      uiSnowCanvas.height = window.innerHeight;
+      regenerateUISnowPixels();
+    }
+  });
+}
+
+function removeUISnowCanvas() {
+  if (uiSnowCanvas) {
+    uiSnowCanvas.remove();
+    uiSnowCanvas = null;
+    uiSnowCtx = null;
+  }
+}
+
 function removeSnowCanvas() {
   if (snowCanvas) {
     snowCanvas.remove();
@@ -2453,21 +2786,35 @@ function regenerateSnowPixels() {
   
   snowPixels = [];
   for (let i = 0; i < count; i++) {
-    snowPixels.push(makeSnowPixel());
+    snowPixels.push(makeSnowPixel(STAGE_W, STAGE_H, SNOW_SETTINGS));
   }
 }
 
-function makeSnowPixel() {
+function regenerateUISnowPixels() {
+  if (!uiSnowCanvas) return;
+  
+  const w = uiSnowCanvas.width;
+  const h = uiSnowCanvas.height;
+  const area = w * h;
+  const count = Math.max(20, Math.floor(area * UI_SNOW_SETTINGS.density / 10));
+  
+  uiSnowPixels = [];
+  for (let i = 0; i < count; i++) {
+    uiSnowPixels.push(makeSnowPixel(w, h, UI_SNOW_SETTINGS));
+  }
+}
+
+function makeSnowPixel(width, height, settings) {
   return {
-    x: Math.random() * STAGE_W,
-    y: Math.random() * STAGE_H,
-    size: Math.max(1, Math.round(SNOW_SETTINGS.sizeMin + Math.random() * (SNOW_SETTINGS.sizeMax - SNOW_SETTINGS.sizeMin))),
-    vy: SNOW_SETTINGS.fallMin + Math.random() * (SNOW_SETTINGS.fallMax - SNOW_SETTINGS.fallMin),
+    x: Math.random() * width,
+    y: Math.random() * height,
+    size: Math.max(1, Math.round(settings.sizeMin + Math.random() * (settings.sizeMax - settings.sizeMin))),
+    vy: settings.fallMin + Math.random() * (settings.fallMax - settings.fallMin),
     baseVx: (Math.random() - 0.5) * 0.4,
     alpha: 0.5 + Math.random() * 0.5,
     wobblePhase: Math.random() * Math.PI * 2,
-    wobbleSpeed: SNOW_SETTINGS.wobbleSpeed * (0.5 + Math.random()),
-    wobbleAmp: SNOW_SETTINGS.wobbleAmp * (0.5 + Math.random())
+    wobbleSpeed: settings.wobbleSpeed * (0.5 + Math.random()),
+    wobbleAmp: settings.wobbleAmp * (0.5 + Math.random())
   };
 }
 
@@ -2475,6 +2822,9 @@ function snowLoop(timestamp) {
   if (!isSnowActive) {
     if (snowCtx && snowCanvas) {
       snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+    }
+    if (uiSnowCtx && uiSnowCanvas) {
+      uiSnowCtx.clearRect(0, 0, uiSnowCanvas.width, uiSnowCanvas.height);
     }
     snowAnimationId = null;
     return;
@@ -2489,6 +2839,7 @@ function snowLoop(timestamp) {
   const dt = delta / (1000 / 60);
   snowLastTime = timestamp;
   
+  // === STAGE SNOW ===
   snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
   
   for (let i = 0; i < snowPixels.length; i++) {
@@ -2516,11 +2867,52 @@ function snowLoop(timestamp) {
   }
   
   snowCtx.globalAlpha = 1;
+  
+  // === UI OVERLAY SNOW ===
+  if (uiSnowCtx && uiSnowCanvas) {
+    const uiW = uiSnowCanvas.width;
+    const uiH = uiSnowCanvas.height;
+    
+    uiSnowCtx.clearRect(0, 0, uiW, uiH);
+    
+    for (let i = 0; i < uiSnowPixels.length; i++) {
+      const p = uiSnowPixels[i];
+      
+      const vx = p.baseVx + UI_SNOW_SETTINGS.wind;
+      p.y += p.vy * dt;
+      p.x += vx * dt;
+      p.wobblePhase += p.wobbleSpeed * dt;
+      const wobble = Math.sin(p.wobblePhase) * p.wobbleAmp;
+      const drawX = (p.x + wobble) | 0;
+      const drawY = p.y | 0;
+      
+      // Wrap around
+      if (p.y > uiH + 10) {
+        p.y = -10;
+        p.x = Math.random() * uiW;
+      }
+      if (drawX < -10) p.x = uiW + 10;
+      if (drawX > uiW + 10) p.x = -10;
+      
+      uiSnowCtx.globalAlpha = p.alpha;
+      uiSnowCtx.fillStyle = '#ffffff';
+      uiSnowCtx.fillRect(drawX, drawY, p.size, p.size);
+    }
+    
+    // Update and draw snow accumulation on UI borders
+    updateAccumulation();
+    drawAccumulation(uiSnowCtx);
+    
+    uiSnowCtx.globalAlpha = 1;
+  }
 }
 
 function startSnow() {
   initSnowCanvas();
+  initUISnowCanvas();
   regenerateSnowPixels();
+  regenerateUISnowPixels();
+  initAccumulation(); // Reset accumulation when snow starts
   snowLastTime = 0;
   if (snowAnimationId) {
     cancelAnimationFrame(snowAnimationId);
@@ -2537,6 +2929,11 @@ function stopSnow() {
   if (snowCtx && snowCanvas) {
     snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
   }
+  if (uiSnowCtx && uiSnowCanvas) {
+    uiSnowCtx.clearRect(0, 0, uiSnowCanvas.width, uiSnowCanvas.height);
+  }
+  // Reset snow accumulation
+  resetAccumulation();
 }
 
 // Snow button click handler
@@ -3018,9 +3415,9 @@ function updateStickerEffects() {
     );
   }
   
-  // Shadow effect - regular drop shadow
+  // Shadow effect - hard pixel art shadow (no blur)
   if (shadowChecked) {
-    filterParts.push('drop-shadow(4px 4px 6px rgba(0,0,0,0.7))');
+    filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
   }
   
   const filterValue = filterParts.length > 0 ? filterParts.join(' ') : 'none';
@@ -3070,6 +3467,11 @@ let glitterPixels = [];
 let glitterAnimationId = null;
 let glitterLastTime = 0;
 let stickerGlitterData = new Map(); // Store colors AND per-sticker settings
+
+// ==== ELEMENT GLITTER SYSTEM (independent from sticker glitter) ====
+// Each main element (hero, headline, company, CTA) has its own glitter
+let elementGlitterData = new Map(); // Store per-element glitter data (keyed by element)
+let elementGlitterPixels = []; // Particles for main elements
 
 const GLITTER_SETTINGS = {
   density: 0.15,
@@ -3346,6 +3748,188 @@ function randomizeStickerColors() {
   });
 }
 
+// ==== ELEMENT GLITTER FUNCTIONS (for hero, headline, company, CTA) ====
+
+function getElementBounds() {
+  // Get all main elements that have glitter enabled
+  const elements = document.querySelectorAll('.sticker-wrapper[data-has-glitter="true"]');
+  const bounds = [];
+  
+  elements.forEach((wrapper) => {
+    // Skip regular stickers - they have their own system
+    const isHero = wrapper.hasAttribute('data-is-hero');
+    const isHeadline = wrapper.hasAttribute('data-is-headline') || wrapper.classList.contains('headline-layer');
+    const isCompany = wrapper.classList.contains('company-layer');
+    const isCTA = wrapper.classList.contains('cta-layer');
+    
+    if (!isHero && !isHeadline && !isCompany && !isCTA) return;
+    
+    const x = parseFloat(wrapper.getAttribute('data-x')) || 0;
+    const y = parseFloat(wrapper.getAttribute('data-y')) || 0;
+    
+    // Get the inner element for dimensions
+    const inner = wrapper.querySelector('.headline-text, .company-text, .cta-button, img');
+    if (!inner) return;
+    
+    const scale = wrapper.scale || 1;
+    const w = inner.offsetWidth * scale;
+    const h = inner.offsetHeight * scale;
+    
+    // Get or create glitter data for this element
+    if (!elementGlitterData.has(wrapper)) {
+      elementGlitterData.set(wrapper, {
+        colors: getRandomGlitterColors(),
+        settings: getRandomStickerSettings()
+      });
+    }
+    
+    const glitterData = elementGlitterData.get(wrapper);
+    
+    bounds.push({
+      x: x,
+      y: y,
+      w: w,
+      h: h,
+      centerX: x + w / 2,
+      centerY: y + h / 2,
+      colors: glitterData.colors,
+      settings: glitterData.settings,
+      element: wrapper
+    });
+  });
+  
+  return bounds;
+}
+
+function regenerateElementGlitterPixels() {
+  const bounds = getElementBounds();
+  elementGlitterPixels = [];
+  
+  if (bounds.length === 0) return;
+  
+  // Calculate particles for each element
+  bounds.forEach(b => {
+    const elementDensity = GLITTER_SETTINGS.density * (b.settings?.densityMult || 1);
+    const area = b.w * b.h;
+    const count = Math.max(15, Math.min(80, Math.floor(area * elementDensity / 100)));
+    
+    for (let j = 0; j < count; j++) {
+      elementGlitterPixels.push(makeElementGlitterPixel(b));
+    }
+  });
+}
+
+// Add glitter particles for a specific element only (doesn't affect other elements)
+function addElementGlitterPixels(element) {
+  const x = parseFloat(element.getAttribute('data-x')) || 0;
+  const y = parseFloat(element.getAttribute('data-y')) || 0;
+  
+  const inner = element.querySelector('.headline-text, .company-text, .cta-button, img');
+  if (!inner) return;
+  
+  const scale = element.scale || 1;
+  const w = inner.offsetWidth * scale;
+  const h = inner.offsetHeight * scale;
+  
+  const glitterData = elementGlitterData.get(element);
+  if (!glitterData) return;
+  
+  const bounds = {
+    x: x,
+    y: y,
+    w: w,
+    h: h,
+    centerX: x + w / 2,
+    centerY: y + h / 2,
+    colors: glitterData.colors,
+    settings: glitterData.settings,
+    element: element
+  };
+  
+  const elementDensity = GLITTER_SETTINGS.density * (bounds.settings?.densityMult || 1);
+  const area = bounds.w * bounds.h;
+  const count = Math.max(15, Math.min(80, Math.floor(area * elementDensity / 100)));
+  
+  for (let j = 0; j < count; j++) {
+    elementGlitterPixels.push(makeElementGlitterPixel(bounds));
+  }
+}
+
+// Remove glitter particles for a specific element only (doesn't affect other elements)
+function removeElementGlitterPixels(element) {
+  elementGlitterPixels = elementGlitterPixels.filter(p => p.bounds?.element !== element);
+}
+
+function makeElementGlitterPixel(bounds) {
+  const stickerSettings = bounds.settings || {};
+  
+  const sizeMin = Math.max(1, GLITTER_SETTINGS.sizeMin + (stickerSettings.sizeMinOffset || 0));
+  const sizeMax = Math.max(sizeMin + 1, GLITTER_SETTINGS.sizeMax + (stickerSettings.sizeMaxOffset || 0));
+  const size = (sizeMin + Math.random() * (sizeMax - sizeMin)) | 0;
+  
+  const localX = Math.random() * bounds.w;
+  const localY = Math.random() * bounds.h;
+  
+  const dx = (localX / bounds.w - 0.5) * 2;
+  const dy = (localY / bounds.h - 0.5) * 2;
+  const distSq = dx * dx + dy * dy;
+  const fadeMult = Math.max(0, 1 - distSq * 0.5);
+  
+  const effectiveStarChance = Math.max(0, Math.min(1, 
+    GLITTER_SETTINGS.starChance + (stickerSettings.starChanceOffset || 0)
+  ));
+  
+  let shapeType = 'square';
+  if (Math.random() < GLITTER_SETTINGS.crossChance) {
+    shapeType = Math.random() < effectiveStarChance ? 'star' : 'cross';
+  }
+  
+  const baseSpeed = GLITTER_SETTINGS.glitterSpeed * (stickerSettings.speedMult || 1);
+  
+  return {
+    x: bounds.x + localX,
+    y: bounds.y + localY,
+    baseSize: size,
+    alphaBase: (0.4 + Math.random() * 0.6) * fadeMult,
+    phase: Math.random() * 6.28,
+    speed: baseSpeed * (0.5 + Math.random()),
+    localAmount: 0.4 + Math.random() * 0.6,
+    colors: bounds.colors,
+    shapeType: shapeType,
+    bounds: bounds,
+    stickerSettings: stickerSettings
+  };
+}
+
+function updateElementGlitterPositions() {
+  const bounds = getElementBounds();
+  if (bounds.length === 0) return;
+  
+  // Create a map for faster lookup
+  const boundsMap = new Map();
+  bounds.forEach(b => boundsMap.set(b.element, b));
+  
+  for (let i = 0; i < elementGlitterPixels.length; i++) {
+    const p = elementGlitterPixels[i];
+    const element = p.bounds?.element;
+    const newBounds = boundsMap.get(element);
+    
+    if (!newBounds) continue;
+    
+    const relX = (p.x - p.bounds.x) / p.bounds.w;
+    const relY = (p.y - p.bounds.y) / p.bounds.h;
+    
+    p.x = newBounds.x + relX * newBounds.w;
+    p.y = newBounds.y + relY * newBounds.h;
+    p.bounds = newBounds;
+  }
+}
+
+function hasAnyElementGlitter() {
+  // Check if any main element (hero, headline, company, CTA) has glitter enabled
+  return document.querySelectorAll('.sticker-wrapper[data-has-glitter="true"][data-is-hero], .sticker-wrapper[data-has-glitter="true"].headline-layer, .sticker-wrapper[data-has-glitter="true"].company-layer, .sticker-wrapper[data-has-glitter="true"].cta-layer').length > 0;
+}
+
 function initGlitterCanvas() {
   if (glitterCanvas) return;
   
@@ -3537,7 +4121,11 @@ let glitterPerfStats = {
 const MAX_GLITTER_PARTICLES = 250;
 
 function glitterLoop(timestamp) {
-  if (!effectGlitter?.checked) {
+  // Check if EITHER sticker glitter OR element glitter is active
+  const hasStickerGlitter = effectGlitter?.checked;
+  const hasElementGlitter = hasAnyElementGlitter();
+  
+  if (!hasStickerGlitter && !hasElementGlitter) {
     if (glitterCanvas) {
       glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
     }
@@ -3554,38 +4142,81 @@ function glitterLoop(timestamp) {
   const dt = (timestamp - glitterLastTime) / (1000 / 60);
   glitterLastTime = timestamp;
   
-  // PERFORMANCE: Only check sticker count every 500ms instead of every frame
-  if (!glitterLoop.lastStickerCheck || timestamp - glitterLoop.lastStickerCheck > 500) {
-    const currentStickerCount = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length;
-    if (glitterPixels.length === 0 || glitterLoop.lastStickerCount !== currentStickerCount) {
-      regenerateGlitterPixels();
-      glitterLoop.lastStickerCount = currentStickerCount;
+  // === STICKER GLITTER ===
+  if (hasStickerGlitter) {
+    // PERFORMANCE: Only check sticker count every 500ms instead of every frame
+    if (!glitterLoop.lastStickerCheck || timestamp - glitterLoop.lastStickerCheck > 500) {
+      const currentStickerCount = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length;
+      if (glitterPixels.length === 0 || glitterLoop.lastStickerCount !== currentStickerCount) {
+        regenerateGlitterPixels();
+        glitterLoop.lastStickerCount = currentStickerCount;
+      }
+      glitterLoop.lastStickerCheck = timestamp;
     }
-    glitterLoop.lastStickerCheck = timestamp;
+    
+    // PERFORMANCE: Only update positions every 100ms
+    if (!glitterLoop.lastPositionUpdate || timestamp - glitterLoop.lastPositionUpdate > 100) {
+      updateGlitterPixelPositions();
+      glitterLoop.lastPositionUpdate = timestamp;
+    }
   }
   
-  // PERFORMANCE: Only update positions every 100ms (stickers don't move that fast usually)
-  if (!glitterLoop.lastPositionUpdate || timestamp - glitterLoop.lastPositionUpdate > 100) {
-    updateGlitterPixelPositions();
-    glitterLoop.lastPositionUpdate = timestamp;
+  // === ELEMENT GLITTER ===
+  if (hasElementGlitter) {
+    // Check element count every 500ms
+    if (!glitterLoop.lastElementCheck || timestamp - glitterLoop.lastElementCheck > 500) {
+      const currentElementCount = document.querySelectorAll('.sticker-wrapper[data-has-glitter="true"][data-is-hero], .sticker-wrapper[data-has-glitter="true"].headline-layer, .sticker-wrapper[data-has-glitter="true"].company-layer, .sticker-wrapper[data-has-glitter="true"].cta-layer').length;
+      if (elementGlitterPixels.length === 0 || glitterLoop.lastElementCount !== currentElementCount) {
+        regenerateElementGlitterPixels();
+        glitterLoop.lastElementCount = currentElementCount;
+      }
+      glitterLoop.lastElementCheck = timestamp;
+    }
+    
+    // Update element positions every 100ms
+    if (!glitterLoop.lastElementPositionUpdate || timestamp - glitterLoop.lastElementPositionUpdate > 100) {
+      updateElementGlitterPositions();
+      glitterLoop.lastElementPositionUpdate = timestamp;
+    }
   }
   
   // Determine which sticker indices should render this frame (per-sticker FPS)
   const stickerShouldRender = new Map();
-  stickerGlitterData.forEach((data, index) => {
-    const stickerFps = data.settings?.fps || 3;
-    const frameInterval = 1000 / stickerFps;
-    const lastFrame = data.settings?.lastFrameTime || 0;
-    
-    if (timestamp - lastFrame >= frameInterval) {
-      stickerShouldRender.set(index, true);
-      if (data.settings) {
-        data.settings.lastFrameTime = timestamp;
+  if (hasStickerGlitter) {
+    stickerGlitterData.forEach((data, index) => {
+      const stickerFps = data.settings?.fps || 3;
+      const frameInterval = 1000 / stickerFps;
+      const lastFrame = data.settings?.lastFrameTime || 0;
+      
+      if (timestamp - lastFrame >= frameInterval) {
+        stickerShouldRender.set(index, true);
+        if (data.settings) {
+          data.settings.lastFrameTime = timestamp;
+        }
+      } else {
+        stickerShouldRender.set(index, false);
       }
-    } else {
-      stickerShouldRender.set(index, false);
-    }
-  });
+    });
+  }
+  
+  // Determine which elements should render this frame
+  const elementShouldRender = new Map();
+  if (hasElementGlitter) {
+    elementGlitterData.forEach((data, element) => {
+      const elementFps = data.settings?.fps || 3;
+      const frameInterval = 1000 / elementFps;
+      const lastFrame = data.settings?.lastFrameTime || 0;
+      
+      if (timestamp - lastFrame >= frameInterval) {
+        elementShouldRender.set(element, true);
+        if (data.settings) {
+          data.settings.lastFrameTime = timestamp;
+        }
+      } else {
+        elementShouldRender.set(element, false);
+      }
+    });
+  }
   
   glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
   
@@ -3598,78 +4229,140 @@ function glitterLoop(timestamp) {
   let renderedParticles = 0;
   const brightness = GLITTER_SETTINGS.brightness;
   
-  for (let i = 0; i < glitterPixels.length; i++) {
-    const p = glitterPixels[i];
-    const stickerSettings = p.stickerSettings || {};
-    const stickerIndex = p.bounds?.index;
-    
-    // Check if this sticker should render this frame
-    const shouldRender = stickerShouldRender.get(stickerIndex) !== false;
-    
-    // Always update phase
-    p.phase += p.speed * dt;
-    
-    // Skip rendering if this sticker's FPS says not this frame, draw cached state
-    if (!shouldRender && p.lastDrawState) {
-      const s = p.lastDrawState;
-      // Draw main particle
-      glitterCtx.globalAlpha = s.alpha;
-      glitterCtx.fillStyle = s.color;
-      drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+  // === RENDER STICKER GLITTER ===
+  if (hasStickerGlitter) {
+    for (let i = 0; i < glitterPixels.length; i++) {
+      const p = glitterPixels[i];
+      const stickerSettings = p.stickerSettings || {};
+      const stickerIndex = p.bounds?.index;
+      
+      // Check if this sticker should render this frame
+      const shouldRender = stickerShouldRender.get(stickerIndex) !== false;
+      
+      // Always update phase
+      p.phase += p.speed * dt;
+      
+      // Skip rendering if this sticker's FPS says not this frame, draw cached state
+      if (!shouldRender && p.lastDrawState) {
+        const s = p.lastDrawState;
+        glitterCtx.globalAlpha = s.alpha;
+        glitterCtx.fillStyle = s.color;
+        drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+        renderedParticles++;
+        continue;
+      }
+      
+      let pulse = (1 + Math.sin(p.phase)) * 0.5;
+      
+      const hardness = Math.max(0, Math.min(1, 
+        GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+      ));
+      pulse = Math.pow(pulse, 1 - hardness * 0.8);
+      
+      if (Math.random() < 0.05) {
+        pulse = Math.random() < 0.5 ? 1 : 0;
+      }
+      
+      const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+      const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+      const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+      
+      if (alpha < 0.1) continue;
+      
+      const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+      const jx = (Math.random() - 0.5) * jitter;
+      const jy = (Math.random() - 0.5) * jitter;
+      
+      const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+      const colorPhase = stickerSettings.colorPhase || 0;
+      const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+      
+      let currentColorIndex;
+      if (Math.random() < 0.02) {
+        currentColorIndex = Math.floor(Math.random() * p.colors.length);
+      } else {
+        currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+      }
+      const color = p.colors[currentColorIndex];
+      
+      const x = (p.x + jx) | 0;
+      const y = (p.y + jy) | 0;
+      
+      p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
+      
+      glitterCtx.globalAlpha = alpha;
+      glitterCtx.fillStyle = color;
+      drawGlitterShape(x, y, size, p.shapeType);
       renderedParticles++;
-      continue;
     }
-    
-    let pulse = (1 + Math.sin(p.phase)) * 0.5;
-    
-    // Apply per-sticker blink hardness
-    const hardness = Math.max(0, Math.min(1, 
-      GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
-    ));
-    pulse = Math.pow(pulse, 1 - hardness * 0.8);
-    
-    // Random blink
-    if (Math.random() < 0.05) {
-      pulse = Math.random() < 0.5 ? 1 : 0;
+  }
+  
+  // === RENDER ELEMENT GLITTER ===
+  if (hasElementGlitter) {
+    for (let i = 0; i < elementGlitterPixels.length; i++) {
+      const p = elementGlitterPixels[i];
+      const stickerSettings = p.stickerSettings || {};
+      const element = p.bounds?.element;
+      
+      // Check if this element should render this frame
+      const shouldRender = elementShouldRender.get(element) !== false;
+      
+      // Always update phase
+      p.phase += p.speed * dt;
+      
+      // Skip rendering if FPS says not this frame, draw cached state
+      if (!shouldRender && p.lastDrawState) {
+        const s = p.lastDrawState;
+        glitterCtx.globalAlpha = s.alpha;
+        glitterCtx.fillStyle = s.color;
+        drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+        renderedParticles++;
+        continue;
+      }
+      
+      let pulse = (1 + Math.sin(p.phase)) * 0.5;
+      
+      const hardness = Math.max(0, Math.min(1, 
+        GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+      ));
+      pulse = Math.pow(pulse, 1 - hardness * 0.8);
+      
+      if (Math.random() < 0.05) {
+        pulse = Math.random() < 0.5 ? 1 : 0;
+      }
+      
+      const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+      const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+      const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+      
+      if (alpha < 0.1) continue;
+      
+      const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+      const jx = (Math.random() - 0.5) * jitter;
+      const jy = (Math.random() - 0.5) * jitter;
+      
+      const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+      const colorPhase = stickerSettings.colorPhase || 0;
+      const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+      
+      let currentColorIndex;
+      if (Math.random() < 0.02) {
+        currentColorIndex = Math.floor(Math.random() * p.colors.length);
+      } else {
+        currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+      }
+      const color = p.colors[currentColorIndex];
+      
+      const x = (p.x + jx) | 0;
+      const y = (p.y + jy) | 0;
+      
+      p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
+      
+      glitterCtx.globalAlpha = alpha;
+      glitterCtx.fillStyle = color;
+      drawGlitterShape(x, y, size, p.shapeType);
+      renderedParticles++;
     }
-    
-    const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
-    const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
-    const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
-    
-    // Skip invisible particles
-    if (alpha < 0.1) continue;
-    
-    // Per-sticker jitter
-    const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
-    const jx = (Math.random() - 0.5) * jitter;
-    const jy = (Math.random() - 0.5) * jitter;
-    
-    // Color cycling
-    const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
-    const colorPhase = stickerSettings.colorPhase || 0;
-    const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
-    
-    let currentColorIndex;
-    if (Math.random() < 0.02) {
-      currentColorIndex = Math.floor(Math.random() * p.colors.length);
-    } else {
-      currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
-    }
-    const color = p.colors[currentColorIndex];
-    
-    // PERFORMANCE: Use integer coordinates
-    const x = (p.x + jx) | 0;
-    const y = (p.y + jy) | 0;
-    
-    // Cache draw state
-    p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
-    
-    // Draw main particle
-    glitterCtx.globalAlpha = alpha;
-    glitterCtx.fillStyle = color;
-    drawGlitterShape(x, y, size, p.shapeType);
-    renderedParticles++;
   }
   
   glitterCtx.globalAlpha = 1;
@@ -3729,6 +4422,13 @@ function startGlitter() {
 }
 
 function stopGlitter() {
+  // Only fully stop if no element glitter is active either
+  if (hasAnyElementGlitter()) {
+    // Don't stop the loop, just clear sticker glitter data
+    // The loop will continue for element glitter
+    return;
+  }
+  
   if (glitterAnimationId) {
     cancelAnimationFrame(glitterAnimationId);
     glitterAnimationId = null;
@@ -3766,5 +4466,139 @@ if (stageEl) {
     attributes: true,
     attributeFilter: ['class'],
     subtree: true
+  });
+}
+
+//------------------------------------------------------
+// ELEMENT BAR HANDLERS (Hero/Headline/Company/CTA)
+//------------------------------------------------------
+
+//------------------------------------------------------
+// ELEMENT EFFECT HANDLERS (Hero/Headline/Company/CTA)
+// Note: These elements are NOT deletable
+//------------------------------------------------------
+
+// Element effect: Glitter (INDEPENDENT system for main elements)
+const elementGlitterCheckbox = document.getElementById('element-effect-glitter');
+if (elementGlitterCheckbox) {
+  elementGlitterCheckbox.addEventListener('change', (e) => {
+    const selected = document.querySelector('.sticker-wrapper.selected');
+    if (!selected) return;
+    
+    // Only apply to main elements (hero, headline, company, CTA)
+    const isHero = selected.hasAttribute('data-is-hero');
+    const isHeadline = selected.hasAttribute('data-is-headline') || selected.classList.contains('headline-layer');
+    const isCompany = selected.classList.contains('company-layer');
+    const isCTA = selected.classList.contains('cta-layer');
+    
+    if (!isHero && !isHeadline && !isCompany && !isCTA) return;
+    
+    if (e.target.checked) {
+      selected.setAttribute('data-has-glitter', 'true');
+      selected.classList.add('has-glitter');
+      
+      // Initialize glitter data for this specific element (only on enable)
+      elementGlitterData.set(selected, {
+        colors: getRandomGlitterColors(),
+        settings: getRandomStickerSettings()
+      });
+      
+      // Start glitter loop if not running
+      initGlitterCanvas();
+      
+      // Only add pixels for THIS element (doesn't affect others)
+      addElementGlitterPixels(selected);
+      
+      glitterLastTime = 0;
+      if (!glitterAnimationId) {
+        glitterAnimationId = requestAnimationFrame(glitterLoop);
+      }
+    } else {
+      selected.setAttribute('data-has-glitter', 'false');
+      selected.classList.remove('has-glitter');
+      
+      // Remove glitter data for this element
+      elementGlitterData.delete(selected);
+      
+      // Only remove pixels for THIS element (doesn't affect others)
+      removeElementGlitterPixels(selected);
+      
+      // Only stop if NO glitter is active (sticker or element)
+      if (!effectGlitter?.checked && !hasAnyElementGlitter()) {
+        if (glitterAnimationId) {
+          cancelAnimationFrame(glitterAnimationId);
+          glitterAnimationId = null;
+        }
+        if (glitterCtx && glitterCanvas) {
+          glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+        }
+      }
+    }
+  });
+}
+
+// Helper function to update element effects (works like sticker effects)
+function updateElementEffects(wrapper) {
+  if (!wrapper) return;
+  
+  const inner = wrapper.querySelector('.headline-text, .company-text, .cta-button, img');
+  if (!inner) return;
+  
+  const hasShadow = wrapper.getAttribute('data-has-shadow') === 'true';
+  const hasOutline = wrapper.getAttribute('data-has-outline') === 'true';
+  
+  let filterParts = [];
+  
+  // Outline effect first (same as stickers)
+  if (hasOutline) {
+    filterParts.push(
+      'drop-shadow(2px 0 0 #000)',
+      'drop-shadow(-2px 0 0 #000)',
+      'drop-shadow(0 2px 0 #000)',
+      'drop-shadow(0 -2px 0 #000)'
+    );
+  }
+  
+  // Shadow effect (same as stickers)
+  if (hasShadow) {
+    filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
+  }
+  
+  inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+}
+
+// Element effect: Shadow
+const elementShadowCheckbox = document.getElementById('element-effect-shadow');
+if (elementShadowCheckbox) {
+  elementShadowCheckbox.addEventListener('change', (e) => {
+    const selected = document.querySelector('.sticker-wrapper.selected');
+    if (selected) {
+      if (e.target.checked) {
+        selected.setAttribute('data-has-shadow', 'true');
+        selected.classList.add('has-shadow');
+      } else {
+        selected.setAttribute('data-has-shadow', 'false');
+        selected.classList.remove('has-shadow');
+      }
+      updateElementEffects(selected);
+    }
+  });
+}
+
+// Element effect: Outline (black)
+const elementOutlineCheckbox = document.getElementById('element-effect-outline');
+if (elementOutlineCheckbox) {
+  elementOutlineCheckbox.addEventListener('change', (e) => {
+    const selected = document.querySelector('.sticker-wrapper.selected');
+    if (selected) {
+      if (e.target.checked) {
+        selected.setAttribute('data-has-outline', 'true');
+        selected.classList.add('has-outline');
+      } else {
+        selected.setAttribute('data-has-outline', 'false');
+        selected.classList.remove('has-outline');
+      }
+      updateElementEffects(selected);
+    }
   });
 }

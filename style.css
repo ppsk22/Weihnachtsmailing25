@@ -143,6 +143,40 @@ body {
   color: rgba(255, 255, 255, 1); /* fully white on hover or when active */
 }
 
+/* Guided flow states */
+.category.locked {
+  color: rgba(255, 255, 255, 0.15); /* very dim/greyed out */
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.category.completed {
+  color: rgba(255, 255, 255, 1); /* fully white - completed */
+}
+
+.category.completed:hover {
+  color: rgba(255, 255, 255, 1);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.category.current {
+  color: rgba(255, 255, 255, 1); /* fully white - active step */
+}
+
+.category.blinking {
+  animation: blinkPulse 1s ease-in-out infinite;
+}
+
+@keyframes blinkPulse {
+  0%, 100% {
+    color: rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    color: rgba(255, 255, 255, 1);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  }
+}
+
 /* Export buttons */
 .export-btn {
   margin-top: 10px;
@@ -282,6 +316,7 @@ body {
   width: var(--stage-w);
   height: var(--stage-h);
   box-sizing: border-box;
+  z-index: 550; /* Above UI snow canvas (500) so element bar shows on top */
 }
 
 /* Stage: fixed box; never flexes, never covered */
@@ -385,13 +420,72 @@ body.modal-open #sticker-bar * {
 }
 
 /* Title area - overlaid in top-left corner of sticker bar */
+/* ============================================
+   ELEMENT EFFECT BAR (Hero/Headline/Company/CTA)
+   Positioned at bottom edge of stage, above sticker bar
+   ============================================ */
+
+#element-bar-title-area {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 108px;  /* Fixed width to match sticker title */
+  padding: 8px 16px;
+  background: rgba(42, 42, 42, 0.95);
+  border: 2px solid #fff;
+  border-left: none;
+  border-bottom: none;
+  border-top-right-radius: 0;  /* No radius when tabs visible */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  z-index: 600;  /* Above UI snow (500) */
+  height: 38px;
+}
+
+#element-bar-title-area span {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+#element-effect-tabs {
+  position: absolute;
+  left: 108px;
+  bottom: 0;
+  display: none;
+  align-items: stretch;
+  gap: 0;
+  z-index: 600;  /* Above UI snow (500) */
+  height: 38px;
+}
+
+#element-effect-tabs .effect-tab {
+  border-bottom: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+#element-effect-tabs .effect-tab:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 0;
+}
+
+/* ============================================
+   STICKER BAR TITLE & EFFECTS
+   ============================================ */
+
 #sticker-bar-title-area {
   grid-column: 2;
   grid-row: 2;
   position: absolute;
   left: 0;
   top: 0;  /* TOP not bottom! */
-  width: auto;
+  width: 108px;  /* Fixed width to match element bar */
   padding: 8px 16px;
   background: rgba(42, 42, 42, 0.95); /* Slightly transparent dark background */
   border: 2px solid #fff;
