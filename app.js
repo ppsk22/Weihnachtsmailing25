@@ -1315,14 +1315,14 @@ function buildCTAButtonUI(container) {
     
     // PIXEL ART STYLE BUTTONS - Y2K / Web 1.0 / Retro Game aesthetic
     const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493', '#ffa500', '#00ff7f', '#ffff00', '#ff69b4', '#39ff14', '#ff073a'];
-    const darkBg = ['#000', '#111', '#222', '#001', '#100', '#010'];
     
     // Pick main color for this button
     const mainColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     const secondColor = bgColors[Math.floor(Math.random() * bgColors.length)];
+    const thirdColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
     // Button style types (for consistent pixel looks)
-    const styleType = Math.floor(Math.random() * 8);
+    const styleType = Math.floor(Math.random() * 24);
     
     let bg, borderRadius, border, boxShadow;
     
@@ -1381,6 +1381,118 @@ function buildCTAButtonUI(container) {
         borderRadius = '0px';
         border = '3px inset #000';
         boxShadow = 'inset 3px 3px 0 rgba(0,0,0,0.4)';
+        break;
+        
+      case 8: // Pixel pill/oval - stepped radius
+        bg = mainColor;
+        borderRadius = '20px'; // Pill shape
+        border = '3px solid #000';
+        boxShadow = '4px 4px 0 #000';
+        break;
+        
+      case 9: // Pixel capsule with white border
+        bg = mainColor;
+        borderRadius = '25px';
+        border = '4px solid #fff';
+        boxShadow = '0 0 0 2px #000, 4px 4px 0 #000';
+        break;
+        
+      case 10: // Neon pill (Y2K capsule)
+        bg = '#000';
+        borderRadius = '30px';
+        border = `3px solid ${mainColor}`;
+        boxShadow = `4px 4px 0 ${mainColor}`;
+        break;
+        
+      case 11: // Rainbow gradient bar
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${thirdColor})`;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        boxShadow = '4px 4px 0 #000';
+        break;
+        
+      case 12: // Dotted border retro
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '4px dotted #000';
+        boxShadow = '3px 3px 0 rgba(0,0,0,0.5)';
+        break;
+        
+      case 13: // Dashed border web 1.0
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '3px dashed #fff';
+        boxShadow = '0 0 0 2px #000, 4px 4px 0 #000';
+        break;
+        
+      case 14: // Stacked shadows (3D depth)
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '2px solid #000';
+        boxShadow = '2px 2px 0 #fff, 4px 4px 0 #000, 6px 6px 0 rgba(0,0,0,0.3)';
+        break;
+        
+      case 15: // Oval with inset bevel
+        bg = `linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.3) 100%), ${mainColor}`;
+        borderRadius = '50px';
+        border = '3px solid #000';
+        boxShadow = 'inset -2px -2px 0 rgba(0,0,0,0.4), inset 2px 2px 0 rgba(255,255,255,0.4), 4px 4px 0 #000';
+        break;
+        
+      case 16: // Thick cartoon shadow
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '4px solid #000';
+        boxShadow = '6px 6px 0 #000';
+        break;
+        
+      case 17: // DOS terminal style
+        bg = '#000';
+        borderRadius = '0px';
+        border = '2px solid #0f0';
+        boxShadow = 'inset 0 0 0 1px #0f0, 3px 3px 0 #0f0';
+        break;
+        
+      case 18: // Pill with colored shadow
+        bg = mainColor;
+        borderRadius = '50px';
+        border = '3px solid #000';
+        boxShadow = `5px 5px 0 ${secondColor}`;
+        break;
+        
+      case 19: // Double pill border
+        bg = mainColor;
+        borderRadius = '50px';
+        border = '4px double #fff';
+        boxShadow = '0 0 0 3px #000, 4px 4px 0 #000';
+        break;
+        
+      case 20: // Stamped/embossed
+        bg = mainColor;
+        borderRadius = '4px';
+        border = '3px solid #000';
+        boxShadow = 'inset -3px -3px 0 rgba(0,0,0,0.3), inset 3px 3px 0 rgba(255,255,255,0.3), 4px 4px 0 #000';
+        break;
+        
+      case 21: // Chunky rounded Mac style
+        bg = `linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(0,0,0,0.2) 100%), ${mainColor}`;
+        borderRadius = '12px';
+        border = '3px solid #000';
+        boxShadow = '3px 3px 0 #000, inset 0 2px 0 rgba(255,255,255,0.5)';
+        break;
+        
+      case 22: // Glossy gel button (2000s web)
+        bg = `linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 50%, transparent 51%, rgba(0,0,0,0.1) 100%), ${mainColor}`;
+        borderRadius = '8px';
+        border = '2px solid rgba(0,0,0,0.5)';
+        boxShadow = '3px 3px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.8)';
+        break;
+        
+      case 23: // Oval neon double glow
+        bg = '#111';
+        borderRadius = '40px';
+        border = `4px solid ${mainColor}`;
+        boxShadow = `0 0 0 2px ${secondColor}, 5px 5px 0 ${mainColor}`;
         break;
         
       default: // Fallback: simple flat pixel
@@ -1465,6 +1577,9 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   // Remove existing CTA button if any
   if (currentCTAButton) {
     currentCTAButton.remove();
+    // Clear bounce timers
+    if (window.ctaBounceInterval) clearInterval(window.ctaBounceInterval);
+    if (window.ctaBounceTimeout) clearTimeout(window.ctaBounceTimeout);
   }
   
   // Create CTA button element
@@ -1473,6 +1588,10 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   wrapper.setAttribute('data-is-cta', 'true');
   wrapper.scale = 1;
   wrapper.angle = 0;
+  
+  // Bounce wrapper - only handles the bounce animation
+  const bounceWrapper = document.createElement('div');
+  bounceWrapper.className = 'cta-bounce';
   
   const buttonEl = document.createElement('div');
   buttonEl.className = 'cta-button';
@@ -1498,7 +1617,8 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   const rotHandle = document.createElement('div');
   rotHandle.classList.add('rot-handle');
   
-  wrapper.appendChild(buttonEl);
+  bounceWrapper.appendChild(buttonEl);
+  wrapper.appendChild(bounceWrapper);
   wrapper.appendChild(scaleHandle);
   wrapper.appendChild(rotHandle);
   
@@ -1528,6 +1648,36 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   wrapper.classList.add('selected');
   
   currentCTAButton = wrapper;
+  
+  // BOUNCE ANIMATION - stepped/choppy pixel style
+  // Clear any existing bounce interval
+  if (window.ctaBounceInterval) {
+    clearInterval(window.ctaBounceInterval);
+  }
+  if (window.ctaBounceTimeout) {
+    clearTimeout(window.ctaBounceTimeout);
+  }
+  
+  function doBounce() {
+    if (!buttonEl || !buttonEl.isConnected) {
+      // CTA was removed, stop bouncing
+      if (window.ctaBounceInterval) clearInterval(window.ctaBounceInterval);
+      return;
+    }
+    buttonEl.classList.remove('bouncing');
+    // Force reflow to restart animation
+    void buttonEl.offsetWidth;
+    buttonEl.classList.add('bouncing');
+    // Remove class after animation completes
+    setTimeout(() => buttonEl.classList.remove('bouncing'), 350);
+  }
+  
+  // First bounce after 1 second
+  window.ctaBounceTimeout = setTimeout(() => {
+    doBounce();
+    // Then bounce every 10 seconds
+    window.ctaBounceInterval = setInterval(doBounce, 10000);
+  }, 1000);
 }
 
 //------------------------------------------------------

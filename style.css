@@ -1077,6 +1077,24 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   image-rendering: pixelated;
 }
 
+/* Stepped bounce animation - pixel art style (choppy, not smooth) */
+@keyframes pixelBounce {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.08); }
+  50% { transform: scale(1.12); }
+  75% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.cta-button.bouncing {
+  animation: pixelBounce 0.3s steps(4) forwards;
+}
+
 .cta-layer {
+  display: inline-block;
+}
+
+/* Bounce wrapper - just a container, animation triggered by JS */
+.cta-bounce {
   display: inline-block;
 }
