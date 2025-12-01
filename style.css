@@ -1077,17 +1077,17 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   image-rendering: pixelated;
 }
 
-/* Stepped bounce animation - pixel art style (choppy, not smooth) */
+/* Stepped bounce animation - pixel art style (choppy, like old games) */
 @keyframes pixelBounce {
   0% { transform: scale(1); }
-  25% { transform: scale(1.08); }
-  50% { transform: scale(1.12); }
+  25% { transform: scale(1.10); }
+  50% { transform: scale(1.14); }
   75% { transform: scale(1.08); }
   100% { transform: scale(1); }
 }
 
 .cta-button.bouncing {
-  animation: pixelBounce 0.3s steps(4) forwards;
+  animation: pixelBounce 2.5s steps(4) forwards;
 }
 
 .cta-layer {
