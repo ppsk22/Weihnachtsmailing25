@@ -70,6 +70,11 @@ function openPopup(kind){
 
   const body = document.createElement('div');
   body.className = 'popup-body';
+  
+  // Prevent clicks anywhere in popup body from closing overlay
+  body.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
 
   popup.appendChild(head);
   popup.appendChild(body);
@@ -269,11 +274,21 @@ const adjectives = [
 function buildHeadlineUI(container) {
   const selectedWords = [];
   
+  // Create a wrapper that fills the space
+  const wrapper = document.createElement('div');
+  wrapper.style.minHeight = '100%';  // Fill entire popup-body
+  wrapper.style.width = '100%';
+  wrapper.style.paddingBottom = '40px';  // Add some padding at bottom
+  wrapper.addEventListener('click', (e) => {
+    // Only stop propagation, don't close
+    e.stopPropagation();
+  });
+  
   // Instructions
   const instructions = document.createElement('div');
   instructions.className = 'headline-instructions';
   instructions.textContent = 'Choose 4 words';
-  container.appendChild(instructions);
+  wrapper.appendChild(instructions);
   
   // Word grid
   const wordGrid = document.createElement('div');
@@ -300,14 +315,15 @@ function buildHeadlineUI(container) {
       if (selectedWords.length === 4) {
         wordGrid.style.display = 'none';
         instructions.textContent = selectedWords.join(' • ');
-        showHeadlineGenerator(container, selectedWords);
+        showHeadlineGenerator(wrapper, selectedWords);
       }
     });
     
     wordGrid.appendChild(wordBox);
   });
   
-  container.appendChild(wordGrid);
+  wrapper.appendChild(wordGrid);
+  container.appendChild(wrapper);
 }
 
 function showHeadlineGenerator(container, words) {
@@ -958,19 +974,15 @@ function buildCTAButtonUI(container) {
     closePopup();
   });
   
-  const buttonRow1 = document.createElement('div');
-  buttonRow1.className = 'button-row';
-  buttonRow1.appendChild(regenTextBtn);
-  buttonRow1.appendChild(regenTextStyleBtn);
-  
-  const buttonRow2 = document.createElement('div');
-  buttonRow2.className = 'button-row';
-  buttonRow2.appendChild(regenButtonStyleBtn);
+  const buttonRow = document.createElement('div');
+  buttonRow.className = 'button-row';
+  buttonRow.appendChild(regenTextBtn);
+  buttonRow.appendChild(regenTextStyleBtn);
+  buttonRow.appendChild(regenButtonStyleBtn);
   
   genContainer.appendChild(preview);
   genContainer.appendChild(regenBtn);
-  genContainer.appendChild(buttonRow1);
-  genContainer.appendChild(buttonRow2);
+  genContainer.appendChild(buttonRow);
   genContainer.appendChild(confirmBtn);
   container.appendChild(genContainer);
   

@@ -100,11 +100,13 @@ body {
 /* Export buttons */
 .export-btn {
   margin-top: 10px;
-  padding: 8px;
+  padding: 8px 16px;
   border: none;
   background: #555;
   color: #fff;
   cursor: pointer;
+  min-width: 180px;  /* Fixed minimum width for consistency */
+  text-align: center;
 }
 
 .export-btn[disabled]{ 
@@ -227,7 +229,41 @@ body.modal-open #sticker-bar * {
   gap: 16px;                 /* comfortable spacing */
   align-items: center;
   padding: 14px;             /* comfortable padding */
+  margin-right: 60px;        /* Make container narrower - ends before button */
   overflow-x: auto;
+  overflow-y: hidden;        /* No vertical scrollbar */
+  box-sizing: border-box;
+}
+
+/* Button area fills the right margin space */
+#sticker-bar-button-area {
+  grid-column: 2;
+  grid-row: 2;
+  width: 60px;
+  height: var(--stickerbar-h);
+  background: #2a2a2a;       /* Same as sticker-bar */
+  border-top: 2px solid #fff; /* Same border */
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Button area - fills the right margin space */
+#sticker-bar-button-area {
+  grid-column: 2;
+  grid-row: 2;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 60px;
+  height: var(--stickerbar-h);
+  background: #2a2a2a;       /* Match sticker bar */
+  border-top: 2px solid #fff; /* Match sticker bar border */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
 }
 
@@ -368,9 +404,6 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* Fullscreen button (bottom-right of viewport, not scaled) */
 .fs-btn-inbar{
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
   width: 32px;
   height: 32px;
   border: 2px solid #fff;    /* white outline */
@@ -383,6 +416,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 200;              /* Above stickers (z-index 100) */
 }
 
 .fs-btn-inbar:hover{ 
@@ -411,6 +445,13 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 /* ==== POPUP CONTENT ====================================================== */
+#popup {
+  display: flex;
+  flex-direction: column;
+  height: 100%;  /* Fill entire overlay */
+  width: 100%;
+}
+
 .popup-head{
   font-size: 14px;
   font-weight: 600;
@@ -418,6 +459,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;  /* Don't shrink header */
 }
 
 .popup-head span {
@@ -426,8 +468,9 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 .popup-body{
-  overflow: auto;
   flex: 1 1 auto;
+  min-height: 100%;  /* Fill available space */
+  overflow: visible;  /* No scrollbar */
 }
 
 .bg-grid{
@@ -526,7 +569,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   gap: 20px;
   margin-top: 40px;
   position: relative;  /* For absolute positioning of buttons */
-  min-height: 400px;
+  min-height: 280px;  /* Reduced to fit without scroll */
 }
 
 .headline-generator > button:last-child {
@@ -581,27 +624,31 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   align-items: center;
   gap: 20px;
   margin-top: 60px;
-  position: relative;  /* For absolute positioning of buttons */
-  min-height: 400px;
+  position: relative;
+  min-height: 280px;  /* Reduced to fit without scroll */
 }
 
-.company-generator > button:last-child {
+/* Structure: preview, regenBtn, buttonRow, confirmBtn */
+/* Child 4: Confirm button at very bottom */
+.company-generator > *:nth-child(4) {
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
 }
 
-.company-generator > button:first-of-type {
+/* Child 3: buttonRow (Name/Style buttons) */
+.company-generator > *:nth-child(3) {
   position: absolute;
-  bottom: 60px;  /* Above confirm button */
+  bottom: 60px;
   left: 50%;
   transform: translateX(-50%);
 }
 
-.company-generator .button-row {
+/* Child 2: regenBtn (main Regenerate button) */
+.company-generator > *:nth-child(2) {
   position: absolute;
-  bottom: 120px;  /* Above regenerate button */
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -644,30 +691,22 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   gap: 20px;
   margin-top: 40px;
   position: relative;
-  min-height: 320px;  /* Reduced to fit without scrollbar */
+  min-height: 280px;  /* Reduced to fit without scroll */
 }
 
-/* Position all buttons absolutely from bottom */
-/* Child 5: Confirm button at very bottom */
-.cta-generator > *:nth-child(5) {
+/* New structure: preview, regenBtn, buttonRow (3 buttons), confirmBtn */
+/* Child 4: Confirm button at very bottom */
+.cta-generator > *:nth-child(4) {
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
 }
 
-/* Child 4: buttonRow2 (Regenerate Button Style) */
-.cta-generator > *:nth-child(4) {
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-/* Child 3: buttonRow1 (Regenerate Text | Regenerate Text Style) */
+/* Child 3: buttonRow with all 3 buttons */
 .cta-generator > *:nth-child(3) {
   position: absolute;
-  bottom: 120px;
+  bottom: 60px;
   left: 50%;
   transform: translateX(-50%);
 }
@@ -675,7 +714,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 /* Child 2: regenBtn (main Regenerate button) */
 .cta-generator > *:nth-child(2) {
   position: absolute;
-  bottom: 180px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%);
 }
