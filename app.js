@@ -238,9 +238,29 @@ document.getElementById('stage').style.backgroundColor = '#000';
 // HERO MANAGEMENT
 //------------------------------------------------------
 let currentHero = null; // Track the current hero
+let currentHeroCategory = null; // Track which category the hero is from
+
+// Extract category from hero URL path
+function getHeroCategoryFromUrl(url) {
+  // URL format: assets/hero/CATEGORY NAME/filename.gif
+  const match = url.match(/assets\/hero\/([^\/]+)\//);
+  if (match) {
+    const folder = match[1].toUpperCase();
+    if (folder.includes('MOTOR')) return 'motor';
+    if (folder.includes('CHEMISTRY') || folder.includes('FACTORY')) return 'chemistry';
+    if (folder.includes('DEFENCE') || folder.includes('SHIELD')) return 'defence';
+    if (folder.includes('AGRICULTURE') || folder.includes('FARM')) return 'agriculture';
+    if (folder.includes('DRINK')) return 'drinks';
+  }
+  return 'other';
+}
 
 function spawnHero(imageUrl) {
   const stage = document.getElementById('stage');
+  
+  // Track which category this hero is from
+  currentHeroCategory = getHeroCategoryFromUrl(imageUrl);
+  console.log('Hero category:', currentHeroCategory);
   
   // Remove existing hero if any
   if (currentHero) {
@@ -298,6 +318,40 @@ const headlineWordBanks = {
     adjectives: ['bright', 'snowy', 'frosty', 'crisp', 'fresh', 'brilliant', 'luminous'],
     nouns: ['snow', 'winter', 'light', 'frost', 'glow', 'days', 'nights'],
     verbs: ['shines', 'glows', 'arrives', 'falls', 'sparkles']
+  }
+};
+
+// Word banks tied to hero categories
+const heroCategoryWordBanks = {
+  motor: {
+    adjectives: ['fast', 'sleek', 'powerful', 'turbocharged', 'driven', 'unstoppable', 'speedy'],
+    nouns: ['ride', 'drive', 'wheels', 'journey', 'road', 'adventure', 'speed', 'power'],
+    verbs: ['drive', 'accelerate', 'cruise', 'race', 'roll']
+  },
+  chemistry: {
+    adjectives: ['innovative', 'brilliant', 'precise', 'scientific', 'advanced', 'smart', 'revolutionary'],
+    nouns: ['formula', 'innovation', 'discovery', 'science', 'solution', 'breakthrough', 'future'],
+    verbs: ['discover', 'create', 'innovate', 'transform', 'evolve']
+  },
+  defence: {
+    adjectives: ['strong', 'protected', 'secure', 'bold', 'fearless', 'mighty', 'legendary'],
+    nouns: ['strength', 'protection', 'shield', 'power', 'victory', 'honor', 'glory'],
+    verbs: ['protect', 'defend', 'conquer', 'stand', 'rise']
+  },
+  agriculture: {
+    adjectives: ['fresh', 'natural', 'organic', 'wholesome', 'earthy', 'bountiful', 'green'],
+    nouns: ['harvest', 'growth', 'nature', 'fields', 'farm', 'bounty', 'earth'],
+    verbs: ['grow', 'harvest', 'cultivate', 'bloom', 'flourish']
+  },
+  drinks: {
+    adjectives: ['refreshing', 'crisp', 'cool', 'smooth', 'bold', 'fizzy', 'thirst-quenching'],
+    nouns: ['refreshment', 'taste', 'flavor', 'sip', 'chill', 'buzz', 'toast'],
+    verbs: ['refresh', 'enjoy', 'sip', 'savor', 'chill']
+  },
+  other: {
+    adjectives: ['amazing', 'awesome', 'incredible', 'epic', 'legendary'],
+    nouns: ['vibes', 'moments', 'experience', 'adventure', 'journey'],
+    verbs: ['awaits', 'begins', 'arrives', 'unfolds']
   }
 };
 
@@ -412,7 +466,17 @@ function getMergedWordBank(vibes) {
     }
   });
   
-  // Also add the selected adjectives themselves (lowercased)
+  // Also add hero category words if a hero has been selected
+  if (currentHeroCategory && heroCategoryWordBanks[currentHeroCategory]) {
+    const heroBank = heroCategoryWordBanks[currentHeroCategory];
+    merged.adjectives.push(...heroBank.adjectives);
+    merged.nouns.push(...heroBank.nouns);
+    merged.verbs.push(...heroBank.verbs);
+    // Add hero words twice to give them more weight
+    merged.adjectives.push(...heroBank.adjectives);
+    merged.nouns.push(...heroBank.nouns);
+  }
+  
   return merged;
 }
 
@@ -469,7 +533,20 @@ function buildHeadlineUI(container) {
   // Instructions
   const instructions = document.createElement('div');
   instructions.className = 'headline-instructions';
-  instructions.textContent = 'Choose 4 vibes for your headline';
+  
+  // Show hero influence hint if hero is selected
+  let instructionText = 'Choose 4 vibes for your headline';
+  if (currentHeroCategory && currentHeroCategory !== 'other') {
+    const categoryNames = {
+      motor: '🚗 Motor',
+      chemistry: '🧪 Chemistry', 
+      defence: '🛡️ Defence',
+      agriculture: '🚜 Agriculture',
+      drinks: '🥤 Drinks'
+    };
+    instructionText += ` (+ ${categoryNames[currentHeroCategory]} vibes)`;
+  }
+  instructions.textContent = instructionText;
   wrapper.appendChild(instructions);
   
   // Word grid
@@ -496,7 +573,14 @@ function buildHeadlineUI(container) {
       // If 4 words selected, show generator
       if (selectedWords.length === 4) {
         wordGrid.style.display = 'none';
-        instructions.textContent = 'Vibes: ' + selectedWords.join(' • ');
+        let vibesText = 'Vibes: ' + selectedWords.join(' • ');
+        if (currentHeroCategory && currentHeroCategory !== 'other') {
+          const categoryNames = {
+            motor: '🚗', chemistry: '🧪', defence: '🛡️', agriculture: '🚜', drinks: '🥤'
+          };
+          vibesText += ' ' + categoryNames[currentHeroCategory];
+        }
+        instructions.textContent = vibesText;
         showHeadlineGenerator(wrapper, selectedWords);
       }
     });
