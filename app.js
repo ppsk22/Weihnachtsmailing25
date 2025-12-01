@@ -321,6 +321,7 @@ const headlineWordBanks = {
   }
 };
 
+
 // Word banks tied to hero categories
 const heroCategoryWordBanks = {
   motor: {
