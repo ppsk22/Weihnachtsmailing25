@@ -1232,6 +1232,50 @@ function applyTransform(el) {
 //------------------------------------------------------
 let spawningWrapper = null;
 
+// Sticker limit constants and functions
+const MAX_STICKERS = 10;
+
+function getStickerCount() {
+  const stage = document.getElementById('stage');
+  // Count only regular stickers, not heroes or headlines or other layers
+  return stage.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length;
+}
+
+function showStickerLimitMessage() {
+  const stage = document.getElementById('stage');
+  
+  // Remove existing message if any
+  const existingMsg = document.getElementById('sticker-limit-message');
+  if (existingMsg) existingMsg.remove();
+  
+  // Create message
+  const message = document.createElement('div');
+  message.id = 'sticker-limit-message';
+  message.textContent = 'Maximum number of stickers reached (10)';
+  message.style.position = 'absolute';
+  message.style.bottom = '20px';
+  message.style.left = '50%';
+  message.style.transform = 'translateX(-50%)';
+  message.style.background = 'rgba(255, 0, 0, 0.9)';
+  message.style.color = '#fff';
+  message.style.padding = '12px 24px';
+  message.style.borderRadius = '8px';
+  message.style.fontSize = '16px';
+  message.style.fontWeight = 'bold';
+  message.style.zIndex = '9999';
+  message.style.pointerEvents = 'none';
+  message.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+  
+  stage.appendChild(message);
+  
+  // Remove after 7 seconds
+  setTimeout(() => {
+    message.style.transition = 'opacity 0.5s';
+    message.style.opacity = '0';
+    setTimeout(() => message.remove(), 500);
+  }, 7000);
+}
+
 function uiScale() {
   const v = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale').trim();
   return v ? parseFloat(v) : 1;
@@ -1240,6 +1284,12 @@ function uiScale() {
 interact('.sticker-src').draggable({
   listeners: {
     start (event) {
+      // Check sticker limit before spawning
+      if (getStickerCount() >= MAX_STICKERS) {
+        showStickerLimitMessage();
+        return;
+      }
+      
       const stage = document.getElementById("stage");
       const r = stage.getBoundingClientRect();
       const s = uiScale();
@@ -1282,6 +1332,93 @@ interact('.sticker-src').draggable({
       spawningWrapper = null;
     }
   }
+});
+
+//------------------------------------------------------
+// CLICK-TO-SPAWN STICKERS
+//------------------------------------------------------
+// Add click handler to sticker sources
+document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
+  let isDragging = false;
+  let dragTimeout = null;
+  
+  stickerSrc.addEventListener('mousedown', () => {
+    isDragging = false;
+    dragTimeout = setTimeout(() => {
+      isDragging = true;
+    }, 100); // If held for 100ms, consider it a drag
+  });
+  
+  stickerSrc.addEventListener('mousemove', () => {
+    isDragging = true;
+  });
+  
+  stickerSrc.addEventListener('mouseup', () => {
+    clearTimeout(dragTimeout);
+  });
+  
+  stickerSrc.addEventListener('click', (event) => {
+    // If it was a drag, don't spawn on click
+    if (isDragging) {
+      isDragging = false;
+      return;
+    }
+    
+    // Check sticker limit
+    if (getStickerCount() >= MAX_STICKERS) {
+      showStickerLimitMessage();
+      return;
+    }
+    
+    // Spawn sticker at center of stage
+    const stage = document.getElementById('stage');
+    const stageWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
+    const stageHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
+    
+    // Center position (accounting for 150px sticker width)
+    const centerX = (stageWidth / 2) - 75;
+    const centerY = (stageHeight / 2) - 75;
+    
+    createStickerAt(stickerSrc.src, centerX, centerY);
+  });
+  
+  // Touch support for mobile
+  stickerSrc.addEventListener('touchstart', () => {
+    isDragging = false;
+    dragTimeout = setTimeout(() => {
+      isDragging = true;
+    }, 100);
+  });
+  
+  stickerSrc.addEventListener('touchmove', () => {
+    isDragging = true;
+  });
+  
+  stickerSrc.addEventListener('touchend', (event) => {
+    clearTimeout(dragTimeout);
+    
+    // If it was a drag, don't spawn
+    if (isDragging) {
+      isDragging = false;
+      return;
+    }
+    
+    // Check sticker limit
+    if (getStickerCount() >= MAX_STICKERS) {
+      showStickerLimitMessage();
+      return;
+    }
+    
+    // Spawn at center
+    const stage = document.getElementById('stage');
+    const stageWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
+    const stageHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
+    
+    const centerX = (stageWidth / 2) - 75;
+    const centerY = (stageHeight / 2) - 75;
+    
+    createStickerAt(stickerSrc.src, centerX, centerY);
+  });
 });
 
 
