@@ -264,12 +264,194 @@ function spawnHero(imageUrl) {
 // HEADLINE MANAGEMENT
 //------------------------------------------------------
 let currentHeadline = null; // Track the current headline
+
+// Adjectives grouped by vibe - user selects 4 to set the mood
 const adjectives = [
   'MAGICAL', 'FESTIVE', 'JOYFUL', 'MERRY',
   'BRIGHT', 'CHEERFUL', 'SPARKLING', 'COZY',
   'WONDER', 'JOLLY', 'SNOWY', 'GLOWING',
   'HAPPY', 'WARM', 'SHINY', 'BLESSED'
 ];
+
+// Word banks tied to adjective vibes
+const headlineWordBanks = {
+  // Magic/Fantasy vibes: MAGICAL, SPARKLING, GLOWING, WONDER, SHINY
+  magic: {
+    adjectives: ['magical', 'enchanting', 'mystical', 'dazzling', 'radiant', 'dreamy', 'wondrous'],
+    nouns: ['magic', 'wonder', 'dreams', 'sparkle', 'moments', 'wishes', 'vibes'],
+    verbs: ['awaits', 'begins', 'unfolds', 'shines', 'glows', 'sparkles']
+  },
+  // Festive/Celebratory vibes: FESTIVE, MERRY, JOLLY, CHEERFUL
+  festive: {
+    adjectives: ['festive', 'merry', 'jolly', 'cheerful', 'joyous', 'celebratory'],
+    nouns: ['season', 'celebration', 'holidays', 'cheer', 'spirit', 'festivities', 'tidings'],
+    verbs: ['celebrate', 'rejoice', 'arrives', 'begins', 'awaits']
+  },
+  // Warm/Cozy vibes: COZY, WARM, BLESSED, HAPPY
+  cozy: {
+    adjectives: ['cozy', 'warm', 'heartfelt', 'blessed', 'peaceful', 'loving', 'happy'],
+    nouns: ['warmth', 'comfort', 'home', 'heart', 'love', 'joy', 'bliss', 'moments'],
+    verbs: ['embrace', 'share', 'enjoy', 'cherish', 'awaits']
+  },
+  // Bright/Winter vibes: BRIGHT, SNOWY, JOYFUL
+  bright: {
+    adjectives: ['bright', 'snowy', 'frosty', 'crisp', 'fresh', 'brilliant', 'luminous'],
+    nouns: ['snow', 'winter', 'light', 'frost', 'glow', 'days', 'nights'],
+    verbs: ['shines', 'glows', 'arrives', 'falls', 'sparkles']
+  }
+};
+
+// Map each selectable adjective to its vibe category
+const adjectiveToVibe = {
+  'MAGICAL': 'magic', 'SPARKLING': 'magic', 'GLOWING': 'magic', 'WONDER': 'magic', 'SHINY': 'magic',
+  'FESTIVE': 'festive', 'MERRY': 'festive', 'JOLLY': 'festive', 'CHEERFUL': 'festive',
+  'COZY': 'cozy', 'WARM': 'cozy', 'BLESSED': 'cozy', 'HAPPY': 'cozy',
+  'BRIGHT': 'bright', 'SNOWY': 'bright', 'JOYFUL': 'festive'
+};
+
+// Headline patterns - will be filled with words from the selected vibes
+const headlinePatterns = [
+  // Simple & punchy
+  '{adj} {noun}',
+  '{adj} {noun} {verb}',
+  'Get {adj}',
+  'Stay {adj}',
+  'Feel {adj}',
+  'Go {adj}',
+  
+  // Declarative statements
+  'The {adj} {noun}',
+  'It\'s {adj} Time',
+  '{adj} is Here',
+  '{noun} {verb}',
+  'The {noun} {verb}',
+  
+  // With "Season/Holidays"
+  '{adj} Season',
+  'The {adj} Season',
+  '{adj} Holidays',
+  'This {adj} Season',
+  
+  // Action-oriented
+  '{verb} the {noun}',
+  '{verb} {adj}',
+  'Let\'s Get {adj}',
+  'Time to {verb}',
+  
+  // Emotional/Evocative
+  '{adj}. {adj2}. {noun}.',
+  'Pure {noun}',
+  'All the {noun}',
+  '{noun} & {noun2}',
+  
+  // Questions & exclamations
+  'Ready for {noun}?',
+  '{adj} Much?',
+  'Hello, {noun}!',
+  
+  // Percentage/Superlative
+  '100% {adj}',
+  'Extra {adj}',
+  'So {adj}',
+  'Very {adj}',
+  'Maximum {noun}',
+  
+  // Longer phrases
+  '{adj} {noun} for Everyone',
+  '{adj} {noun} for You',
+  'The {adj} {noun} Edit',
+  '{adj} {noun} Inside',
+  'Your {adj} {noun}',
+  'Our {adj} {noun}',
+  
+  // Seasonal
+  'Season of {noun}',
+  '{noun} Season is Here',
+  'Tis the {noun}',
+  'Let it {verb}',
+  
+  // Two-word punchy
+  '{adj} AF',
+  '{noun} Mode',
+  '{adj} Vibes',
+  '{noun} Goals',
+  '{adj} Energy',
+  '{noun} Loading...',
+  
+  // Imperative
+  'Bring the {noun}',
+  'Spread the {noun}',
+  'Find Your {noun}',
+  'Unlock {adj} {noun}'
+];
+
+function getVibesFromSelection(selectedWords) {
+  // Get unique vibes from the 4 selected adjectives
+  const vibes = new Set();
+  selectedWords.forEach(word => {
+    const vibe = adjectiveToVibe[word];
+    if (vibe) vibes.add(vibe);
+  });
+  return Array.from(vibes);
+}
+
+function getMergedWordBank(vibes) {
+  // Merge word banks from all selected vibes
+  const merged = {
+    adjectives: [],
+    nouns: [],
+    verbs: []
+  };
+  
+  vibes.forEach(vibe => {
+    const bank = headlineWordBanks[vibe];
+    if (bank) {
+      merged.adjectives.push(...bank.adjectives);
+      merged.nouns.push(...bank.nouns);
+      merged.verbs.push(...bank.verbs);
+    }
+  });
+  
+  // Also add the selected adjectives themselves (lowercased)
+  return merged;
+}
+
+function generateHeadlineText(selectedWords) {
+  const vibes = getVibesFromSelection(selectedWords);
+  const wordBank = getMergedWordBank(vibes);
+  
+  // Add the selected adjectives to the word bank (they should appear sometimes!)
+  const selectedLower = selectedWords.map(w => w.toLowerCase());
+  wordBank.adjectives.push(...selectedLower);
+  
+  // Pick a random pattern
+  const pattern = headlinePatterns[Math.floor(Math.random() * headlinePatterns.length)];
+  
+  // Helper to pick random word
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  
+  // Fill in the pattern
+  let headline = pattern
+    .replace('{adj}', pick(wordBank.adjectives))
+    .replace('{adj2}', pick(wordBank.adjectives))
+    .replace('{noun}', pick(wordBank.nouns))
+    .replace('{noun2}', pick(wordBank.nouns))
+    .replace('{verb}', pick(wordBank.verbs));
+  
+  // Capitalize first letter of each word for headline style
+  headline = headline.split(' ').map(word => {
+    if (word.length === 0) return word;
+    // Don't capitalize small words unless first
+    const smallWords = ['the', 'a', 'an', 'and', 'or', 'for', 'of', 'to', 'is'];
+    if (smallWords.includes(word.toLowerCase())) return word.toLowerCase();
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(' ');
+  
+  // Always capitalize first word
+  headline = headline.charAt(0).toUpperCase() + headline.slice(1);
+  
+  return headline;
+}
 
 function buildHeadlineUI(container) {
   const selectedWords = [];
@@ -287,7 +469,7 @@ function buildHeadlineUI(container) {
   // Instructions
   const instructions = document.createElement('div');
   instructions.className = 'headline-instructions';
-  instructions.textContent = 'Choose 4 words';
+  instructions.textContent = 'Choose 4 vibes for your headline';
   wrapper.appendChild(instructions);
   
   // Word grid
@@ -314,7 +496,7 @@ function buildHeadlineUI(container) {
       // If 4 words selected, show generator
       if (selectedWords.length === 4) {
         wordGrid.style.display = 'none';
-        instructions.textContent = selectedWords.join(' • ');
+        instructions.textContent = 'Vibes: ' + selectedWords.join(' • ');
         showHeadlineGenerator(wrapper, selectedWords);
       }
     });
@@ -326,7 +508,7 @@ function buildHeadlineUI(container) {
   container.appendChild(wrapper);
 }
 
-function showHeadlineGenerator(container, words) {
+function showHeadlineGenerator(container, selectedVibeWords) {
   const genContainer = document.createElement('div');
   genContainer.className = 'headline-generator';
   
@@ -342,8 +524,8 @@ function showHeadlineGenerator(container, words) {
   confirmBtn.textContent = 'Confirm';
   
   function generateHeadline() {
-    const shuffled = [...words].sort(() => Math.random() - 0.5);
-    const text = shuffled.join(' ');
+    // Generate headline text based on selected vibes
+    const text = generateHeadlineText(selectedVibeWords);
     
     // CLEAR all previous styles for true randomness!
     preview.style.cssText = '';
