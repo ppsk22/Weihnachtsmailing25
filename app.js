@@ -1230,44 +1230,49 @@ function buildCTAButtonUI(container) {
     preview.style.boxShadow = currentBoxShadow;
     preview.style.transform = currentButtonTransform;
     
-    const colors = ['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff1493', '#00ff7f', '#ffa500'];
+    // PIXEL ART: High contrast colors
+    const textColors = ['#ffffff', '#000000', '#ffff00', '#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ff8800'];
+    
+    // PIXEL ART: Hard shadows only, no blur - offset by whole pixels!
     const shadows = [
-      '2px 2px 4px rgba(0,0,0,0.8)',
-      '0 0 5px rgba(255,255,255,0.8)',
-      '1px 1px 2px rgba(0,0,0,0.5)',
-      '0 0 10px rgba(255,0,255,0.8)',
-      '3px 3px 0 #000',
-      '-2px -2px 0 #fff, 2px 2px 0 #000',
-      '0 0 15px rgba(255,255,0,0.8)',
-      'none'
+      '2px 2px 0 #000',
+      '1px 1px 0 #000',
+      '2px 2px 0 #000, 4px 4px 0 rgba(0,0,0,0.3)',
+      '-1px -1px 0 #000, 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000', // Outline effect
+      '-2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000', // Cross outline
+      '1px 1px 0 #fff',
+      '2px 2px 0 #fff',
+      '1px 1px 0 #000, 2px 2px 0 #fff', // Double shadow
+      'none',
     ];
     
+    // PIXEL ART: Blocky, bold fonts that look good at any size
     const fontFamilies = [
-      'Arial, sans-serif',
       'Impact, fantasy',
-      'Comic Sans MS, cursive',
-      'Courier New, monospace',
-      'Georgia, serif',
-      'Brush Script MT, cursive',
+      'Arial Black, sans-serif',
+      'Courier New, monospace',  // Monospace = pixely
+      '"Press Start 2P", monospace', // Actual pixel font (if available)
       'Verdana, sans-serif',
       'Jumps Winter, cursive',
       'Spicy Sale, display',
-      'Start Story, cursive',
       'Super Chiby, display',
-      'Super Crawler, display'
+      'Super Crawler, display',
+      'Arial, sans-serif',
     ];
     
-    preview.style.color = colors[Math.floor(Math.random() * colors.length)];
+    preview.style.color = textColors[Math.floor(Math.random() * textColors.length)];
     preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
-    preview.style.fontWeight = Math.random() > 0.3 ? 'bold' : 'normal';
-    preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
-    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : (Math.random() > 0.7 ? 'lowercase' : 'none');
+    preview.style.fontWeight = 'bold'; // Always bold for CTA buttons
+    preview.style.fontStyle = 'normal'; // No italic for pixel style
+    preview.style.textTransform = Math.random() > 0.2 ? 'uppercase' : 'none'; // Usually uppercase (80%)
     preview.style.fontFamily = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
-    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 6) - 1 + 'px') : 'normal';
+    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 3) + 1 + 'px') : '1px'; // Slightly spaced
     
-    // Extra trashy text effects!
-    if (Math.random() > 0.85) preview.style.webkitTextStroke = `${Math.floor(Math.random() * 2) + 1}px ${colors[Math.floor(Math.random() * colors.length)]}`;
-    if (Math.random() > 0.9) preview.style.textDecoration = 'underline';
+    // PIXEL ART: Hard stroke outlines (more common)
+    if (Math.random() > 0.5) {
+      const strokeColors = ['#000', '#fff', '#000', '#000']; // Favor black outlines
+      preview.style.webkitTextStroke = `1px ${strokeColors[Math.floor(Math.random() * strokeColors.length)]}`;
+    }
     
     preview.dataset.ctaTextColor = preview.style.color;
     preview.dataset.ctaTextShadow = preview.style.textShadow;
@@ -1308,54 +1313,91 @@ function buildCTAButtonUI(container) {
     preview.style.webkitTextStroke = currentTextStroke;
     preview.style.textDecoration = currentTextDecoration;
     
-    const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493', '#ffa500', '#00ff7f', '#ffff00'];
-    const gradients = [
-      `linear-gradient(135deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
-      `linear-gradient(90deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
-      `linear-gradient(45deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
-      `radial-gradient(circle, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
-      `linear-gradient(180deg, ${bgColors[Math.floor(Math.random() * bgColors.length)]}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`,
-      bgColors[Math.floor(Math.random() * bgColors.length)]
-    ];
+    // PIXEL ART STYLE BUTTONS - Y2K / Web 1.0 / Retro Game aesthetic
+    const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493', '#ffa500', '#00ff7f', '#ffff00', '#ff69b4', '#39ff14', '#ff073a'];
+    const darkBg = ['#000', '#111', '#222', '#001', '#100', '#010'];
     
-    const borderRadii = ['0px', '4px', '8px', '12px', '20px', '30px', '50px', '50%'];
-    const borders = [
-      '2px solid #fff',
-      '3px solid #000',
-      '4px solid rgba(255,255,255,0.5)',
-      `3px solid ${bgColors[Math.floor(Math.random() * bgColors.length)]}`,
-      '2px dashed #fff',
-      '3px dotted #000',
-      `4px double ${bgColors[Math.floor(Math.random() * bgColors.length)]}`,
-      'none'
-    ];
-    const boxShadows = [
-      '0 4px 8px rgba(0,0,0,0.3)',
-      '0 8px 16px rgba(0,0,0,0.5)',
-      '0 0 20px rgba(255,255,255,0.5)',
-      '0 0 30px rgba(255,0,255,0.6)',
-      'inset 0 2px 4px rgba(255,255,255,0.3)',
-      '5px 5px 0 #000',
-      '0 0 15px rgba(0,255,255,0.8)',
-      '-3px -3px 0 #fff, 3px 3px 0 #000',
-      '0 10px 20px rgba(0,0,0,0.4)',
-      'none'
-    ];
+    // Pick main color for this button
+    const mainColor = bgColors[Math.floor(Math.random() * bgColors.length)];
+    const secondColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
-    const bg = gradients[Math.floor(Math.random() * gradients.length)];
-    const borderRadius = borderRadii[Math.floor(Math.random() * borderRadii.length)];
-    const border = borders[Math.floor(Math.random() * borders.length)];
-    const boxShadow = boxShadows[Math.floor(Math.random() * boxShadows.length)];
+    // Button style types (for consistent pixel looks)
+    const styleType = Math.floor(Math.random() * 8);
+    
+    let bg, borderRadius, border, boxShadow;
+    
+    switch(styleType) {
+      case 0: // Classic Windows 95/98 3D button
+        bg = '#c0c0c0';
+        borderRadius = '0px';
+        border = '3px outset #fff';
+        boxShadow = 'inset -2px -2px 0 #808080, inset 2px 2px 0 #fff';
+        break;
+        
+      case 1: // Flat pixel button with hard shadow
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        boxShadow = '4px 4px 0 #000';
+        break;
+        
+      case 2: // Neon glow pixel (Y2K style)
+        bg = '#000';
+        borderRadius = '0px';
+        border = `3px solid ${mainColor}`;
+        boxShadow = `0 0 0 2px #000, 4px 4px 0 ${mainColor}`;
+        break;
+        
+      case 3: // Double border retro
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '4px double #fff';
+        boxShadow = '3px 3px 0 #000';
+        break;
+        
+      case 4: // Beveled 3D colored
+        bg = `linear-gradient(180deg, ${mainColor} 0%, ${mainColor} 45%, rgba(0,0,0,0.3) 100%)`;
+        borderRadius = '0px';
+        border = '2px solid #000';
+        boxShadow = 'inset -2px -2px 0 rgba(0,0,0,0.5), inset 2px 2px 0 rgba(255,255,255,0.5), 3px 3px 0 #000';
+        break;
+        
+      case 5: // Chunky white border (arcade style)
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '5px solid #fff';
+        boxShadow = '0 0 0 3px #000, 5px 5px 0 #000';
+        break;
+        
+      case 6: // Two-tone split (old web button)
+        bg = `linear-gradient(180deg, ${mainColor} 50%, ${secondColor} 50%)`;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        boxShadow = '4px 4px 0 rgba(0,0,0,0.6)';
+        break;
+        
+      case 7: // Inset pixel button (pressed look)
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '3px inset #000';
+        boxShadow = 'inset 3px 3px 0 rgba(0,0,0,0.4)';
+        break;
+        
+      default: // Fallback: simple flat pixel
+        bg = mainColor;
+        borderRadius = '0px';
+        border = '2px solid #000';
+        boxShadow = '3px 3px 0 #000';
+    }
     
     preview.style.background = bg;
     preview.style.borderRadius = borderRadius;
     preview.style.border = border;
     preview.style.boxShadow = boxShadow;
     
-    // Extra trashy button effects!
+    // Pixel art: Almost no rotation - keep it blocky!
     let transform = 'none';
-    if (Math.random() > 0.85) transform = `rotate(${Math.floor(Math.random() * 10 - 5)}deg)`;
-    if (Math.random() > 0.9) transform = `skew(${Math.floor(Math.random() * 10 - 5)}deg, ${Math.floor(Math.random() * 10 - 5)}deg)`;
+    if (Math.random() > 0.95) transform = `rotate(${Math.floor(Math.random() * 4 - 2)}deg)`; // Very rare, very subtle
     preview.style.transform = transform;
     
     preview.dataset.ctaBg = bg;
@@ -3397,7 +3439,6 @@ function drawGlitterShape(x, y, size, shapeType) {
     glitterCtx.fillRect(x, y, s, s);
   }
 }
-
 
 function startGlitter() {
   initGlitterCanvas();

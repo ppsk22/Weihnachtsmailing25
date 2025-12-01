@@ -146,18 +146,115 @@ body {
 /* Export buttons */
 .export-btn {
   margin-top: 10px;
-  padding: 8px 16px;
+  padding: 10px 20px;
   border: none;
-  background: #555;
+  background: #4a4a4a;
   color: #fff;
   cursor: pointer;
-  min-width: 180px;  /* Fixed minimum width for consistency */
+  min-width: 180px;
   text-align: center;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  
+  /* Pixel art border effect */
+  box-shadow: 
+    /* Outer highlight (top-left) */
+    -4px -4px 0 0 #6a6a6a,
+    /* Outer shadow (bottom-right) */
+    4px 4px 0 0 #2a2a2a,
+    /* Inner edges */
+    -2px -2px 0 0 #5a5a5a,
+    2px 2px 0 0 #3a3a3a,
+    /* Corner pixels */
+    -4px 0 0 0 #5a5a5a,
+    4px 0 0 0 #3a3a3a,
+    0 -4px 0 0 #5a5a5a,
+    0 4px 0 0 #3a3a3a;
+  
+  transition: all 0.05s ease;
+  image-rendering: pixelated;
+}
+
+.export-btn:hover {
+  background: #5a5a5a;
+  color: #fff;
+  box-shadow: 
+    -4px -4px 0 0 #7a7a7a,
+    4px 4px 0 0 #3a3a3a,
+    -2px -2px 0 0 #6a6a6a,
+    2px 2px 0 0 #4a4a4a,
+    -4px 0 0 0 #6a6a6a,
+    4px 0 0 0 #4a4a4a,
+    0 -4px 0 0 #6a6a6a,
+    0 4px 0 0 #4a4a4a;
+}
+
+.export-btn:active {
+  background: #3a3a3a;
+  /* Inverted shadow for pressed effect */
+  box-shadow: 
+    4px 4px 0 0 #6a6a6a,
+    -4px -4px 0 0 #2a2a2a,
+    2px 2px 0 0 #5a5a5a,
+    -2px -2px 0 0 #3a3a3a,
+    4px 0 0 0 #5a5a5a,
+    -4px 0 0 0 #3a3a3a,
+    0 4px 0 0 #5a5a5a,
+    0 -4px 0 0 #3a3a3a;
+  transform: translate(2px, 2px);
 }
 
 .export-btn[disabled]{ 
   opacity:.5; 
   cursor:not-allowed; 
+}
+
+/* Accent color variant for confirm buttons */
+.export-btn.confirm-btn,
+.button-container .export-btn:last-child {
+  background: #2d5a27;
+  box-shadow: 
+    -4px -4px 0 0 #4a8a42,
+    4px 4px 0 0 #1a3a17,
+    -2px -2px 0 0 #3a7a32,
+    2px 2px 0 0 #2a4a22,
+    -4px 0 0 0 #3a7a32,
+    4px 0 0 0 #2a4a22,
+    0 -4px 0 0 #3a7a32,
+    0 4px 0 0 #2a4a22;
+}
+
+.export-btn.confirm-btn:hover,
+.button-container .export-btn:last-child:hover {
+  background: #3a7a32;
+  box-shadow: 
+    -4px -4px 0 0 #5a9a52,
+    4px 4px 0 0 #2a4a22,
+    -2px -2px 0 0 #4a8a42,
+    2px 2px 0 0 #3a5a32,
+    -4px 0 0 0 #4a8a42,
+    4px 0 0 0 #3a5a32,
+    0 -4px 0 0 #4a8a42,
+    0 4px 0 0 #3a5a32;
+}
+
+.export-btn.confirm-btn:active,
+.button-container .export-btn:last-child:active {
+  background: #2a4a22;
+  box-shadow: 
+    4px 4px 0 0 #4a8a42,
+    -4px -4px 0 0 #1a3a17,
+    2px 2px 0 0 #3a7a32,
+    -2px -2px 0 0 #2a4a22,
+    4px 0 0 0 #3a7a32,
+    -4px 0 0 0 #2a4a22,
+    0 4px 0 0 #3a7a32,
+    0 -4px 0 0 #2a4a22;
+  transform: translate(2px, 2px);
 }
 
 .hidden{ display: none; }
@@ -566,36 +663,66 @@ body.scaling,  body.scaling  * { cursor: se-resize !important; }
 body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* Fullscreen button (bottom-right of viewport, not scaled) */
-/* Buttons in sticker bar button area */
+/* Buttons in sticker bar button area - pixel art style */
 .bar-btn {
-  width: 32px;
-  height: 32px;
-  border: 2px solid #fff;    /* white outline */
-  border-radius: 6px;
-  background: #222;          /* dark like before */
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 0;
+  background: #3a3a3a;
   color: #fff;
-  opacity: 1;                /* fully opaque */
   cursor: pointer;
   font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;              /* Above stickers (z-index 100) */
-  transition: background 0.2s;
+  z-index: 200;
+  
+  /* Pixel art border */
+  box-shadow: 
+    -2px -2px 0 0 #5a5a5a,
+    2px 2px 0 0 #1a1a1a,
+    -2px 0 0 0 #4a4a4a,
+    2px 0 0 0 #2a2a2a,
+    0 -2px 0 0 #4a4a4a,
+    0 2px 0 0 #2a2a2a;
+  
+  transition: all 0.05s ease;
 }
 
 .bar-btn:hover { 
-  background: #333;          /* slightly lighter on hover */
+  background: #4a4a4a;
+  box-shadow: 
+    -2px -2px 0 0 #6a6a6a,
+    2px 2px 0 0 #2a2a2a,
+    -2px 0 0 0 #5a5a5a,
+    2px 0 0 0 #3a3a3a,
+    0 -2px 0 0 #5a5a5a,
+    0 2px 0 0 #3a3a3a;
+}
+
+.bar-btn:active {
+  background: #2a2a2a;
+  box-shadow: 
+    2px 2px 0 0 #5a5a5a,
+    -2px -2px 0 0 #1a1a1a,
+    2px 0 0 0 #4a4a4a,
+    -2px 0 0 0 #2a2a2a,
+    0 2px 0 0 #4a4a4a,
+    0 -2px 0 0 #2a2a2a;
+  transform: translate(1px, 1px);
 }
 
 /* Muted state for mute button */
 #btn-mute[aria-pressed="true"] {
-  color: #ff6666;            /* Red when muted */
+  color: #ff6666;
+  background: #4a2a2a;
 }
 
 /* Active state for snow button */
 #btn-snow[aria-pressed="true"] {
-  background: #336;          /* Blueish when active */
+  background: #2a4a5a;
+  color: #8af;
 }
 
 /* Future non-sticker layers that must sit above stickers */
@@ -746,28 +873,53 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 .word-box {
-  background: #333;
-  border: 2px solid #555;
-  border-radius: 8px;
-  padding: 24px 16px;  /* Increased padding */
+  background: #3a3a3a;
+  border: none;
+  border-radius: 0;
+  padding: 20px 14px;
   text-align: center;
   cursor: pointer;
   color: #fff;
-  font-size: 16px;  /* Increased font size */
+  font-size: 14px;
   font-weight: bold;
-  transition: all 0.2s;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
   user-select: none;
+  
+  /* Pixel art border */
+  box-shadow: 
+    -3px -3px 0 0 #5a5a5a,
+    3px 3px 0 0 #1a1a1a,
+    -3px 0 0 0 #4a4a4a,
+    3px 0 0 0 #2a2a2a,
+    0 -3px 0 0 #4a4a4a,
+    0 3px 0 0 #2a2a2a;
+  
+  transition: all 0.05s ease;
 }
 
 .word-box:hover {
-  background: #444;
-  border-color: #777;
+  background: #4a4a4a;
+  box-shadow: 
+    -3px -3px 0 0 #6a6a6a,
+    3px 3px 0 0 #2a2a2a,
+    -3px 0 0 0 #5a5a5a,
+    3px 0 0 0 #3a3a3a,
+    0 -3px 0 0 #5a5a5a,
+    0 3px 0 0 #3a3a3a;
 }
 
 .word-box.selected {
-  background: #fff;
-  color: #000;
-  border-color: #fff;
+  background: #2d5a27;
+  color: #fff;
+  box-shadow: 
+    3px 3px 0 0 #4a8a42,
+    -3px -3px 0 0 #1a3a17,
+    3px 0 0 0 #3a7a32,
+    -3px 0 0 0 #2a4a22,
+    0 3px 0 0 #3a7a32,
+    0 -3px 0 0 #2a4a22;
+  transform: translate(2px, 2px);
 }
 
 .headline-generator {
@@ -886,14 +1038,16 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 .cta-generator .cta-preview {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: bold;
   text-align: center;
-  padding: 16px 32px;
-  min-width: 200px;
+  padding: 12px 28px;
+  min-width: 180px;
   cursor: pointer;
   user-select: none;
   max-width: 90%;
+  image-rendering: pixelated;  /* Keep pixel edges sharp */
+  -webkit-font-smoothing: none; /* Crisper text on some browsers */
 }
 
 .cta-generator .button-container {
@@ -918,8 +1072,9 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   white-space: nowrap;
   cursor: move;
   user-select: none;
-  padding: 14px 28px;
+  padding: 12px 24px;
   display: inline-block;
+  image-rendering: pixelated;
 }
 
 .cta-layer {
