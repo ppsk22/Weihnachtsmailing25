@@ -9,6 +9,22 @@ function basename(path){
   const q = path.split('?')[0].split('#')[0];
   return q.split('/').pop();
 }
+
+// Clean background filename for display: remove underscores and .gif extension
+function cleanBgName(path) {
+  // Get just the filename from the path
+  var name = path.substring(path.lastIndexOf('/') + 1);
+  // Remove .gif extension
+  if (name.toLowerCase().endsWith('.gif')) {
+    name = name.slice(0, -4);
+  }
+  // Replace underscores with spaces
+  while (name.indexOf('_') !== -1) {
+    name = name.replace('_', ' ');
+  }
+  return name;
+}
+
 function closePopup(){
   overlay.classList.remove('open');
   overlay.classList.add('hidden');
@@ -121,12 +137,22 @@ function buildBGGrid(container){
     thumb.className = 'bg-thumb';
     const img = document.createElement('img');
     img.src = url;
-    img.alt = basename(url);
+    
+    // Clean the name inline
+    let displayName = url.substring(url.lastIndexOf('/') + 1);
+    if (displayName.toLowerCase().endsWith('.gif')) {
+      displayName = displayName.slice(0, -4);
+    }
+    while (displayName.indexOf('_') !== -1) {
+      displayName = displayName.replace('_', ' ');
+    }
+    
+    img.alt = displayName;
     thumb.appendChild(img);
 
     const cap = document.createElement('div');
     cap.className = 'bg-caption';
-    cap.textContent = basename(url);
+    cap.textContent = displayName;
 
     card.appendChild(thumb);
     card.appendChild(cap);
@@ -158,7 +184,7 @@ function buildHeroGrid(container){
     card.className = 'bg-card';
 
     const thumb = document.createElement('div');
-    thumb.className = 'bg-thumb';
+    thumb.className = 'hero-thumb';
     const img = document.createElement('img');
     img.src = url;
     img.alt = basename(url);
@@ -620,59 +646,102 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     preview.className = 'headline-preview';
     preview.textContent = text;
     
-    // Apply TRASHY random styles! 🎉
-    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff1493', '#00ff7f', '#ffa500', '#ff69b4'];
+    // PIXEL ART STYLE TEXT - high contrast, hard shadows, blocky fonts
+    const colors = [
+      '#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', 
+      '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ff1493', 
+      '#00ff7f', '#ffa500', '#ff69b4', '#39ff14', '#fe019a'
+    ];
+    
+    // PIXEL ART: Hard shadows only - no blur!
     const shadows = [
-      '2px 2px 4px rgba(0,0,0,0.5)',
-      '0 0 10px rgba(255,255,255,0.8)',
+      // Simple offsets
+      '2px 2px 0 #000',
       '3px 3px 0 #000',
-      '0 0 20px rgba(255,0,0,0.5)',
-      '5px 5px 10px rgba(0,0,0,0.8)',
-      '0 0 30px rgba(255,0,255,0.8)',
-      '-2px -2px 0 #fff, 2px 2px 0 #000',
-      '0 0 5px #fff, 0 0 10px #fff, 0 0 15px #ff00ff, 0 0 20px #ff00ff',
-      '1px 1px 0 #000, 2px 2px 0 #fff, 3px 3px 0 #000',
-      'inset 0 0 10px rgba(255,255,255,0.5)'
+      '4px 4px 0 #000',
+      '2px 2px 0 #fff',
+      '3px 3px 0 #fff',
+      // Colored shadows
+      `3px 3px 0 ${colors[Math.floor(Math.random() * colors.length)]}`,
+      `4px 4px 0 ${colors[Math.floor(Math.random() * colors.length)]}`,
+      // Outline effect (4-direction)
+      '-2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000',
+      '-2px 0 0 #fff, 2px 0 0 #fff, 0 -2px 0 #fff, 0 2px 0 #fff',
+      // Double shadow / 3D depth
+      '2px 2px 0 #fff, 4px 4px 0 #000',
+      '2px 2px 0 #000, 4px 4px 0 #fff',
+      '3px 3px 0 #000, 6px 6px 0 rgba(0,0,0,0.4)',
+      // Thick outline + shadow
+      '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 3px 3px 0 #000',
+      // Neon-ish but hard
+      `0 0 0 3px ${colors[Math.floor(Math.random() * colors.length)]}`,
+      // No shadow
+      'none'
     ];
     
     const transforms = [
-      'none',
       'uppercase',
-      'lowercase',
+      'uppercase',
+      'uppercase',  // Favor uppercase for headlines
+      'none',
       'capitalize'
     ];
     
+    // PIXEL ART: Blocky fonts that look good pixelated
     const fontFamilies = [
-      'Arial, sans-serif',
-      'Impact, fantasy',
-      'Comic Sans MS, cursive',
-      'Courier New, monospace',
-      'Georgia, serif',
-      'Brush Script MT, cursive',
+      // Custom fonts
       'Jumps Winter, cursive',
       'Spicy Sale, display',
       'Start Story, cursive',
       'Super Chiby, display',
-      'Super Crawler, display'
+      'Super Crawler, display',
+      // System blocky fonts
+      'Impact, fantasy',
+      'Arial Black, sans-serif',
+      'Courier New, monospace',
+      'Verdana, sans-serif',
+      'Arial, sans-serif',
+      'Comic Sans MS, cursive'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
     preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
-    preview.style.fontWeight = Math.random() > 0.3 ? 'bold' : 'normal';
-    preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
-    preview.style.textDecoration = Math.random() > 0.8 ? 'underline' : 'none'; // Only underline, no line-through
+    preview.style.fontWeight = 'bold'; // Always bold for headlines
+    preview.style.fontStyle = 'normal'; // No italic for pixel style
+    preview.style.textDecoration = 'none';
     preview.style.textTransform = transforms[Math.floor(Math.random() * transforms.length)];
-    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 8) - 2 + 'px') : 'normal';
+    preview.style.letterSpacing = Math.random() > 0.4 ? (Math.floor(Math.random() * 5) + 1 + 'px') : '1px';
     preview.style.fontFamily = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
     
-    // Extra trashy effects!
-    if (Math.random() > 0.8) preview.style.transform = `skewX(${Math.floor(Math.random() * 20 - 10)}deg)`;
-    if (Math.random() > 0.9) {  // 10% chance for background (more rare!)
-      preview.style.background = `linear-gradient(90deg, ${colors[Math.floor(Math.random() * colors.length)]}, ${colors[Math.floor(Math.random() * colors.length)]})`;
-      preview.style.padding = '8px 16px';
-      if (Math.random() > 0.5) preview.style.borderRadius = `${Math.floor(Math.random() * 20)}px`; // Random rounded corners!
+    // PIXEL ART: Hard stroke outlines (more common)
+    if (Math.random() > 0.5) {
+      const strokeColors = ['#000', '#fff', '#000', '#000'];
+      preview.style.webkitTextStroke = `${Math.floor(Math.random() * 2) + 1}px ${strokeColors[Math.floor(Math.random() * strokeColors.length)]}`;
     }
-    if (Math.random() > 0.85) preview.style.webkitTextStroke = `${Math.floor(Math.random() * 3)}px ${colors[Math.floor(Math.random() * colors.length)]}`;
+    
+    // Pixel art: Very rare rotation, keep it blocky
+    if (Math.random() > 0.92) {
+      preview.style.transform = `rotate(${Math.floor(Math.random() * 6 - 3)}deg)`;
+    }
+    
+    // PIXEL ART backgrounds: solid colors or hard gradients
+    if (Math.random() > 0.85) {
+      const bgColor = colors[Math.floor(Math.random() * colors.length)];
+      const bgType = Math.floor(Math.random() * 3);
+      if (bgType === 0) {
+        // Solid
+        preview.style.background = bgColor;
+      } else if (bgType === 1) {
+        // Hard split
+        preview.style.background = `linear-gradient(180deg, ${bgColor} 50%, ${colors[Math.floor(Math.random() * colors.length)]} 50%)`;
+      } else {
+        // Horizontal gradient
+        preview.style.background = `linear-gradient(90deg, ${bgColor}, ${colors[Math.floor(Math.random() * colors.length)]})`;
+      }
+      preview.style.padding = '8px 16px';
+      preview.style.border = Math.random() > 0.5 ? '3px solid #000' : '3px solid #fff';
+      preview.style.boxShadow = '4px 4px 0 #000';
+    }
     
     // Store the text for spawning
     preview.dataset.headlineText = text;
@@ -689,6 +758,8 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     preview.dataset.headlineStroke = preview.style.webkitTextStroke || 'none';
     preview.dataset.headlinePadding = preview.style.padding || 'none';
     preview.dataset.headlineBorderRadius = preview.style.borderRadius || 'none';
+    preview.dataset.headlineBorder = preview.style.border || 'none';
+    preview.dataset.headlineBoxShadow = preview.style.boxShadow || 'none';
   }
   
   regenBtn.addEventListener('click', generateHeadline);
@@ -708,7 +779,9 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       preview.dataset.headlineBackground,
       preview.dataset.headlineStroke,
       preview.dataset.headlinePadding,
-      preview.dataset.headlineBorderRadius
+      preview.dataset.headlineBorderRadius,
+      preview.dataset.headlineBorder,
+      preview.dataset.headlineBoxShadow
     );
     closePopup();
   });
@@ -726,7 +799,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
   generateHeadline();
 }
 
-function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius) {
+function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius, border, boxShadow) {
   const stage = document.getElementById('stage');
   
   // Remove existing headline if any
@@ -757,6 +830,8 @@ function spawnHeadline(text, color, shadow, weight, style, decoration, transform
   if (stroke !== 'none') textEl.style.webkitTextStroke = stroke;
   if (padding !== 'none') textEl.style.padding = padding;
   if (borderRadius !== 'none') textEl.style.borderRadius = borderRadius;
+  if (border && border !== 'none') textEl.style.border = border;
+  if (boxShadow && boxShadow !== 'none') textEl.style.boxShadow = boxShadow;
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -985,51 +1060,96 @@ function buildCompanyNameUI(container) {
     preview.className = 'company-preview';
     preview.textContent = preview.dataset.companyName; // Restore text
     
-    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffffff', '#ff8800', '#8800ff', '#ff1493', '#00ff7f', '#ffa500'];
-    const shadows = [
-      '2px 2px 4px rgba(0,0,0,0.5)',
-      '0 0 10px rgba(255,255,255,0.8)',
-      '3px 3px 0 #000',
-      '0 0 20px rgba(0,255,255,0.5)',
-      '4px 4px 8px rgba(0,0,0,0.7)',
-      '0 0 30px rgba(255,255,0,0.8)',
-      '-3px -3px 0 #fff, 3px 3px 0 #000',
-      '0 0 5px #fff, 0 0 15px #ff00ff',
-      '2px 2px 0 #000, 4px 4px 0 #fff'
+    // PIXEL ART STYLE TEXT - high contrast, hard shadows, blocky fonts
+    const colors = [
+      '#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', 
+      '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ff1493', 
+      '#00ff7f', '#ffa500', '#ff69b4', '#39ff14', '#8800ff'
     ];
     
+    // PIXEL ART: Hard shadows only - no blur!
+    const shadows = [
+      // Simple offsets
+      '2px 2px 0 #000',
+      '3px 3px 0 #000',
+      '4px 4px 0 #000',
+      '2px 2px 0 #fff',
+      '3px 3px 0 #fff',
+      // Colored shadows
+      `3px 3px 0 ${colors[Math.floor(Math.random() * colors.length)]}`,
+      `4px 4px 0 ${colors[Math.floor(Math.random() * colors.length)]}`,
+      // Outline effect (4-direction)
+      '-2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000',
+      '-2px 0 0 #fff, 2px 0 0 #fff, 0 -2px 0 #fff, 0 2px 0 #fff',
+      '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
+      // Double shadow / 3D depth
+      '2px 2px 0 #fff, 4px 4px 0 #000',
+      '2px 2px 0 #000, 4px 4px 0 #fff',
+      '3px 3px 0 #000, 6px 6px 0 rgba(0,0,0,0.4)',
+      // Thick 3D
+      '1px 1px 0 #000, 2px 2px 0 #000, 3px 3px 0 #000',
+      // No shadow
+      'none'
+    ];
+    
+    // PIXEL ART: Blocky fonts
     const fontFamilies = [
-      'Arial, sans-serif',
-      'Impact, fantasy',
-      'Comic Sans MS, cursive',
-      'Courier New, monospace',
-      'Georgia, serif',
-      'Brush Script MT, cursive',
-      'Times New Roman, serif',
+      // Custom fonts
       'Jumps Winter, cursive',
       'Spicy Sale, display',
       'Start Story, cursive',
       'Super Chiby, display',
-      'Super Crawler, display'
+      'Super Crawler, display',
+      // System blocky fonts
+      'Impact, fantasy',
+      'Arial Black, sans-serif',
+      'Courier New, monospace',
+      'Verdana, sans-serif',
+      'Arial, sans-serif',
+      'Comic Sans MS, cursive'
+    ];
+    
+    const textTransforms = [
+      'uppercase',
+      'uppercase',
+      'none',
+      'capitalize'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
     preview.style.textShadow = shadows[Math.floor(Math.random() * shadows.length)];
-    preview.style.fontWeight = Math.random() > 0.3 ? 'bold' : 'normal';
-    preview.style.fontStyle = Math.random() > 0.7 ? 'italic' : 'normal';
-    preview.style.textTransform = Math.random() > 0.5 ? 'uppercase' : (Math.random() > 0.7 ? 'lowercase' : 'none');
-    preview.style.letterSpacing = Math.random() > 0.5 ? (Math.floor(Math.random() * 10) - 2 + 'px') : 'normal';
+    preview.style.fontWeight = 'bold'; // Always bold for company names
+    preview.style.fontStyle = 'normal'; // No italic for pixel style
+    preview.style.textTransform = textTransforms[Math.floor(Math.random() * textTransforms.length)];
+    preview.style.letterSpacing = Math.random() > 0.4 ? (Math.floor(Math.random() * 6) + 1 + 'px') : '2px';
     preview.style.fontFamily = fontFamilies[Math.floor(Math.random() * fontFamilies.length)];
     
-    // Extra trashy effects!
-    if (Math.random() > 0.8) preview.style.transform = `skewX(${Math.floor(Math.random() * 20 - 10)}deg)`;
-    if (Math.random() > 0.9) {  // 10% chance for background (more rare!)
-      preview.style.background = `linear-gradient(90deg, ${colors[Math.floor(Math.random() * colors.length)]}, ${colors[Math.floor(Math.random() * colors.length)]})`;
-      preview.style.padding = '8px 16px';
-      if (Math.random() > 0.5) preview.style.borderRadius = `${Math.floor(Math.random() * 20)}px`; // Random rounded corners!
+    // PIXEL ART: Hard stroke outlines (more common)
+    if (Math.random() > 0.5) {
+      const strokeColors = ['#000', '#fff', '#000', '#000'];
+      preview.style.webkitTextStroke = `${Math.floor(Math.random() * 2) + 1}px ${strokeColors[Math.floor(Math.random() * strokeColors.length)]}`;
     }
-    if (Math.random() > 0.85) preview.style.webkitTextStroke = `${Math.floor(Math.random() * 3)}px ${colors[Math.floor(Math.random() * colors.length)]}`;
-    if (Math.random() > 0.9) preview.style.textDecoration = 'underline'; // Only underline, no line-through
+    
+    // Pixel art: Very rare rotation
+    if (Math.random() > 0.92) {
+      preview.style.transform = `rotate(${Math.floor(Math.random() * 6 - 3)}deg)`;
+    }
+    
+    // PIXEL ART backgrounds: solid colors or hard gradients (rare)
+    if (Math.random() > 0.88) {
+      const bgColor = colors[Math.floor(Math.random() * colors.length)];
+      const bgType = Math.floor(Math.random() * 3);
+      if (bgType === 0) {
+        preview.style.background = bgColor;
+      } else if (bgType === 1) {
+        preview.style.background = `linear-gradient(180deg, ${bgColor} 50%, ${colors[Math.floor(Math.random() * colors.length)]} 50%)`;
+      } else {
+        preview.style.background = `linear-gradient(90deg, ${bgColor}, ${colors[Math.floor(Math.random() * colors.length)]})`;
+      }
+      preview.style.padding = '6px 14px';
+      preview.style.border = Math.random() > 0.5 ? '3px solid #000' : '3px solid #fff';
+      preview.style.boxShadow = '3px 3px 0 #000';
+    }
     
     preview.dataset.companyColor = preview.style.color;
     preview.dataset.companyShadow = preview.style.textShadow;
@@ -1044,6 +1164,8 @@ function buildCompanyNameUI(container) {
     preview.dataset.companyBackground = preview.style.background || 'none';
     preview.dataset.companyPadding = preview.style.padding || 'none';
     preview.dataset.companyBorderRadius = preview.style.borderRadius || 'none';
+    preview.dataset.companyBorder = preview.style.border || 'none';
+    preview.dataset.companyBoxShadow = preview.style.boxShadow || 'none';
   }
   
   function regenerateAll() {
@@ -1070,7 +1192,9 @@ function buildCompanyNameUI(container) {
       preview.dataset.companyDecoration,
       preview.dataset.companyBackground,
       preview.dataset.companyPadding,
-      preview.dataset.companyBorderRadius
+      preview.dataset.companyBorderRadius,
+      preview.dataset.companyBorder,
+      preview.dataset.companyBoxShadow
     );
     closePopup();
   });
@@ -1095,7 +1219,7 @@ function buildCompanyNameUI(container) {
   regenerateAll();
 }
 
-function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius) {
+function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius, border, boxShadow) {
   const stage = document.getElementById('stage');
   
   // Remove existing company name if any
@@ -1126,6 +1250,8 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
   if (background !== 'none') textEl.style.background = background;
   if (padding !== 'none') textEl.style.padding = padding;
   if (borderRadius !== 'none') textEl.style.borderRadius = borderRadius;
+  if (border && border !== 'none') textEl.style.border = border;
+  if (boxShadow && boxShadow !== 'none') textEl.style.boxShadow = boxShadow;
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -1669,7 +1795,7 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
     void buttonEl.offsetWidth;
     buttonEl.classList.add('bouncing');
     // Remove class after animation completes
-    setTimeout(() => buttonEl.classList.remove('bouncing'), 350);
+    setTimeout(() => buttonEl.classList.remove('bouncing'), 2050);
   }
   
   // First bounce after 1 second
