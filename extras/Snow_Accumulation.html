@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Snow Accumulation Demo</title>
+
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+        font-family: sans-serif;
+        color: #fff;
+    }
+
+    #ui {
+        position: fixed;
+        left: 20px;
+        top: 20px;
+        z-index: 10;
+        font-size: 14px;
+    }
+
+    #platform {
+        position: fixed;
+        width: 260px;
+        height: 120px;
+        left: 50%;
+        top: 55%;
+        transform: translate(-50%, -50%);
+        background: #555;
+        border-radius: 12px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.6);
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    #platformSnow {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 3;
+    }
+
+    #pixelSnow {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1;
+    }
+
+    canvas {
+        display: block;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+    <div>Snow with cheap accumulation</div>
+</div>
+
+<div id="platform"></div>
+<canvas id="platformSnow"></canvas>
+<canvas id="pixelSnow"></canvas>
+
+<script>
+    const canvas = document.getElementById('pixelSnow');
+    const ctx = canvas.getContext('2d');
+
+    const platformEl = document.getElementById('platform');
+    const platformSnowCanvas = document.getElementById('platformSnow');
+    const platformCtx = platformSnowCanvas.getContext('2d');
+
+    let pixels = [];
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+
+    // accumulation settings
+    const ACC_COLS = 80;
+    const MAX_ACC_HEIGHT = 24;
+    const accumulation = new Array(ACC_COLS).fill(0);
+    let platformRect = null;
+
+    function updatePlatformRect() {
+        platformRect = platformEl.getBoundingClientRect();
+    }
+
+    function resizeCanvas() {
+        canvasWidth = window.innerWidth;
+        canvasHeight = window.innerHeight;
+
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        platformSnowCanvas.width = canvasWidth;
+        platformSnowCanvas.height = canvasHeight;
+
+        updatePlatformRect();
+        regeneratePixels();
+    }
+
+    function regeneratePixels() {
+        const pixelCount = Math.floor(canvasWidth * canvasHeight * 0.00045);
+        pixels = [];
+        for (let i = 0; i < pixelCount; i++) {
+            pixels.push(makePixel());
+        }
+    }
+
+    function makePixel() {
+        return {
+            x: Math.random() * canvasWidth,
+            y: Math.random() * canvasHeight,
+            size: 1 + Math.random() * 2,
+            vy: 25 + Math.random() * 35,
+            baseVx: (Math.random() - 0.5) * 20,
+            wobblePhase: Math.random() * Math.PI * 2,
+            wobbleSpeed: 2 + Math.random() * 3,
+            wobbleAmp: 1 + Math.random() * 2,
+            alpha: 0.6 + Math.random() * 0.4
+        };
+    }
+
+    function drawAccumulation() {
+        if (!platformRect) return;
+
+        platformCtx.save();
+        platformCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        platformCtx.fillStyle = "#fff";
+
+        for (let i = 0; i < ACC_COLS; i++) {
+            const h = accumulation[i];
+            if (h <= 0) continue;
+
+            const x0 = platformRect.left + (i / ACC_COLS) * platformRect.width;
+            const x1 = platformRect.left + ((i + 1) / ACC_COLS) * platformRect.width;
+            const w = x1 - x0 + 1;
+            const y = platformRect.top - h;
+
+            platformCtx.fillRect(x0, y, w, h);
+        }
+
+        platformCtx.restore();
+    }
+
+    let lastTime = 0;
+
+    function loop(ts) {
+        requestAnimationFrame(loop);
+        const dt = (ts - lastTime) / 1000;
+        lastTime = ts;
+
+        ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+        for (let i = 0; i < pixels.length; i++) {
+            const p = pixels[i];
+
+            // motion
+            p.y += p.vy * dt;
+            p.x += p.baseVx * dt;
+            p.wobblePhase += p.wobbleSpeed * dt;
+            const wobble = Math.sin(p.wobblePhase) * p.wobbleAmp;
+            const drawX = p.x + wobble;
+
+            let captured = false;
+
+            if (platformRect) {
+                const nearTop =
+                    p.y >= platformRect.top - 2 &&
+                    p.y <= platformRect.top + 2;
+
+                const overPlatform =
+                    drawX >= platformRect.left &&
+                    drawX <= platformRect.right;
+
+                if (nearTop && overPlatform) {
+                    const localX = drawX - platformRect.left;
+                    const col = Math.floor((localX / platformRect.width) * ACC_COLS);
+
+                    if (col >= 0 && col < ACC_COLS && accumulation[col] < MAX_ACC_HEIGHT) {
+                        accumulation[col] += 1;
+                    }
+
+                    // recycle snowflake
+                    p.y = -10;
+                    p.x = Math.random() * canvasWidth;
+                    captured = true;
+                }
+            }
+
+            if (captured) continue;
+
+            if (p.y > canvasHeight + 10) {
+                p.y = -10;
+                p.x = Math.random() * canvasWidth;
+            }
+
+            if (drawX < -10) p.x = canvasWidth + 10;
+            if (drawX > canvasWidth + 10) p.x = -10;
+
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(drawX, p.y, p.size, p.size);
+        }
+
+        ctx.globalAlpha = 1;
+        drawAccumulation();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>

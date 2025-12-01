@@ -423,9 +423,12 @@ body.modal-open #sticker-bar * {
   border-top: 2px solid #fff; /* Match sticker bar border */
   border-left: 2px solid #fff; /* Close off the white line on the left */
   display: flex;
+  flex-direction: column;     /* Stack buttons vertically */
   align-items: center;
   justify-content: center;
+  gap: 8px;                   /* Space between buttons */
   box-sizing: border-box;
+  padding: 8px 0;
 }
 
 /* Sticker thumbnails */
@@ -563,7 +566,8 @@ body.scaling,  body.scaling  * { cursor: se-resize !important; }
 body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* Fullscreen button (bottom-right of viewport, not scaled) */
-.fs-btn-inbar{
+/* Buttons in sticker bar button area */
+.bar-btn {
   width: 32px;
   height: 32px;
   border: 2px solid #fff;    /* white outline */
@@ -577,10 +581,21 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   align-items: center;
   justify-content: center;
   z-index: 200;              /* Above stickers (z-index 100) */
+  transition: background 0.2s;
 }
 
-.fs-btn-inbar:hover{ 
+.bar-btn:hover { 
   background: #333;          /* slightly lighter on hover */
+}
+
+/* Muted state for mute button */
+#btn-mute[aria-pressed="true"] {
+  color: #ff6666;            /* Red when muted */
+}
+
+/* Active state for snow button */
+#btn-snow[aria-pressed="true"] {
+  background: #336;          /* Blueish when active */
 }
 
 /* Future non-sticker layers that must sit above stickers */

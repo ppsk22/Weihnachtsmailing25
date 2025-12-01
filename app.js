@@ -1227,6 +1227,26 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
     if (!isHero && typeof updateStickerEffects === 'function') {
       updateStickerEffects();
     }
+    
+    // Regenerate glitter if glitter is enabled
+    const glitterCheckbox = document.getElementById('effect-glitter');
+    if (!isHero && glitterCheckbox?.checked) {
+      // Add glitter data for the new sticker
+      const stickerIndex = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length - 1;
+      if (typeof stickerGlitterData !== 'undefined') {
+        stickerGlitterData.set(stickerIndex, {
+          colors: getRandomGlitterColors(),
+          settings: getRandomStickerSettings()
+        });
+      }
+      if (typeof regenerateGlitterPixels === 'function') {
+        regenerateGlitterPixels();
+      }
+      // Make sure animation loop is running
+      if (typeof startGlitter === 'function' && !glitterAnimationId) {
+        startGlitter();
+      }
+    }
 
     return wrapper;
 }
@@ -1646,6 +1666,27 @@ document.addEventListener('fullscreenchange', () => {
 
 // initialize
 setFsButton(false);
+
+// ==== MUTE BUTTON ====
+const muteBtn = document.getElementById('btn-mute');
+let isMuted = false;
+
+muteBtn.addEventListener('click', () => {
+  isMuted = !isMuted;
+  muteBtn.setAttribute('aria-pressed', String(isMuted));
+  muteBtn.textContent = isMuted ? '🔇' : '🔊';
+  // TODO: Actually mute/unmute audio when sound is added
+});
+
+// ==== SNOW BUTTON ====
+const snowBtn = document.getElementById('btn-snow');
+let isSnowActive = false;
+
+snowBtn.addEventListener('click', () => {
+  isSnowActive = !isSnowActive;
+  snowBtn.setAttribute('aria-pressed', String(isSnowActive));
+  // TODO: Toggle snow effect when implemented
+});
 
 const STAGE_W = 1200;
 const STAGE_H = 600;
@@ -2131,7 +2172,7 @@ if (effectShadow) {
 
 // ==== GLITTER EFFECT SYSTEM ==================================================
 // Early 2000s MSN/MySpace trashy glitter colors - over the top and fancy cute!
-const GLITTER_COLORS = [
+const ALL_GLITTER_COLORS = [
   '#ff69b4', // hot pink
   '#00ffff', // cyan/aqua
   '#ffd700', // gold
@@ -2142,6 +2183,16 @@ const GLITTER_COLORS = [
   '#7fffd4', // aquamarine
   '#ffc0cb', // pink
   '#e6e6fa', // lavender
+  '#fff44f', // lemon yellow
+  '#ff6ec7', // neon pink
+  '#39ff14', // neon green
+  '#ff073a', // neon red
+  '#ffffff', // white
+  '#f0f0f0', // off-white
+  '#ffe4e1', // misty rose
+  '#b0e0e6', // powder blue
+  '#dda0dd', // plum
+  '#98fb98', // pale green
 ];
 
 let glitterCanvas = null;
@@ -2149,17 +2200,282 @@ let glitterCtx = null;
 let glitterPixels = [];
 let glitterAnimationId = null;
 let glitterLastTime = 0;
+let stickerGlitterData = new Map(); // Store colors AND per-sticker settings
 
 const GLITTER_SETTINGS = {
   density: 0.15,
-  sizeMin: 1,
-  sizeMax: 5,
-  glitterAmount: 0.9,
-  glitterSpeed: 0.018,
-  jitter: 0.8,
-  crossChance: 0.7,
-  fps: 30
+  sizeMin: 6,
+  sizeMax: 15,
+  glitterAmount: 1,
+  glitterSpeed: 0.05,
+  jitter: 2.3,
+  crossChance: 1,
+  starChance: 0.75,
+  fps: 3,
+  blinkHardness: 1,
+  brightness: 3
 };
+
+// ===== TEMPORARY GLITTER CONTROLS UI =====
+function createGlitterControls() {
+  const panel = document.createElement('div');
+  panel.id = 'glitter-controls';
+  panel.innerHTML = `
+    <style>
+      #glitter-controls {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 99999;
+        background: rgba(10, 10, 20, 0.95);
+        padding: 15px;
+        border-radius: 8px;
+        font-size: 12px;
+        color: #eee;
+        font-family: system-ui, sans-serif;
+        width: 240px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      #glitter-controls .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        margin-bottom: 10px;
+      }
+      #glitter-controls h3 {
+        margin: 0;
+        font-size: 14px;
+        color: #ff69b4;
+      }
+      #glitter-controls .toggle-btn {
+        background: none;
+        border: none;
+        color: #ff69b4;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+      }
+      #glitter-controls .controls-body {
+        display: block;
+      }
+      #glitter-controls .controls-body.collapsed {
+        display: none;
+      }
+      #glitter-controls .control {
+        margin-bottom: 8px;
+      }
+      #glitter-controls .control label {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2px;
+      }
+      #glitter-controls .control input[type="range"] {
+        width: 100%;
+      }
+      #glitter-controls .value {
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+      #glitter-controls button {
+        width: 100%;
+        padding: 8px;
+        margin-top: 10px;
+        background: #ff69b4;
+        border: none;
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      #glitter-controls button:hover {
+        background: #ff1493;
+      }
+      #glitter-controls pre {
+        background: #000;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        overflow-x: auto;
+        margin-top: 10px;
+      }
+    </style>
+    <div class="header" id="gc-header">
+      <h3>✨ Glitter Controls (TEMP)</h3>
+      <button class="toggle-btn" id="gc-toggle">−</button>
+    </div>
+    
+    <div class="controls-body" id="gc-body">
+      <div class="control">
+        <label><span>Density</span><span class="value" id="gc-density-val">${GLITTER_SETTINGS.density}</span></label>
+        <input type="range" id="gc-density" min="0.01" max="1" step="0.01" value="${GLITTER_SETTINGS.density}">
+      </div>
+      
+      <div class="control">
+        <label><span>Size Min</span><span class="value" id="gc-sizeMin-val">${GLITTER_SETTINGS.sizeMin}</span></label>
+        <input type="range" id="gc-sizeMin" min="1" max="20" step="1" value="${GLITTER_SETTINGS.sizeMin}">
+      </div>
+      
+      <div class="control">
+        <label><span>Size Max</span><span class="value" id="gc-sizeMax-val">${GLITTER_SETTINGS.sizeMax}</span></label>
+        <input type="range" id="gc-sizeMax" min="2" max="30" step="1" value="${GLITTER_SETTINGS.sizeMax}">
+      </div>
+      
+      <div class="control">
+        <label><span>Glitter Amount</span><span class="value" id="gc-glitterAmount-val">${GLITTER_SETTINGS.glitterAmount}</span></label>
+        <input type="range" id="gc-glitterAmount" min="0" max="1" step="0.05" value="${GLITTER_SETTINGS.glitterAmount}">
+      </div>
+      
+      <div class="control">
+        <label><span>Glitter Speed</span><span class="value" id="gc-glitterSpeed-val">${GLITTER_SETTINGS.glitterSpeed}</span></label>
+        <input type="range" id="gc-glitterSpeed" min="0.001" max="0.2" step="0.001" value="${GLITTER_SETTINGS.glitterSpeed}">
+      </div>
+      
+      <div class="control">
+        <label><span>Jitter</span><span class="value" id="gc-jitter-val">${GLITTER_SETTINGS.jitter}</span></label>
+        <input type="range" id="gc-jitter" min="0" max="10" step="0.1" value="${GLITTER_SETTINGS.jitter}">
+      </div>
+      
+      <div class="control">
+        <label><span>Cross Chance</span><span class="value" id="gc-crossChance-val">${GLITTER_SETTINGS.crossChance}</span></label>
+        <input type="range" id="gc-crossChance" min="0" max="1" step="0.05" value="${GLITTER_SETTINGS.crossChance}">
+      </div>
+      
+      <div class="control">
+        <label><span>Star Chance</span><span class="value" id="gc-starChance-val">${GLITTER_SETTINGS.starChance}</span></label>
+        <input type="range" id="gc-starChance" min="0" max="1" step="0.05" value="${GLITTER_SETTINGS.starChance}">
+      </div>
+      
+      <div class="control">
+        <label><span>FPS</span><span class="value" id="gc-fps-val">${GLITTER_SETTINGS.fps}</span></label>
+        <input type="range" id="gc-fps" min="1" max="60" step="1" value="${GLITTER_SETTINGS.fps}">
+      </div>
+      
+      <div class="control">
+        <label><span>Blink Hardness</span><span class="value" id="gc-blinkHardness-val">${GLITTER_SETTINGS.blinkHardness}</span></label>
+        <input type="range" id="gc-blinkHardness" min="0" max="1" step="0.05" value="${GLITTER_SETTINGS.blinkHardness}">
+      </div>
+      
+      <div class="control">
+        <label><span>Brightness</span><span class="value" id="gc-brightness-val">${GLITTER_SETTINGS.brightness}</span></label>
+        <input type="range" id="gc-brightness" min="0.5" max="3" step="0.1" value="${GLITTER_SETTINGS.brightness}">
+      </div>
+      
+      <button id="gc-randomize">🎲 Randomize Colors</button>
+      <button id="gc-copy">📋 Copy Settings</button>
+      <pre id="gc-output"></pre>
+    </div>
+  `;
+  document.body.appendChild(panel);
+  
+  // Collapse/expand toggle
+  const toggleBtn = document.getElementById('gc-toggle');
+  const body = document.getElementById('gc-body');
+  const header = document.getElementById('gc-header');
+  
+  header.addEventListener('click', () => {
+    body.classList.toggle('collapsed');
+    toggleBtn.textContent = body.classList.contains('collapsed') ? '+' : '−';
+  });
+  
+  // Hook up sliders
+  const sliderKeys = ['density', 'sizeMin', 'sizeMax', 'glitterAmount', 'glitterSpeed', 'jitter', 'crossChance', 'starChance', 'fps', 'blinkHardness', 'brightness'];
+  sliderKeys.forEach(key => {
+    const slider = document.getElementById(`gc-${key}`);
+    const valDisplay = document.getElementById(`gc-${key}-val`);
+    slider.addEventListener('input', () => {
+      const val = key === 'sizeMin' || key === 'sizeMax' || key === 'fps'
+        ? parseInt(slider.value) 
+        : parseFloat(slider.value);
+      GLITTER_SETTINGS[key] = val;
+      valDisplay.textContent = val;
+      regenerateGlitterPixels();
+    });
+  });
+  
+  // Randomize button
+  document.getElementById('gc-randomize').addEventListener('click', () => {
+    randomizeStickerColors();
+    regenerateGlitterPixels();
+  });
+  
+  // Copy settings button
+  document.getElementById('gc-copy').addEventListener('click', () => {
+    const output = JSON.stringify(GLITTER_SETTINGS, null, 2);
+    document.getElementById('gc-output').textContent = output;
+    navigator.clipboard.writeText(output).catch(() => {});
+  });
+}
+
+// Create the controls panel
+// createGlitterControls(); // COMMENTED OUT - uncomment to enable glitter tuning UI
+// ===== END TEMPORARY CONTROLS =====
+
+function getRandomGlitterColors() {
+  // Color themes for more distinct looks between stickers
+  const colorThemes = [
+    // Pink/Magenta theme
+    ['#ff69b4', '#ff1493', '#ff00ff', '#ffc0cb'],
+    // Cyan/Blue theme  
+    ['#00ffff', '#87ceeb', '#b0e0e6', '#7fffd4'],
+    // Gold/Yellow theme
+    ['#ffd700', '#fff44f', '#ffe4e1', '#ffffff'],
+    // Neon theme
+    ['#39ff14', '#ff073a', '#ff6ec7', '#00ffff'],
+    // Pastel theme
+    ['#ffb6c1', '#e6e6fa', '#98fb98', '#b0e0e6'],
+    // Hot pink/Purple theme
+    ['#ff1493', '#dda0dd', '#ff69b4', '#e6e6fa'],
+    // White/Silver theme
+    ['#ffffff', '#f0f0f0', '#e6e6fa', '#b0e0e6'],
+    // Warm theme
+    ['#ffd700', '#ff69b4', '#ff6ec7', '#ffe4e1'],
+    // Cool theme
+    ['#00ffff', '#7fffd4', '#87ceeb', '#98fb98'],
+    // Rainbow mix
+    ['#ff69b4', '#ffd700', '#00ffff', '#39ff14'],
+  ];
+  
+  // Pick a random theme
+  const theme = colorThemes[Math.floor(Math.random() * colorThemes.length)];
+  
+  // Optionally add 1-2 extra random colors for more variety
+  const extraColors = Math.random() < 0.5 ? 1 : 0;
+  const shuffledAll = [...ALL_GLITTER_COLORS].sort(() => Math.random() - 0.5);
+  
+  return [...theme, ...shuffledAll.slice(0, extraColors)];
+}
+
+function getRandomStickerSettings() {
+  // Generate per-sticker variations of certain settings - MORE DRAMATIC differences
+  return {
+    densityMult: 0.3 + Math.random() * 1.4,          // 0.3 - 1.7x (much bigger range)
+    sizeMinOffset: Math.floor(Math.random() * 8) - 3,  // -3 to +4
+    sizeMaxOffset: Math.floor(Math.random() * 12) - 4, // -4 to +7
+    speedMult: 0.2 + Math.random() * 1.8,            // 0.2 - 2.0x (some very slow, some fast)
+    jitterMult: 0.3 + Math.random() * 1.4,           // 0.3 - 1.7x
+    starChanceOffset: (Math.random() - 0.5) * 0.6,   // -0.3 to +0.3 (more variety in shapes)
+    blinkHardnessOffset: (Math.random() - 0.5) * 0.8, // -0.4 to +0.4 (some smooth, some hard)
+    colorShiftSpeed: 0.0005 + Math.random() * 0.008,  // Very different cycling speeds
+    colorPhase: Math.random() * Math.PI * 2,          // Starting phase for color cycling
+    fps: 1 + Math.floor(Math.random() * 6),           // 1-6 FPS per sticker
+    lastFrameTime: 0                                   // Track last render time for this sticker
+  };
+}
+
+function randomizeStickerColors() {
+  stickerGlitterData.clear();
+  const stickers = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)');
+  stickers.forEach((sticker, index) => {
+    stickerGlitterData.set(index, {
+      colors: getRandomGlitterColors(),
+      settings: getRandomStickerSettings()
+    });
+  });
+}
 
 function initGlitterCanvas() {
   if (glitterCanvas) return;
@@ -2197,7 +2513,7 @@ function getStickerBounds() {
   const stickers = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)');
   const bounds = [];
   
-  stickers.forEach(wrapper => {
+  stickers.forEach((wrapper, index) => {
     const x = parseFloat(wrapper.getAttribute('data-x')) || 0;
     const y = parseFloat(wrapper.getAttribute('data-y')) || 0;
     const img = wrapper.querySelector('img');
@@ -2207,13 +2523,26 @@ function getStickerBounds() {
     const w = img.offsetWidth * scale;
     const h = img.offsetHeight * scale;
     
+    // Get or create glitter data for this sticker
+    if (!stickerGlitterData.has(index)) {
+      stickerGlitterData.set(index, {
+        colors: getRandomGlitterColors(),
+        settings: getRandomStickerSettings()
+      });
+    }
+    
+    const glitterData = stickerGlitterData.get(index);
+    
     bounds.push({
       x: x,
       y: y,
       w: w,
       h: h,
       centerX: x + w / 2,
-      centerY: y + h / 2
+      centerY: y + h / 2,
+      colors: glitterData.colors,
+      settings: glitterData.settings,
+      index: index
     });
   });
   
@@ -2224,43 +2553,75 @@ function regenerateGlitterPixels() {
   const bounds = getStickerBounds();
   glitterPixels = [];
   
+  if (bounds.length === 0) return;
+  
+  // PERFORMANCE: Calculate total desired particles, then cap
+  let totalDesired = 0;
+  const particlesPerSticker = [];
+  
   bounds.forEach(b => {
-    // Calculate pixel count based on sticker size
+    const stickerDensity = GLITTER_SETTINGS.density * (b.settings?.densityMult || 1);
     const area = b.w * b.h;
-    const count = Math.max(20, Math.floor(area * GLITTER_SETTINGS.density / 100));
-    
-    for (let i = 0; i < count; i++) {
+    const count = Math.max(10, Math.floor(area * stickerDensity / 100));
+    particlesPerSticker.push(count);
+    totalDesired += count;
+  });
+  
+  // Scale down if over max
+  const scale = totalDesired > MAX_GLITTER_PARTICLES ? MAX_GLITTER_PARTICLES / totalDesired : 1;
+  
+  bounds.forEach((b, i) => {
+    const count = Math.max(8, Math.floor(particlesPerSticker[i] * scale));
+    for (let j = 0; j < count; j++) {
       glitterPixels.push(makeGlitterPixel(b));
     }
   });
 }
 
 function makeGlitterPixel(bounds) {
-  const size = Math.max(1, Math.round(randGlitterRange(GLITTER_SETTINGS.sizeMin, GLITTER_SETTINGS.sizeMax)));
+  const stickerSettings = bounds.settings || {};
+  
+  // Apply per-sticker size variations
+  const sizeMin = Math.max(1, GLITTER_SETTINGS.sizeMin + (stickerSettings.sizeMinOffset || 0));
+  const sizeMax = Math.max(sizeMin + 1, GLITTER_SETTINGS.sizeMax + (stickerSettings.sizeMaxOffset || 0));
+  const size = (sizeMin + Math.random() * (sizeMax - sizeMin)) | 0; // Integer
   
   // Random position within bounds
   const localX = Math.random() * bounds.w;
   const localY = Math.random() * bounds.h;
   
-  // Calculate distance from center for fade effect (0 = center, 1 = edge)
-  const distX = Math.abs(localX - bounds.w / 2) / (bounds.w / 2);
-  const distY = Math.abs(localY - bounds.h / 2) / (bounds.h / 2);
-  const distFromCenter = Math.sqrt(distX * distX + distY * distY) / Math.sqrt(2);
+  // Simplified fade from center (cheaper calculation)
+  const dx = (localX / bounds.w - 0.5) * 2; // -1 to 1
+  const dy = (localY / bounds.h - 0.5) * 2; // -1 to 1
+  const distSq = dx * dx + dy * dy; // 0 to 2
+  const fadeMult = Math.max(0, 1 - distSq * 0.5);
   
-  // Fade multiplier - stronger at center, fades toward edges
-  const fadeMult = 1 - Math.pow(distFromCenter, 1.5);
+  // Per-sticker star chance variation
+  const effectiveStarChance = Math.max(0, Math.min(1, 
+    GLITTER_SETTINGS.starChance + (stickerSettings.starChanceOffset || 0)
+  ));
+  
+  // Determine shape type
+  let shapeType = 'square';
+  if (Math.random() < GLITTER_SETTINGS.crossChance) {
+    shapeType = Math.random() < effectiveStarChance ? 'star' : 'cross';
+  }
+  
+  // Per-sticker speed variation
+  const baseSpeed = GLITTER_SETTINGS.glitterSpeed * (stickerSettings.speedMult || 1);
   
   return {
     x: bounds.x + localX,
     y: bounds.y + localY,
     baseSize: size,
     alphaBase: (0.4 + Math.random() * 0.6) * fadeMult,
-    phase: Math.random() * Math.PI * 2,
-    speed: randGlitterRange(GLITTER_SETTINGS.glitterSpeed * 0.5, GLITTER_SETTINGS.glitterSpeed * 1.5),
+    phase: Math.random() * 6.28, // 2*PI
+    speed: baseSpeed * (0.5 + Math.random()),
     localAmount: 0.4 + Math.random() * 0.6,
-    color: GLITTER_COLORS[Math.floor(Math.random() * GLITTER_COLORS.length)],
-    isCross: Math.random() < GLITTER_SETTINGS.crossChance,
-    bounds: bounds // Keep reference to update position
+    colors: bounds.colors,
+    shapeType: shapeType,
+    bounds: bounds,
+    stickerSettings: stickerSettings
   };
 }
 
@@ -2269,100 +2630,233 @@ function randGlitterRange(min, max) {
 }
 
 function updateGlitterPixelPositions() {
-  // Update pixel positions based on current sticker positions
+  // PERFORMANCE: Cache bounds lookup
   const bounds = getStickerBounds();
+  if (bounds.length === 0) return;
   
-  glitterPixels.forEach(p => {
-    // Find matching bounds (simple approach - reassign to closest)
-    if (bounds.length === 0) return;
+  // Create a map for faster lookup by index
+  const boundsMap = new Map();
+  bounds.forEach(b => boundsMap.set(b.index, b));
+  
+  for (let i = 0; i < glitterPixels.length; i++) {
+    const p = glitterPixels[i];
+    const stickerIndex = p.bounds?.index;
+    const newBounds = boundsMap.get(stickerIndex);
+    
+    if (!newBounds) continue;
     
     // Calculate relative position within original bounds
     const relX = (p.x - p.bounds.x) / p.bounds.w;
     const relY = (p.y - p.bounds.y) / p.bounds.h;
     
-    // Find new bounds (this is simplified - assumes same order)
-    const newBounds = bounds.find(b => 
-      Math.abs(b.centerX - p.bounds.centerX) < 50 && 
-      Math.abs(b.centerY - p.bounds.centerY) < 50
-    ) || p.bounds;
-    
     // Update position
     p.x = newBounds.x + relX * newBounds.w;
     p.y = newBounds.y + relY * newBounds.h;
     p.bounds = newBounds;
-  });
+  }
 }
+
+// Performance monitoring
+let glitterPerfStats = {
+  frameCount: 0,
+  totalTime: 0,
+  lastReportTime: 0,
+  particleCount: 0
+};
+
+// PERFORMANCE: Max particles across ALL stickers
+const MAX_GLITTER_PARTICLES = 250;
 
 function glitterLoop(timestamp) {
   if (!effectGlitter?.checked) {
     if (glitterCanvas) {
       glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
     }
+    glitterAnimationId = null;
     return;
   }
   
   glitterAnimationId = requestAnimationFrame(glitterLoop);
   
+  // Performance tracking start
+  const perfStart = performance.now();
+  
   if (!glitterLastTime) glitterLastTime = timestamp;
-  const frameInterval = 1000 / GLITTER_SETTINGS.fps;
-  const delta = timestamp - glitterLastTime;
-  if (delta < frameInterval) return;
-  const dt = delta / (1000 / 60);
+  const dt = (timestamp - glitterLastTime) / (1000 / 60);
   glitterLastTime = timestamp;
   
-  // Check if sticker count changed - regenerate if needed
-  const currentStickerCount = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length;
-  if (glitterPixels.length === 0 || Math.abs(glitterPixels.length / 30 - currentStickerCount) > 1) {
-    regenerateGlitterPixels();
+  // PERFORMANCE: Only check sticker count every 500ms instead of every frame
+  if (!glitterLoop.lastStickerCheck || timestamp - glitterLoop.lastStickerCheck > 500) {
+    const currentStickerCount = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length;
+    if (glitterPixels.length === 0 || glitterLoop.lastStickerCount !== currentStickerCount) {
+      regenerateGlitterPixels();
+      glitterLoop.lastStickerCount = currentStickerCount;
+    }
+    glitterLoop.lastStickerCheck = timestamp;
   }
   
-  // Update positions to follow stickers
-  updateGlitterPixelPositions();
+  // PERFORMANCE: Only update positions every 100ms (stickers don't move that fast usually)
+  if (!glitterLoop.lastPositionUpdate || timestamp - glitterLoop.lastPositionUpdate > 100) {
+    updateGlitterPixelPositions();
+    glitterLoop.lastPositionUpdate = timestamp;
+  }
+  
+  // Determine which sticker indices should render this frame (per-sticker FPS)
+  const stickerShouldRender = new Map();
+  stickerGlitterData.forEach((data, index) => {
+    const stickerFps = data.settings?.fps || 3;
+    const frameInterval = 1000 / stickerFps;
+    const lastFrame = data.settings?.lastFrameTime || 0;
+    
+    if (timestamp - lastFrame >= frameInterval) {
+      stickerShouldRender.set(index, true);
+      if (data.settings) {
+        data.settings.lastFrameTime = timestamp;
+      }
+    } else {
+      stickerShouldRender.set(index, false);
+    }
+  });
   
   glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
   
+  // Global time for color cycling
+  const globalTime = timestamp * 0.001;
+  
+  // Ensure shadowBlur is disabled for performance
+  glitterCtx.shadowBlur = 0;
+  
+  let renderedParticles = 0;
+  const brightness = GLITTER_SETTINGS.brightness;
+  
   for (let i = 0; i < glitterPixels.length; i++) {
     const p = glitterPixels[i];
+    const stickerSettings = p.stickerSettings || {};
+    const stickerIndex = p.bounds?.index;
     
+    // Check if this sticker should render this frame
+    const shouldRender = stickerShouldRender.get(stickerIndex) !== false;
+    
+    // Always update phase
     p.phase += p.speed * dt;
-    const pulse = (1 + Math.sin(p.phase)) / 2; // 0..1
+    
+    // Skip rendering if this sticker's FPS says not this frame, draw cached state
+    if (!shouldRender && p.lastDrawState) {
+      const s = p.lastDrawState;
+      // Draw main particle
+      glitterCtx.globalAlpha = s.alpha;
+      glitterCtx.fillStyle = s.color;
+      drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+      renderedParticles++;
+      continue;
+    }
+    
+    let pulse = (1 + Math.sin(p.phase)) * 0.5;
+    
+    // Apply per-sticker blink hardness
+    const hardness = Math.max(0, Math.min(1, 
+      GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+    ));
+    pulse = Math.pow(pulse, 1 - hardness * 0.8);
+    
+    // Random blink
+    if (Math.random() < 0.05) {
+      pulse = Math.random() < 0.5 ? 1 : 0;
+    }
     
     const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
-    const alpha = p.alphaBase * (0.3 + amount * pulse);
-    const size = p.baseSize * (0.7 + 0.7 * amount * pulse);
+    const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+    const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
     
-    // Slight jitter
-    const jitter = GLITTER_SETTINGS.jitter;
+    // Skip invisible particles
+    if (alpha < 0.1) continue;
+    
+    // Per-sticker jitter
+    const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
     const jx = (Math.random() - 0.5) * jitter;
     const jy = (Math.random() - 0.5) * jitter;
     
-    glitterCtx.globalAlpha = alpha;
-    glitterCtx.fillStyle = p.color;
+    // Color cycling
+    const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+    const colorPhase = stickerSettings.colorPhase || 0;
+    const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
     
-    const x = p.x + jx;
-    const y = p.y + jy;
-    
-    if (p.isCross && size >= 2) {
-      // Pixel cross shape
-      const s = Math.round(size);
-      const half = Math.floor(s / 2);
-      glitterCtx.fillRect(x - half, y, s, 1);  // horizontal
-      glitterCtx.fillRect(x, y - half, 1, s);  // vertical
+    let currentColorIndex;
+    if (Math.random() < 0.02) {
+      currentColorIndex = Math.floor(Math.random() * p.colors.length);
     } else {
-      glitterCtx.fillRect(x, y, size, size);   // simple pixel
+      currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
     }
+    const color = p.colors[currentColorIndex];
+    
+    // PERFORMANCE: Use integer coordinates
+    const x = (p.x + jx) | 0;
+    const y = (p.y + jy) | 0;
+    
+    // Cache draw state
+    p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
+    
+    // Draw main particle
+    glitterCtx.globalAlpha = alpha;
+    glitterCtx.fillStyle = color;
+    drawGlitterShape(x, y, size, p.shapeType);
+    renderedParticles++;
   }
   
   glitterCtx.globalAlpha = 1;
+  
+  // Performance tracking
+  const perfEnd = performance.now();
+  glitterPerfStats.frameCount++;
+  glitterPerfStats.totalTime += (perfEnd - perfStart);
+  glitterPerfStats.particleCount = glitterPixels.length;
+  
+  // Report every 5 seconds
+  if (timestamp - glitterPerfStats.lastReportTime > 5000) {
+    const avgTime = glitterPerfStats.totalTime / glitterPerfStats.frameCount;
+    console.log(`✨ Glitter Perf: ${avgTime.toFixed(2)}ms/frame, ${glitterPerfStats.particleCount} particles, ${renderedParticles} rendered`);
+    glitterPerfStats.frameCount = 0;
+    glitterPerfStats.totalTime = 0;
+    glitterPerfStats.lastReportTime = timestamp;
+  }
+}
+
+function drawGlitterShape(x, y, size, shapeType) {
+  const s = size | 0; // Integer size
+  if (shapeType === 'star' && s >= 3) {
+    const half = s >> 1; // Bitwise divide by 2
+    const diagHalf = (s * 0.35) | 0;
+    
+    // Main cross
+    glitterCtx.fillRect(x - half, y, s, 1);
+    glitterCtx.fillRect(x, y - half, 1, s);
+    
+    // Diagonals - simplified, fewer draw calls
+    for (let d = 1; d <= diagHalf; d++) {
+      glitterCtx.fillRect(x + d, y + d, 1, 1);
+      glitterCtx.fillRect(x - d, y - d, 1, 1);
+      glitterCtx.fillRect(x + d, y - d, 1, 1);
+      glitterCtx.fillRect(x - d, y + d, 1, 1);
+    }
+  } else if (shapeType === 'cross' && s >= 2) {
+    const half = s >> 1;
+    glitterCtx.fillRect(x - half, y, s, 1);
+    glitterCtx.fillRect(x, y - half, 1, s);
+  } else {
+    glitterCtx.fillRect(x, y, s, s);
+  }
 }
 
 function startGlitter() {
   initGlitterCanvas();
+  randomizeStickerColors(); // Randomize colors each time glitter is enabled
   regenerateGlitterPixels();
   glitterLastTime = 0;
-  if (!glitterAnimationId) {
-    glitterAnimationId = requestAnimationFrame(glitterLoop);
+  // Always restart animation loop
+  if (glitterAnimationId) {
+    cancelAnimationFrame(glitterAnimationId);
   }
+  glitterAnimationId = requestAnimationFrame(glitterLoop);
 }
 
 function stopGlitter() {
