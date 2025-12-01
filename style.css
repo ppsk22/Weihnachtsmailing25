@@ -316,22 +316,42 @@ body.modal-open #sticker-bar * {
   letter-spacing: 1px;
 }
 
-/* Button area fills the right margin space */
-#sticker-bar-button-area {
+/* Delete button area - top right of sticker bar (same style as title) */
+#sticker-bar-delete-area {
   grid-column: 2;
   grid-row: 2;
-  width: 60px;
-  height: var(--stickerbar-h);
-  background: #2a2a2a;       /* Same as sticker-bar */
-  border-top: 2px solid #fff; /* Same border */
   position: absolute;
-  right: 0;
-  display: flex;
+  right: 60px;  /* Account for fullscreen button width */
+  top: 0;
+  width: auto;
+  padding: 8px 16px;
+  background: #ff4444;  /* Red background */
+  border: 2px solid #fff;
+  border-right: none;
+  border-bottom-left-radius: 8px;  /* Rounded corner at bottom-left */
+  display: none;  /* Hidden by default, shown when sticker is selected */
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  z-index: 150;  /* Above stickers */
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-/* Button area - fills the right margin space */
+#sticker-bar-delete-area:hover {
+  background: #ff0000;
+}
+
+#sticker-bar-delete-area span {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Button area fills the right margin space */
 #sticker-bar-button-area {
   grid-column: 2;
   grid-row: 2;
@@ -342,6 +362,7 @@ body.modal-open #sticker-bar * {
   height: var(--stickerbar-h);
   background: #2a2a2a;       /* Match sticker bar */
   border-top: 2px solid #fff; /* Match sticker bar border */
+  border-left: 2px solid #fff; /* Close off the white line on the left */
   display: flex;
   align-items: center;
   justify-content: center;

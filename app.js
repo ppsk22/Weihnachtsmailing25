@@ -1150,7 +1150,10 @@ function deselectAll() {
 }
 
 document.addEventListener("pointerdown", e => {
-    if (!e.target.closest(".sticker-wrapper")) deselectAll();
+    // Don't deselect if clicking on delete button
+    if (!e.target.closest(".sticker-wrapper") && !e.target.closest("#sticker-bar-delete-area")) {
+        deselectAll();
+    }
 });
 
 //------------------------------------------------------
@@ -1370,16 +1373,17 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
       return;
     }
     
-    // Spawn sticker at center of stage
+    // Spawn sticker at random position on stage (always fully within bounds)
     const stage = document.getElementById('stage');
     const stageWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
     const stageHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
     
-    // Center position (accounting for 150px sticker width)
-    const centerX = (stageWidth / 2) - 75;
-    const centerY = (stageHeight / 2) - 75;
+    // Random position (accounting for 150px sticker width to stay within bounds)
+    const stickerSize = 150;
+    const randomX = Math.random() * (stageWidth - stickerSize);
+    const randomY = Math.random() * (stageHeight - stickerSize);
     
-    createStickerAt(stickerSrc.src, centerX, centerY);
+    createStickerAt(stickerSrc.src, randomX, randomY);
   });
   
   // Touch support for mobile
@@ -1409,19 +1413,42 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
       return;
     }
     
-    // Spawn at center
+    // Spawn at random position on stage (always fully within bounds)
     const stage = document.getElementById('stage');
     const stageWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
     const stageHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
     
-    const centerX = (stageWidth / 2) - 75;
-    const centerY = (stageHeight / 2) - 75;
+    // Random position (accounting for 150px sticker width to stay within bounds)
+    const stickerSize = 150;
+    const randomX = Math.random() * (stageWidth - stickerSize);
+    const randomY = Math.random() * (stageHeight - stickerSize);
     
-    createStickerAt(stickerSrc.src, centerX, centerY);
+    createStickerAt(stickerSrc.src, randomX, randomY);
   });
 });
 
 
+//------------------------------------------------------
+// DELETE BUTTON VISIBILITY MANAGEMENT
+//------------------------------------------------------
+function updateDeleteButtonVisibility() {
+  const deleteButtonArea = document.getElementById('sticker-bar-delete-area');
+  if (!deleteButtonArea) return; // Not loaded yet
+  
+  const selectedSticker = document.querySelector('.sticker-wrapper.selected');
+  
+  // Only show delete button if a regular sticker is selected (not hero, headline, company, cta)
+  if (selectedSticker && 
+      !selectedSticker.hasAttribute('data-is-hero') && 
+      !selectedSticker.hasAttribute('data-is-headline') &&
+      !selectedSticker.classList.contains('headline-layer') &&
+      !selectedSticker.classList.contains('company-layer') &&
+      !selectedSticker.classList.contains('cta-layer')) {
+    deleteButtonArea.style.display = 'flex';
+  } else {
+    deleteButtonArea.style.display = 'none';
+  }
+}
 
 //------------------------------------------------------
 // INTERACTIVE STICKERS
@@ -1431,6 +1458,7 @@ function makeInteractive(el, isHero = false) {
     el.addEventListener("pointerdown", () => {
 	deselectAll();
 	el.classList.add("selected");
+	updateDeleteButtonVisibility();  // Show delete button for selected sticker
 	if (!isHero) {
 	    bringStickerToFront(el);  // only manage z-index for stickers, not heroes
 	}
@@ -2032,3 +2060,42 @@ function wireExportControls(){
   // Re-append in shuffled order
   stickers.forEach(sticker => stickerBar.appendChild(sticker));
 })();
+
+// ==== DELETE BUTTON FOR STICKERS =============================================
+// Delete button click handler - the whole area is clickable
+const deleteButtonArea = document.getElementById('sticker-bar-delete-area');
+if (deleteButtonArea) {
+  deleteButtonArea.addEventListener('click', () => {
+    const selectedSticker = document.querySelector('.sticker-wrapper.selected');
+    if (selectedSticker && 
+        !selectedSticker.hasAttribute('data-is-hero') && 
+        !selectedSticker.hasAttribute('data-is-headline') &&
+        !selectedSticker.classList.contains('headline-layer') &&
+        !selectedSticker.classList.contains('company-layer') &&
+        !selectedSticker.classList.contains('cta-layer')) {
+      selectedSticker.remove();
+      deleteButtonArea.style.display = 'none';
+    }
+  });
+}
+
+// Update delete button visibility when selection changes
+const originalDeselectAll = deselectAll;
+deselectAll = function() {
+  originalDeselectAll();
+  updateDeleteButtonVisibility();
+};
+
+// Add observer to watch for class changes on stage children
+const stageEl = document.getElementById('stage');
+if (stageEl) {
+  const observer = new MutationObserver(() => {
+    updateDeleteButtonVisibility();
+  });
+
+  observer.observe(stageEl, {
+    attributes: true,
+    attributeFilter: ['class'],
+    subtree: true
+  });
+}
