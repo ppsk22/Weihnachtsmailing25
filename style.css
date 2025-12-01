@@ -1,3 +1,49 @@
+/* ---- Custom Fonts ---- */
+@font-face {
+    font-family: 'Jumps Winter';
+    src: url('assets/fonts/JumpsWinter.woff2') format('woff2'),
+        url('assets/fonts/JumpsWinter.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Spicy Sale';
+    src: url('assets/fonts/SpicySale.woff2') format('woff2'),
+        url('assets/fonts/SpicySale.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Start Story';
+    src: url('assets/fonts/StartStory.woff2') format('woff2'),
+        url('assets/fonts/StartStory.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Super Chiby';
+    src: url('assets/fonts/SuperChiby.woff2') format('woff2'),
+        url('assets/fonts/SuperChiby.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Super Crawler';
+    src: url('assets/fonts/SuperCrawler.woff2') format('woff2'),
+        url('assets/fonts/SuperCrawler.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 /* ---- sizing tokens ---- */
 :root{
   /* set these; your JS also overrides --stage-w/--stage-h at runtime */
@@ -163,7 +209,7 @@ body {
   border-radius: 12px;
   padding: 16px;
   color: #fff;
-  overflow: auto;                    /* allow scrolling */
+  overflow: hidden;                  /* No scrollbar */
   z-index: 10000;                    /* way above stickers (100-999) and other layers (2000) */
   pointer-events: none;
 }
@@ -229,10 +275,45 @@ body.modal-open #sticker-bar * {
   gap: 16px;                 /* comfortable spacing */
   align-items: center;
   padding: 14px;             /* comfortable padding */
+  padding-bottom: 20px;      /* Extra bottom padding to avoid scrollbar */
   margin-right: 60px;        /* Make container narrower - ends before button */
   overflow-x: auto;
   overflow-y: hidden;        /* No vertical scrollbar */
   box-sizing: border-box;
+}
+
+/* Add top padding when stickers are unlocked to make room for title */
+#sticker-bar.unlocked {
+  padding-top: 50px;
+}
+
+/* Title area - overlaid in top-left corner of sticker bar */
+#sticker-bar-title-area {
+  grid-column: 2;
+  grid-row: 2;
+  position: absolute;
+  left: 0;
+  top: 0;  /* TOP not bottom! */
+  width: auto;
+  padding: 8px 16px;
+  background: rgba(42, 42, 42, 0.95); /* Slightly transparent dark background */
+  border: 2px solid #fff;
+  border-left: none;
+  border-bottom-right-radius: 8px;  /* Rounded corner at bottom-right */
+  display: none;             /* Hidden by default, shown via JS when unlocked */
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  z-index: 150;              /* Above stickers */
+}
+
+#sticker-bar-title-area span {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 /* Button area fills the right margin space */
@@ -270,12 +351,11 @@ body.modal-open #sticker-bar * {
 /* Sticker thumbnails */
 .sticker-src{
   z-index: 100;
-  height: 80px;              /* comfortable size for tapping */
+  height: 70px;              /* Reduced from 80px to avoid scrollbar */
   cursor: grab;
   user-drag: none;
   -webkit-user-drag: none;
   border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   display: none;             /* hidden by default */
 }
 
@@ -457,20 +537,53 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   font-weight: 600;
   margin-bottom: 10px;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;  /* Center title */
   align-items: center;
   flex-shrink: 0;  /* Don't shrink header */
+  position: relative;  /* For absolute positioning of close button */
 }
 
 .popup-head span {
-  flex: 1;
   text-align: center;  /* center the title */
+  font-size: 18px;
+  font-weight: bold;
+}
+
+/* Close button - small and positioned absolutely */
+#popup-close {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#popup-close:hover {
+  color: #ff5555;
 }
 
 .popup-body{
   flex: 1 1 auto;
-  min-height: 100%;  /* Fill available space */
-  overflow: visible;  /* No scrollbar */
+  min-height: 100%;
+  overflow: auto;  /* Allow scrolling for grids */
+  position: relative;  /* For absolute positioning of generators */
+}
+
+/* For generators, prevent scrolling on the body itself (content handles its own space) */
+.popup-body:has(.headline-generator),
+.popup-body:has(.company-generator),
+.popup-body:has(.cta-generator) {
+  overflow: hidden;
 }
 
 .bg-grid{
@@ -563,43 +676,37 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 .headline-generator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  margin-top: 40px;
-  position: relative;  /* For absolute positioning of buttons */
-  min-height: 280px;  /* Reduced to fit without scroll */
-}
-
-.headline-generator > button:last-child {
   position: absolute;
+  top: 20px;  /* Moved up from 60px */
+  left: 0;
+  right: 0;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.headline-generator > button:first-of-type {
-  position: absolute;
-  bottom: 60px;  /* Above confirm button */
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.headline-preview {
-  font-size: 42px;
-  font-weight: bold;
-  text-align: center;
-  padding: 30px;
-  min-height: 150px;
-  max-height: 150px;  /* Fixed height! */
+  padding: 20px;
+  padding-bottom: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.headline-generator .headline-preview {
+  font-size: 42px;
+  font-weight: bold;
+  text-align: center;
   word-break: break-word;
   line-height: 1.2;
-  overflow: hidden;  /* Hide overflow if text is too big */
+  max-width: 90%;
 }
+
+.headline-generator .button-container {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 20px;
+  z-index: 1000;
+}
+
 
 .headline-text {
   font-size: 48px;           /* increased from 32px */
@@ -619,53 +726,39 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* ==== COMPANY NAME UI ==================================================== */
 .company-generator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  margin-top: 60px;
-  position: relative;
-  min-height: 280px;  /* Reduced to fit without scroll */
-}
-
-/* Structure: preview, regenBtn, buttonRow, confirmBtn */
-/* Child 4: Confirm button at very bottom */
-.company-generator > *:nth-child(4) {
   position: absolute;
+  top: 20px;  /* Moved up from 60px */
+  left: 0;
+  right: 0;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-/* Child 3: buttonRow (Name/Style buttons) */
-.company-generator > *:nth-child(3) {
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-/* Child 2: regenBtn (main Regenerate button) */
-.company-generator > *:nth-child(2) {
-  position: absolute;
-  bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.company-preview {
-  font-size: 48px;
-  font-weight: bold;
-  text-align: center;
-  padding: 40px;
-  min-height: 150px;
-  max-height: 150px;  /* Fixed height! */
+  padding: 20px;
+  padding-bottom: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.company-generator .company-preview {
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
   word-break: break-word;
   line-height: 1.2;
-  overflow: hidden;  /* Hide overflow if text is too big */
+  max-width: 90%;
+}
+
+.company-generator .button-container {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 20px;
+  z-index: 1000;
+}
+
+.company-generator .button-row {
+  display: none !important;
 }
 
 .button-row {
@@ -685,55 +778,43 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* ==== CTA BUTTON UI ====================================================== */
 .cta-generator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  margin-top: 40px;
-  position: relative;
-  min-height: 280px;  /* Reduced to fit without scroll */
-}
-
-/* New structure: preview, regenBtn, buttonRow (3 buttons), confirmBtn */
-/* Child 4: Confirm button at very bottom */
-.cta-generator > *:nth-child(4) {
   position: absolute;
+  top: 20px;  /* Moved up from 60px */
+  left: 0;
+  right: 0;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  padding: 20px;
+  padding-bottom: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Child 3: buttonRow with all 3 buttons */
-.cta-generator > *:nth-child(3) {
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-/* Child 2: regenBtn (main Regenerate button) */
-.cta-generator > *:nth-child(2) {
-  position: absolute;
-  bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.cta-preview {
+.cta-generator .cta-preview {
   font-size: 24px;
   font-weight: bold;
   text-align: center;
   padding: 16px 32px;
   min-width: 200px;
-  min-height: 80px;
-  max-height: 80px;  /* Fixed height! */
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
   user-select: none;
-  overflow: hidden;  /* Hide overflow if text is too big */
+  max-width: 90%;
 }
+
+.cta-generator .button-container {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 20px;
+  z-index: 1000;
+}
+
+.cta-generator .button-row {
+  display: none !important;
+}
+
 
 .cta-button {
   font-size: 20px;

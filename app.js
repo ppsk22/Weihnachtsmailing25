@@ -66,7 +66,7 @@ function openPopup(kind){
 
   const head = document.createElement('div');
   head.className = 'popup-head';
-  head.innerHTML = `<span>${title}</span><button id="popup-close" class="export-btn">×</button>`;
+  head.innerHTML = `<span>${title}</span><button id="popup-close">×</button>`;
 
   const body = document.createElement('div');
   body.className = 'popup-body';
@@ -276,9 +276,9 @@ function buildHeadlineUI(container) {
   
   // Create a wrapper that fills the space
   const wrapper = document.createElement('div');
-  wrapper.style.minHeight = '100%';  // Fill entire popup-body
+  wrapper.style.height = '100%';  // MUST be height, not minHeight!
   wrapper.style.width = '100%';
-  wrapper.style.paddingBottom = '40px';  // Add some padding at bottom
+  wrapper.style.position = 'relative';  // For absolute positioning of buttons!
   wrapper.addEventListener('click', (e) => {
     // Only stop propagation, don't close
     e.stopPropagation();
@@ -378,7 +378,12 @@ function showHeadlineGenerator(container, words) {
       'Comic Sans MS, cursive',
       'Courier New, monospace',
       'Georgia, serif',
-      'Brush Script MT, cursive'
+      'Brush Script MT, cursive',
+      'Jumps Winter, cursive',
+      'Spicy Sale, display',
+      'Start Story, cursive',
+      'Super Chiby, display',
+      'Super Crawler, display'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
@@ -438,9 +443,13 @@ function showHeadlineGenerator(container, words) {
     closePopup();
   });
   
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'button-container';
+  buttonContainer.appendChild(regenBtn);
+  buttonContainer.appendChild(confirmBtn);
+  
   genContainer.appendChild(preview);
-  genContainer.appendChild(regenBtn);
-  genContainer.appendChild(confirmBtn);
+  genContainer.appendChild(buttonContainer);
   container.appendChild(genContainer);
   
   // Generate initial headline
@@ -519,7 +528,10 @@ function unlockStickers() {
   if (stickersUnlocked) return; // Already unlocked
   
   const stickerBar = document.getElementById('sticker-bar');
+  const titleArea = document.getElementById('sticker-bar-title-area');
+  
   stickerBar.classList.add('unlocked');
+  titleArea.style.display = 'flex'; // Show title
   stickersUnlocked = true;
 }
 
@@ -597,7 +609,12 @@ function buildCompanyNameUI(container) {
       'Courier New, monospace',
       'Georgia, serif',
       'Brush Script MT, cursive',
-      'Times New Roman, serif'
+      'Times New Roman, serif',
+      'Jumps Winter, cursive',
+      'Spicy Sale, display',
+      'Start Story, cursive',
+      'Super Chiby, display',
+      'Super Crawler, display'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
@@ -667,10 +684,14 @@ function buildCompanyNameUI(container) {
   buttonRow.appendChild(regenNameBtn);
   buttonRow.appendChild(regenStyleBtn);
   
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'button-container';
+  buttonContainer.appendChild(regenBtn);
+  buttonContainer.appendChild(confirmBtn);
+  
   genContainer.appendChild(preview);
-  genContainer.appendChild(regenBtn);
   genContainer.appendChild(buttonRow);
-  genContainer.appendChild(confirmBtn);
+  genContainer.appendChild(buttonContainer);
   container.appendChild(genContainer);
   
   // Generate initial name and style
@@ -831,7 +852,12 @@ function buildCTAButtonUI(container) {
       'Courier New, monospace',
       'Georgia, serif',
       'Brush Script MT, cursive',
-      'Verdana, sans-serif'
+      'Verdana, sans-serif',
+      'Jumps Winter, cursive',
+      'Spicy Sale, display',
+      'Start Story, cursive',
+      'Super Chiby, display',
+      'Super Crawler, display'
     ];
     
     preview.style.color = colors[Math.floor(Math.random() * colors.length)];
@@ -980,10 +1006,14 @@ function buildCTAButtonUI(container) {
   buttonRow.appendChild(regenTextStyleBtn);
   buttonRow.appendChild(regenButtonStyleBtn);
   
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'button-container';
+  buttonContainer.appendChild(regenBtn);
+  buttonContainer.appendChild(confirmBtn);
+  
   genContainer.appendChild(preview);
-  genContainer.appendChild(regenBtn);
   genContainer.appendChild(buttonRow);
-  genContainer.appendChild(confirmBtn);
+  genContainer.appendChild(buttonContainer);
   container.appendChild(genContainer);
   
   // Generate initial CTA
@@ -1849,3 +1879,19 @@ function wireExportControls(){
     }
   });
 }
+
+// ==== RANDOMIZE STICKER ORDER =============================================
+// Shuffle stickers on page load
+(function shuffleStickers() {
+  const stickerBar = document.getElementById('sticker-bar');
+  const stickers = Array.from(stickerBar.querySelectorAll('.sticker-src'));
+  
+  // Fisher-Yates shuffle
+  for (let i = stickers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [stickers[i], stickers[j]] = [stickers[j], stickers[i]];
+  }
+  
+  // Re-append in shuffled order
+  stickers.forEach(sticker => stickerBar.appendChild(sticker));
+})();
