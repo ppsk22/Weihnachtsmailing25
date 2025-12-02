@@ -68,9 +68,7 @@ function updateSidebarButtonStates() {
 // ==== SOUND SYSTEM ====
 const SoundManager = {
   sounds: {},
-  bgm: null,
   muted: false,
-  bgmStarted: false,
   initialized: false,
   
   init() {
@@ -91,19 +89,10 @@ const SoundManager = {
       close: document.getElementById('sound_close'),
       popup: document.getElementById('sound_popup')
     };
-    // Background music
-    this.bgm = document.getElementById('bgm_jinglebells');
-    if (this.bgm) {
-      this.bgm.volume = 0.3; // Lower volume for background music
-      // Try to autoplay immediately
-      this.startBgm();
-    }
   },
   
   play(soundName) {
     if (this.muted) return;
-    // Always try to start BGM when any sound plays (fallback for first interaction)
-    this.startBgm();
     const sound = this.sounds[soundName];
     if (sound) {
       sound.currentTime = 0;
@@ -111,24 +100,8 @@ const SoundManager = {
     }
   },
   
-  startBgm() {
-    if (this.bgmStarted || this.muted || !this.bgm) return;
-    this.bgm.play().then(() => {
-      this.bgmStarted = true;
-    }).catch(() => {
-      // Autoplay blocked - will retry on user interaction
-    });
-  },
-  
   setMuted(muted) {
     this.muted = muted;
-    if (this.bgm) {
-      if (muted) {
-        this.bgm.pause();
-      } else if (this.bgmStarted) {
-        this.bgm.play().catch(() => {});
-      }
-    }
   },
   
   toggle() {
@@ -140,11 +113,6 @@ const SoundManager = {
 // Initialize sounds when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   SoundManager.init();
-  
-  // Also try to start BGM when window fully loads (images, etc)
-  window.addEventListener('load', () => {
-    SoundManager.startBgm();
-  });
   
   // Menu button sounds (sidebar category buttons)
   // Reference: .menu_button mousedown → sound_menu_click
@@ -167,11 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Global click sound - plays on body for general clicks
   // Reference: body mousedown → sound_click
-  // This fires first on ANY click to ensure BGM starts
   document.body.addEventListener('mousedown', (e) => {
-    // Always try to start BGM on any click
-    SoundManager.startBgm();
-    
     // Don't play click sound for elements that have their own sounds
     if (!e.target.closest('.category') && 
         !e.target.closest('.export-btn') && 
@@ -372,6 +336,11 @@ function buildBGGrid(container){
     card.appendChild(cap);
     wrap.appendChild(card);
 
+    // Hover sound
+    card.addEventListener('mouseenter', () => {
+      SoundManager.play('menuHover');
+    });
+
     card.addEventListener('click', () => {
       SoundManager.play('confirm'); // Play confirm sound when selecting BG
       const stage = document.getElementById('stage');
@@ -409,6 +378,11 @@ function buildHeroGrid(container){
     card.appendChild(thumb);
     // No caption added - just the image
     wrap.appendChild(card);
+
+    // Hover sound
+    card.addEventListener('mouseenter', () => {
+      SoundManager.play('menuHover');
+    });
 
     card.addEventListener('click', () => {
       SoundManager.play('confirm'); // Play confirm sound when selecting hero
@@ -1047,6 +1021,11 @@ function buildHeadlineUI(container) {
     const wordBox = document.createElement('div');
     wordBox.className = 'word-box';
     wordBox.textContent = word;
+    
+    // Hover sound
+    wordBox.addEventListener('mouseenter', () => {
+      SoundManager.play('menuHover');
+    });
     
     wordBox.addEventListener('click', () => {
       if (wordBox.classList.contains('selected')) {
@@ -3003,6 +2982,11 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
   let dragTimeout = null;
   let touchHandled = false; // Prevent double-spawn from touch+click
   
+  // Hover sound
+  stickerSrc.addEventListener('mouseenter', () => {
+    SoundManager.play('menuHover');
+  });
+  
   stickerSrc.addEventListener('mousedown', () => {
     isDragging = false;
     dragTimeout = setTimeout(() => {
@@ -3359,6 +3343,10 @@ function setFsButton(isFull){
   if (icon) icon.textContent = isFull ? '⏏' : '⛶';
 }
 
+fsBtn.addEventListener('mouseenter', () => {
+  SoundManager.play('menuHover');
+});
+
 fsBtn.addEventListener('click', async () => {
   SoundManager.play('click');
   try {
@@ -3454,6 +3442,10 @@ setFsButton(false);
 
 // ==== MUTE BUTTON ====
 const muteBtn = document.getElementById('btn-mute');
+
+muteBtn.addEventListener('mouseenter', () => {
+  SoundManager.play('menuHover');
+});
 
 muteBtn.addEventListener('click', () => {
   SoundManager.play('click'); // Play before toggling so it's audible when muting
@@ -3880,6 +3872,10 @@ function stopSnow() {
 }
 
 // Snow button click handler
+snowBtn.addEventListener('mouseenter', () => {
+  SoundManager.play('menuHover');
+});
+
 snowBtn.addEventListener('click', () => {
   SoundManager.play('click');
   isSnowActive = !isSnowActive;
@@ -4512,6 +4508,10 @@ function wireExportControls(){
 // Delete button click handler - the whole area is clickable
 const deleteButtonArea = document.getElementById('sticker-bar-delete-area');
 if (deleteButtonArea) {
+  deleteButtonArea.addEventListener('mouseenter', () => {
+    SoundManager.play('menuHover');
+  });
+  
   deleteButtonArea.addEventListener('click', () => {
     const selectedSticker = document.querySelector('.sticker-wrapper.selected');
     if (selectedSticker && 
