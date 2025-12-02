@@ -219,6 +219,22 @@ function closePopup(){
   popup.innerHTML = '';
   document.body.classList.remove('modal-open');
   
+  // Clean up glitter preview
+  if (typeof glitterPreviewAnimId !== 'undefined' && glitterPreviewAnimId) {
+    cancelAnimationFrame(glitterPreviewAnimId);
+    glitterPreviewAnimId = null;
+  }
+  if (typeof glitterPreviewCanvas !== 'undefined' && glitterPreviewCanvas && glitterPreviewCanvas.parentNode) {
+    glitterPreviewCanvas.parentNode.removeChild(glitterPreviewCanvas);
+    glitterPreviewCanvas = null;
+  }
+  if (typeof glitterPreviewPixels !== 'undefined') {
+    glitterPreviewPixels = [];
+  }
+  if (typeof glitterPreviewData !== 'undefined') {
+    glitterPreviewData = null;
+  }
+  
   // Remove active state from all buttons
   document.querySelectorAll('#sidebar .category').forEach(btn => {
     btn.classList.remove('active');
@@ -376,7 +392,7 @@ function buildHeroGrid(container){
   const shuffled = source.sort(() => Math.random() - 0.5);
   
   const wrap = document.createElement('div');
-  wrap.className = 'bg-grid';
+  wrap.className = 'hero-grid';  // Use hero-specific grid class
 
   shuffled.forEach(opt => {
     const url = opt.getAttribute('data-hero');
@@ -768,10 +784,10 @@ let selectedHeadlineVibes = []; // Track selected vibes for use in company names
 
 // Adjectives grouped by vibe - user selects 4 to set the mood
 const adjectives = [
-  'MAGICAL', 'FESTIVE', 'JOYFUL', 'MERRY',
-  'BRIGHT', 'CHEERFUL', 'SPARKLING', 'COZY',
-  'WONDER', 'JOLLY', 'SNOWY', 'GLOWING',
-  'HAPPY', 'WARM', 'SHINY', 'BLESSED'
+  '✨ MAGICAL', '🎄 FESTIVE', '😊 JOYFUL', '🎅 MERRY',
+  '⭐ BRIGHT', '🎉 CHEERFUL', '💫 SPARKLING', '🧣 COZY',
+  '🌟 WONDER', '😄 JOLLY', '❄️ SNOWY', '🔆 GLOWING',
+  '💖 HAPPY', '🔥 WARM', '💎 SHINY', '🙏 BLESSED'
 ];
 
 // Word banks tied to adjective vibes
@@ -924,7 +940,9 @@ function getVibesFromSelection(selectedWords) {
   // Get unique vibes from the 4 selected adjectives
   const vibes = new Set();
   selectedWords.forEach(word => {
-    const vibe = adjectiveToVibe[word];
+    // Strip emoji prefix (e.g., '✨ MAGICAL' -> 'MAGICAL')
+    const cleanWord = word.replace(/^[^\w\s]+\s*/, '').trim();
+    const vibe = adjectiveToVibe[cleanWord];
     if (vibe) vibes.add(vibe);
   });
   return Array.from(vibes);
@@ -966,7 +984,8 @@ function generateHeadlineText(selectedWords) {
   const wordBank = getMergedWordBank(vibes);
   
   // Add the selected adjectives to the word bank (they should appear sometimes!)
-  const selectedLower = selectedWords.map(w => w.toLowerCase());
+  // Strip emoji prefix and convert to lowercase
+  const selectedLower = selectedWords.map(w => w.replace(/^[^\w\s]+\s*/, '').trim().toLowerCase());
   wordBank.adjectives.push(...selectedLower);
   
   // Pick a random pattern
@@ -1064,6 +1083,249 @@ function buildHeadlineUI(container) {
   
   wrapper.appendChild(wordGrid);
   container.appendChild(wrapper);
+}
+
+// Glitter preview system for generator overlays - uses EXACT same logic as main glitter
+let glitterPreviewAnimId = null;
+let glitterPreviewCanvas = null;
+let glitterPreviewCtx = null;
+let glitterPreviewPixels = [];
+let glitterPreviewData = null;
+let glitterPreviewLastTime = 0;
+
+function updateGlitterPreview(previewEl, hasGlitter) {
+  // Clean up any existing preview
+  if (glitterPreviewAnimId) {
+    cancelAnimationFrame(glitterPreviewAnimId);
+    glitterPreviewAnimId = null;
+  }
+  if (glitterPreviewCanvas && glitterPreviewCanvas.parentNode) {
+    glitterPreviewCanvas.parentNode.removeChild(glitterPreviewCanvas);
+  }
+  glitterPreviewCanvas = null;
+  glitterPreviewCtx = null;
+  glitterPreviewPixels = [];
+  glitterPreviewData = null;
+  
+  if (!hasGlitter) return;
+  
+  // Create canvas overlay
+  const parent = previewEl.parentElement;
+  if (!parent) return;
+  
+  glitterPreviewCanvas = document.createElement('canvas');
+  glitterPreviewCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:100;';
+  parent.appendChild(glitterPreviewCanvas);
+  
+  // Size canvas to parent (full overlay area)
+  const parentRect = parent.getBoundingClientRect();
+  glitterPreviewCanvas.width = parentRect.width;
+  glitterPreviewCanvas.height = parentRect.height;
+  glitterPreviewCtx = glitterPreviewCanvas.getContext('2d');
+  
+  // Get preview element bounds RELATIVE to parent
+  const previewRect = previewEl.getBoundingClientRect();
+  const offsetX = previewRect.left - parentRect.left;
+  const offsetY = previewRect.top - parentRect.top;
+  
+  // Generate glitter data using same functions as main system
+  glitterPreviewData = {
+    colors: typeof getRandomGlitterColors === 'function' ? getRandomGlitterColors() : 
+      ['#ff69b4', '#00ffff', '#ffd700', '#ff00ff', '#ffffff'],
+    settings: typeof getRandomStickerSettings === 'function' ? getRandomStickerSettings() : {
+      densityMult: 1,
+      sizeMinOffset: 0,
+      sizeMaxOffset: 0,
+      speedMult: 1,
+      jitterMult: 1,
+      starChanceOffset: 0,
+      blinkHardnessOffset: 0,
+      colorShiftSpeed: 0.002,
+      colorPhase: Math.random() * Math.PI * 2,
+      fps: 3,
+      lastFrameTime: 0
+    }
+  };
+  
+  // Create bounds for the PREVIEW ELEMENT only (not full parent)
+  const bounds = {
+    x: offsetX,
+    y: offsetY,
+    w: previewRect.width,
+    h: previewRect.height,
+    colors: glitterPreviewData.colors,
+    settings: glitterPreviewData.settings
+  };
+  
+  // Use same density calculation as main system
+  const settings = typeof GLITTER_SETTINGS !== 'undefined' ? GLITTER_SETTINGS : {
+    density: 0.15, sizeMin: 6, sizeMax: 15, glitterAmount: 1, glitterSpeed: 0.05,
+    jitter: 2.3, crossChance: 1, starChance: 0.75, fps: 3, blinkHardness: 1, brightness: 3
+  };
+  
+  const elementDensity = settings.density * (bounds.settings?.densityMult || 1);
+  const area = bounds.w * bounds.h;
+  const count = Math.max(15, Math.min(80, Math.floor(area * elementDensity / 100)));
+  
+  // Create particles using same logic as main system
+  for (let j = 0; j < count; j++) {
+    const stickerSettings = bounds.settings || {};
+    
+    const sizeMin = Math.max(1, settings.sizeMin + (stickerSettings.sizeMinOffset || 0));
+    const sizeMax = Math.max(sizeMin + 1, settings.sizeMax + (stickerSettings.sizeMaxOffset || 0));
+    const size = (sizeMin + Math.random() * (sizeMax - sizeMin)) | 0;
+    
+    // Local position within the preview element bounds
+    const localX = Math.random() * bounds.w;
+    const localY = Math.random() * bounds.h;
+    
+    const dx = (localX / bounds.w - 0.5) * 2;
+    const dy = (localY / bounds.h - 0.5) * 2;
+    const distSq = dx * dx + dy * dy;
+    const fadeMult = Math.max(0, 1 - distSq * 0.5);
+    
+    const effectiveStarChance = Math.max(0, Math.min(1, 
+      settings.starChance + (stickerSettings.starChanceOffset || 0)
+    ));
+    
+    let shapeType = 'square';
+    if (Math.random() < settings.crossChance) {
+      shapeType = Math.random() < effectiveStarChance ? 'star' : 'cross';
+    }
+    
+    const baseSpeed = settings.glitterSpeed * (stickerSettings.speedMult || 1);
+    
+    glitterPreviewPixels.push({
+      // Store position relative to canvas (includes offset)
+      x: bounds.x + localX,
+      y: bounds.y + localY,
+      baseSize: size,
+      alphaBase: (0.4 + Math.random() * 0.6) * fadeMult,
+      phase: Math.random() * 6.28,
+      speed: baseSpeed * (0.5 + Math.random()),
+      localAmount: 0.4 + Math.random() * 0.6,
+      colors: bounds.colors,
+      shapeType: shapeType,
+      stickerSettings: stickerSettings
+    });
+  }
+  
+  glitterPreviewLastTime = 0;
+  
+  // Animation loop - same logic as main glitterLoop
+  function glitterPreviewLoop(timestamp) {
+    if (!glitterPreviewCanvas || !glitterPreviewCtx) return;
+    
+    glitterPreviewAnimId = requestAnimationFrame(glitterPreviewLoop);
+    
+    if (!glitterPreviewLastTime) glitterPreviewLastTime = timestamp;
+    const dt = (timestamp - glitterPreviewLastTime) / (1000 / 60);
+    glitterPreviewLastTime = timestamp;
+    
+    // Per-element FPS control
+    const previewFps = glitterPreviewData.settings?.fps || 3;
+    const frameInterval = 1000 / previewFps;
+    const lastFrame = glitterPreviewData.settings?.lastFrameTime || 0;
+    
+    const shouldRender = timestamp - lastFrame >= frameInterval;
+    if (shouldRender) {
+      glitterPreviewData.settings.lastFrameTime = timestamp;
+    }
+    
+    glitterPreviewCtx.clearRect(0, 0, glitterPreviewCanvas.width, glitterPreviewCanvas.height);
+    
+    const globalTime = timestamp * 0.001;
+    const brightness = settings.brightness;
+    
+    for (let i = 0; i < glitterPreviewPixels.length; i++) {
+      const p = glitterPreviewPixels[i];
+      const stickerSettings = p.stickerSettings || {};
+      
+      // Always update phase
+      p.phase += p.speed * dt;
+      
+      // Skip full recalc if not this frame's turn, use cached state
+      if (!shouldRender && p.lastDrawState) {
+        const s = p.lastDrawState;
+        glitterPreviewCtx.globalAlpha = s.alpha;
+        glitterPreviewCtx.fillStyle = s.color;
+        drawGlitterPreviewShape(glitterPreviewCtx, s.x, s.y, s.size, s.shapeType);
+        continue;
+      }
+      
+      let pulse = (1 + Math.sin(p.phase)) * 0.5;
+      
+      const hardness = Math.max(0, Math.min(1, 
+        settings.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+      ));
+      pulse = Math.pow(pulse, 1 - hardness * 0.8);
+      
+      // Random sparkle pops
+      if (Math.random() < 0.05) {
+        pulse = Math.random() < 0.5 ? 1 : 0;
+      }
+      
+      const amount = settings.glitterAmount * p.localAmount;
+      const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+      const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+      
+      if (alpha < 0.1) continue;
+      
+      const jitter = settings.jitter * (stickerSettings.jitterMult || 1);
+      const jx = (Math.random() - 0.5) * jitter;
+      const jy = (Math.random() - 0.5) * jitter;
+      
+      const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+      const colorPhase = stickerSettings.colorPhase || 0;
+      const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+      
+      let currentColorIndex;
+      if (Math.random() < 0.02) {
+        currentColorIndex = Math.floor(Math.random() * p.colors.length);
+      } else {
+        currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+      }
+      const color = p.colors[currentColorIndex];
+      
+      const x = (p.x + jx) | 0;
+      const y = (p.y + jy) | 0;
+      
+      p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
+      
+      glitterPreviewCtx.globalAlpha = alpha;
+      glitterPreviewCtx.fillStyle = color;
+      drawGlitterPreviewShape(glitterPreviewCtx, x, y, size, p.shapeType);
+    }
+    
+    glitterPreviewCtx.globalAlpha = 1;
+  }
+  
+  glitterPreviewAnimId = requestAnimationFrame(glitterPreviewLoop);
+}
+
+// Same shape drawing as main system but takes ctx parameter
+function drawGlitterPreviewShape(ctx, x, y, size, shapeType) {
+  const s = size | 0;
+  if (shapeType === 'star' && s >= 3) {
+    const half = s >> 1;
+    const diagHalf = (s * 0.35) | 0;
+    
+    ctx.fillRect(x - half, y, s, 1);
+    ctx.fillRect(x, y - half, 1, s);
+    
+    for (let d = 1; d <= diagHalf; d++) {
+      ctx.fillRect(x + d, y + d, 1, 1);
+      ctx.fillRect(x - d, y - d, 1, 1);
+      ctx.fillRect(x + d, y - d, 1, 1);
+      ctx.fillRect(x - d, y + d, 1, 1);
+    }
+  } else if (shapeType === 'cross' && s >= 2) {
+    const half = s >> 1;
+    ctx.fillRect(x - half, y, s, 1);
+    ctx.fillRect(x, y - half, 1, s);
+  } else {
+    ctx.fillRect(x, y, s, s);
+  }
 }
 
 function showHeadlineGenerator(container, selectedVibeWords) {
@@ -1189,6 +1451,29 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       preview.style.boxShadow = '4px 4px 0 #000';
     }
     
+    // RANDOMIZE EFFECTS (glitter, shadow, outline)
+    const hasGlitter = Math.random() > 0.5;
+    const hasEffectShadow = Math.random() > 0.5;
+    const hasOutline = Math.random() > 0.5;
+    
+    // Apply visual preview of effects
+    let filterParts = [];
+    if (hasOutline) {
+      filterParts.push(
+        'drop-shadow(2px 0 0 #000)',
+        'drop-shadow(-2px 0 0 #000)',
+        'drop-shadow(0 2px 0 #000)',
+        'drop-shadow(0 -2px 0 #000)'
+      );
+    }
+    if (hasEffectShadow) {
+      filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
+    }
+    preview.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+    
+    // Handle glitter preview
+    updateGlitterPreview(preview, hasGlitter);
+    
     // Store the text for spawning
     preview.dataset.headlineText = text;
     preview.dataset.headlineColor = preview.style.color;
@@ -1206,6 +1491,10 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     preview.dataset.headlineBorderRadius = preview.style.borderRadius || 'none';
     preview.dataset.headlineBorder = preview.style.border || 'none';
     preview.dataset.headlineBoxShadow = preview.style.boxShadow || 'none';
+    // Store effects
+    preview.dataset.hasGlitter = hasGlitter ? 'true' : 'false';
+    preview.dataset.hasEffectShadow = hasEffectShadow ? 'true' : 'false';
+    preview.dataset.hasOutline = hasOutline ? 'true' : 'false';
   }
   
   regenBtn.addEventListener('click', generateHeadline);
@@ -1227,7 +1516,10 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       preview.dataset.headlinePadding,
       preview.dataset.headlineBorderRadius,
       preview.dataset.headlineBorder,
-      preview.dataset.headlineBoxShadow
+      preview.dataset.headlineBoxShadow,
+      preview.dataset.hasGlitter,
+      preview.dataset.hasEffectShadow,
+      preview.dataset.hasOutline
     );
     completeStep('3'); // Complete step 3
     closePopup();
@@ -1246,7 +1538,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
   generateHeadline();
 }
 
-function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius, border, boxShadow) {
+function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius, border, boxShadow, hasGlitter, hasEffectShadow, hasOutline) {
   const stage = document.getElementById('stage');
   
   // Remove existing headline if any
@@ -1260,6 +1552,11 @@ function spawnHeadline(text, color, shadow, weight, style, decoration, transform
   wrapper.setAttribute('data-is-headline', 'true');
   wrapper.scale = 1;
   wrapper.angle = 0;
+  
+  // Apply effects from generator
+  wrapper.setAttribute('data-has-glitter', hasGlitter || 'false');
+  wrapper.setAttribute('data-has-shadow', hasEffectShadow || 'false');
+  wrapper.setAttribute('data-has-outline', hasOutline || 'false');
   
   const textEl = document.createElement('div');
   textEl.className = 'headline-text';
@@ -1304,6 +1601,23 @@ function spawnHeadline(text, color, shadow, weight, style, decoration, transform
   
   applyTransform(wrapper);
   makeInteractiveText(wrapper, 'headline-text');
+  
+  // Apply visual effects
+  updateElementEffects(wrapper);
+  
+  // Start glitter if enabled
+  if (hasGlitter === 'true') {
+    if (!elementGlitterData.has(wrapper)) {
+      elementGlitterData.set(wrapper, {
+        colors: getRandomGlitterColors(),
+        settings: getRandomStickerSettings()
+      });
+    }
+    addElementGlitterPixels(wrapper);
+    if (typeof startGlitter === 'function' && !glitterAnimationId) {
+      startGlitter();
+    }
+  }
   
   deselectAll();
   wrapper.classList.add('selected');
@@ -1579,6 +1893,29 @@ function buildCompanyNameUI(container) {
       preview.style.boxShadow = '3px 3px 0 #000';
     }
     
+    // RANDOMIZE EFFECTS (glitter, shadow, outline)
+    const hasGlitter = Math.random() > 0.5;
+    const hasEffectShadow = Math.random() > 0.5;
+    const hasOutline = Math.random() > 0.5;
+    
+    // Apply visual preview of effects
+    let filterParts = [];
+    if (hasOutline) {
+      filterParts.push(
+        'drop-shadow(2px 0 0 #000)',
+        'drop-shadow(-2px 0 0 #000)',
+        'drop-shadow(0 2px 0 #000)',
+        'drop-shadow(0 -2px 0 #000)'
+      );
+    }
+    if (hasEffectShadow) {
+      filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
+    }
+    preview.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+    
+    // Handle glitter preview
+    updateGlitterPreview(preview, hasGlitter);
+    
     preview.dataset.companyColor = preview.style.color;
     preview.dataset.companyShadow = preview.style.textShadow;
     preview.dataset.companyWeight = preview.style.fontWeight;
@@ -1594,6 +1931,10 @@ function buildCompanyNameUI(container) {
     preview.dataset.companyBorderRadius = preview.style.borderRadius || 'none';
     preview.dataset.companyBorder = preview.style.border || 'none';
     preview.dataset.companyBoxShadow = preview.style.boxShadow || 'none';
+    // Store effects
+    preview.dataset.hasGlitter = hasGlitter ? 'true' : 'false';
+    preview.dataset.hasEffectShadow = hasEffectShadow ? 'true' : 'false';
+    preview.dataset.hasOutline = hasOutline ? 'true' : 'false';
   }
   
   function regenerateAll() {
@@ -1622,7 +1963,10 @@ function buildCompanyNameUI(container) {
       preview.dataset.companyPadding,
       preview.dataset.companyBorderRadius,
       preview.dataset.companyBorder,
-      preview.dataset.companyBoxShadow
+      preview.dataset.companyBoxShadow,
+      preview.dataset.hasGlitter,
+      preview.dataset.hasEffectShadow,
+      preview.dataset.hasOutline
     );
     completeStep('5'); // Complete step 5
     closePopup();
@@ -1648,7 +1992,7 @@ function buildCompanyNameUI(container) {
   regenerateAll();
 }
 
-function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius, border, boxShadow) {
+function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius, border, boxShadow, hasGlitter, hasEffectShadow, hasOutline) {
   const stage = document.getElementById('stage');
   
   // Remove existing company name if any
@@ -1662,6 +2006,11 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
   wrapper.setAttribute('data-is-company', 'true');
   wrapper.scale = 1;
   wrapper.angle = 0;
+  
+  // Apply effects from generator
+  wrapper.setAttribute('data-has-glitter', hasGlitter || 'false');
+  wrapper.setAttribute('data-has-shadow', hasEffectShadow || 'false');
+  wrapper.setAttribute('data-has-outline', hasOutline || 'false');
   
   const textEl = document.createElement('div');
   textEl.className = 'company-text';
@@ -1714,6 +2063,23 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
   
   applyTransform(wrapper);
   makeInteractiveText(wrapper, 'company-text');
+  
+  // Apply visual effects
+  updateElementEffects(wrapper);
+  
+  // Start glitter if enabled
+  if (hasGlitter === 'true') {
+    if (!elementGlitterData.has(wrapper)) {
+      elementGlitterData.set(wrapper, {
+        colors: getRandomGlitterColors(),
+        settings: getRandomStickerSettings()
+      });
+    }
+    addElementGlitterPixels(wrapper);
+    if (typeof startGlitter === 'function' && !glitterAnimationId) {
+      startGlitter();
+    }
+  }
   
   deselectAll();
   wrapper.classList.add('selected');
@@ -2072,11 +2438,26 @@ function buildCTAButtonUI(container) {
     if (Math.random() > 0.95) transform = `rotate(${Math.floor(Math.random() * 4 - 2)}deg)`; // Very rare, very subtle
     preview.style.transform = transform;
     
+    // NO effects for CTA buttons by default (no glitter, shadow, outline)
+    const hasGlitter = false;
+    const hasEffectShadow = false;
+    const hasOutline = false;
+    
+    // Clear any filters
+    preview.style.filter = '';
+    
+    // Clear glitter preview
+    updateGlitterPreview(preview, false);
+    
     preview.dataset.ctaBg = bg;
     preview.dataset.ctaBorderRadius = borderRadius;
     preview.dataset.ctaBorder = border;
     preview.dataset.ctaBoxShadow = boxShadow;
     preview.dataset.ctaTransform = transform;
+    // Store effects (all false for CTA)
+    preview.dataset.hasGlitter = 'false';
+    preview.dataset.hasEffectShadow = 'false';
+    preview.dataset.hasOutline = 'false';
   }
   
   function regenerateAll() {
@@ -2106,7 +2487,10 @@ function buildCTAButtonUI(container) {
       preview.dataset.ctaBorderRadius,
       preview.dataset.ctaBorder,
       preview.dataset.ctaBoxShadow,
-      preview.dataset.ctaTransform
+      preview.dataset.ctaTransform,
+      preview.dataset.hasGlitter,
+      preview.dataset.hasEffectShadow,
+      preview.dataset.hasOutline
     );
     completeStep('6'); // Complete step 6
     closePopup();
@@ -2132,7 +2516,7 @@ function buildCTAButtonUI(container) {
   regenerateAll();
 }
 
-function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, boxShadow, buttonTransform) {
+function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, boxShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline) {
   const stage = document.getElementById('stage');
   
   // Remove existing CTA button if any
@@ -2149,6 +2533,11 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   wrapper.setAttribute('data-is-cta', 'true');
   wrapper.scale = 1;
   wrapper.angle = 0;
+  
+  // Apply effects from generator
+  wrapper.setAttribute('data-has-glitter', hasGlitter || 'false');
+  wrapper.setAttribute('data-has-shadow', hasEffectShadow || 'false');
+  wrapper.setAttribute('data-has-outline', hasOutline || 'false');
   
   // Bounce wrapper - only handles the bounce animation
   const bounceWrapper = document.createElement('div');
@@ -2204,6 +2593,23 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   
   applyTransform(wrapper);
   makeInteractiveText(wrapper, 'cta-button');
+  
+  // Apply visual effects
+  updateElementEffects(wrapper);
+  
+  // Start glitter if enabled
+  if (hasGlitter === 'true') {
+    if (!elementGlitterData.has(wrapper)) {
+      elementGlitterData.set(wrapper, {
+        colors: getRandomGlitterColors(),
+        settings: getRandomStickerSettings()
+      });
+    }
+    addElementGlitterPixels(wrapper);
+    if (typeof startGlitter === 'function' && !glitterAnimationId) {
+      startGlitter();
+    }
+  }
   
   deselectAll();
   wrapper.classList.add('selected');
@@ -2300,12 +2706,14 @@ function deselectAll() {
 }
 
 document.addEventListener("pointerdown", e => {
-    // Don't deselect if clicking on delete button or effect tabs (sticker or element bar)
+    // Don't deselect if clicking on delete button, effect tabs, or sticker bar sources
     if (!e.target.closest(".sticker-wrapper") && 
         !e.target.closest("#sticker-bar-delete-area") &&
         !e.target.closest("#sticker-effect-tabs") &&
         !e.target.closest("#element-bar-title-area") &&
-        !e.target.closest("#element-effect-tabs")) {
+        !e.target.closest("#element-effect-tabs") &&
+        !e.target.closest(".sticker-src") &&
+        !e.target.closest("#sticker-bar")) {
         deselectAll();
     }
 });
@@ -2546,6 +2954,7 @@ interact('.sticker-src').draggable({
 document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
   let isDragging = false;
   let dragTimeout = null;
+  let touchHandled = false; // Prevent double-spawn from touch+click
   
   stickerSrc.addEventListener('mousedown', () => {
     isDragging = false;
@@ -2563,6 +2972,12 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
   });
   
   stickerSrc.addEventListener('click', (event) => {
+    // If touch already handled this, skip
+    if (touchHandled) {
+      touchHandled = false;
+      return;
+    }
+    
     // If it was a drag, don't spawn on click
     if (isDragging) {
       isDragging = false;
@@ -2592,6 +3007,7 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
   // Touch support for mobile
   stickerSrc.addEventListener('touchstart', () => {
     isDragging = false;
+    touchHandled = false;
     dragTimeout = setTimeout(() => {
       isDragging = true;
     }, 100);
@@ -2603,6 +3019,9 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
   
   stickerSrc.addEventListener('touchend', (event) => {
     clearTimeout(dragTimeout);
+    
+    // Mark that touch handled this interaction
+    touchHandled = true;
     
     // If it was a drag, don't spawn
     if (isDragging) {
@@ -2889,20 +3308,40 @@ const fsHost = document.getElementById('root'); // fullscreen the scaling shell
 
 function setFsButton(isFull){
   fsBtn.setAttribute('aria-pressed', String(isFull));
-  fsBtn.textContent = isFull ? '⏏' : '⛶'; // optional icon swap
+  const icon = fsBtn.querySelector('.btn-icon');
+  if (icon) icon.textContent = isFull ? '⏏' : '⛶';
 }
 
 fsBtn.addEventListener('click', async () => {
   SoundManager.play('click');
   try {
     if (!document.fullscreenElement) {
-      // Scroll to top before entering fullscreen to prevent offset issues on mobile
-      window.scrollTo(0, 0);
+      // Aggressively scroll to top before entering fullscreen to prevent offset issues on mobile
+      // The #root element has overflow:auto so it might be what's scrolling
+      const rootEl = document.getElementById('root');
+      
+      // Reset all possible scroll containers
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       document.body.scrollTop = 0;
       document.documentElement.scrollTop = 0;
+      if (rootEl) {
+        rootEl.scrollTop = 0;
+        rootEl.scrollLeft = 0;
+      }
+      if (fsHost) {
+        fsHost.scrollTop = 0;
+        fsHost.scrollLeft = 0;
+      }
       
-      // Small delay to let scroll complete before fullscreen
-      await new Promise(r => setTimeout(r, 50));
+      // Force layout recalculation
+      void document.body.offsetHeight;
+      
+      // Longer delay to ensure scroll completes on mobile
+      await new Promise(r => setTimeout(r, 100));
+      
+      // One more scroll attempt after delay
+      window.scrollTo(0, 0);
+      if (rootEl) rootEl.scrollTop = 0;
       
       await fsHost.requestFullscreen({ navigationUI: 'hide' });
     } else {
@@ -2914,6 +3353,23 @@ fsBtn.addEventListener('click', async () => {
 document.addEventListener('fullscreenchange', () => {
   const isFull = !!document.fullscreenElement;
   setFsButton(isFull);
+  
+  // When entering fullscreen, ensure we're scrolled to top
+  if (isFull) {
+    const rootEl = document.getElementById('root');
+    window.scrollTo(0, 0);
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+    if (rootEl) {
+      rootEl.scrollTop = 0;
+      rootEl.scrollLeft = 0;
+    }
+    if (fsHost) {
+      fsHost.scrollTop = 0;
+      fsHost.scrollLeft = 0;
+    }
+  }
+  
   // re-run your scaler so the frame fits fullscreen viewport
   if (typeof updateUIScale === 'function') updateUIScale();
 });
@@ -2928,7 +3384,7 @@ muteBtn.addEventListener('click', () => {
   SoundManager.play('click'); // Play before toggling so it's audible when muting
   const isMuted = SoundManager.toggle();
   muteBtn.setAttribute('aria-pressed', String(isMuted));
-  muteBtn.textContent = isMuted ? '🔇' : '🔊';
+  // Icon stays as ♪, CSS handles the crossed-out style when muted
 });
 
 // ==== SNOW EFFECT ====
@@ -3912,6 +4368,20 @@ function wireExportControls(){
   
   // Re-append in shuffled order
   stickers.forEach(sticker => stickerBar.appendChild(sticker));
+})();
+
+// ==== STICKER BAR HORIZONTAL SCROLL WITH MOUSE WHEEL ====
+(function setupStickerBarWheelScroll() {
+  const stickerBar = document.getElementById('sticker-bar');
+  if (!stickerBar) return;
+  
+  stickerBar.addEventListener('wheel', (e) => {
+    // Convert vertical scroll to horizontal
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      stickerBar.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
 })();
 
 // ==== DELETE BUTTON FOR STICKERS =============================================

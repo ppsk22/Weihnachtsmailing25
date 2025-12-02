@@ -486,6 +486,24 @@ body.modal-open #sticker-bar * {
   image-rendering: pixelated;
   touch-action: pan-x;       /* Allow horizontal scroll, vertical for drag-out */
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  cursor: url('assets/UI/hand.ico'), pointer;
+}
+
+/* Thin scrollbar for sticker bar */
+#sticker-bar::-webkit-scrollbar {
+  height: 10px;
+}
+
+#sticker-bar::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+#sticker-bar::-webkit-scrollbar-thumb {
+  background: #3013a9;
+}
+
+#sticker-bar::-webkit-scrollbar-thumb:hover {
+  background: #5a3fd9;
 }
 
 /* Add top padding when stickers are unlocked to make room for title */
@@ -741,20 +759,20 @@ body.modal-open #sticker-bar * {
 .sticker-wrapper.selected .scale-handle { display: block; }
 .sticker-wrapper.selected .rot-handle   { display: block; }
 
-/* Selection outline - pixel art style (dotted) */
+/* Selection outline - white dashed for better visibility */
 .sticker-wrapper.selected {
-  outline: 3px dashed #5a3fd9;
+  outline: 3px dashed rgba(255, 255, 255, 0.8);
   outline-offset: 4px;
   image-rendering: pixelated;
 }
 
-/* SCALE HANDLE - Pixel art style */
+/* SCALE HANDLE - White with purple icon */
 .scale-handle{
   position:absolute;
   width:28px; height:28px;
   bottom:-14px; right:-14px;
-  background: #1a1a2e;
-  border: 3px solid #3013a9;
+  background: rgba(255, 255, 255, 0.95);
+  border: 3px solid #5a3fd9;
   border-radius: 0;
   z-index:2;
   pointer-events:auto;
@@ -777,27 +795,27 @@ body.modal-open #sticker-bar * {
   font-size:14px;
   font-family: 'home_videoregular', sans-serif;
   line-height:1;
-  color:#fff;
+  color:#3013a9;
   pointer-events:none;
-  opacity:0.7;
+  opacity:1;
 }
 
 .scale-handle:hover {
-  background: #3013a9;
-  border-color: #5a3fd9;
+  background: #fff;
+  border-color: #3013a9;
 }
 
 .scale-handle:hover::after,
-.scale-handle.dragging::after{ opacity:1; }
+.scale-handle.dragging::after{ color: #5a3fd9; }
 
-/* ROTATE HANDLE - Pixel art style (square, not round) */
+/* ROTATE HANDLE - White with purple icon */
 .rot-handle{
   position:absolute;
   width:28px; height:28px;
   top:-36px; left:50%;
   transform:translateX(-50%);
-  background: #1a1a2e;
-  border: 3px solid #3013a9;
+  background: rgba(255, 255, 255, 0.95);
+  border: 3px solid #5a3fd9;
   border-radius: 0;
   z-index:2;
   pointer-events:auto;
@@ -820,23 +838,23 @@ body.modal-open #sticker-bar * {
   font-size:14px;
   font-family: 'home_videoregular', sans-serif;
   line-height:1;
-  color:#fff;
+  color:#3013a9;
   pointer-events:none;
-  opacity:0.7;
+  opacity:1;
 }
 
 .rot-handle:hover {
-  background: #3013a9;
-  border-color: #5a3fd9;
+  background: #fff;
+  border-color: #3013a9;
 }
 
 .rot-handle:hover::after,
-.rot-handle.dragging::after{ opacity:1; }
+.rot-handle.dragging::after{ color: #5a3fd9; }
 
 /* Drag/scale/rotate feedback */
 .sticker-wrapper.dragging img { cursor: grabbing; }
-.scale-handle.dragging        { cursor: se-resize !important; background: #5a3fd9; }
-.rot-handle.dragging          { cursor: grabbing !important; background: #5a3fd9; }
+.scale-handle.dragging        { cursor: se-resize !important; background: #fff; border-color: #5a3fd9; }
+.rot-handle.dragging          { cursor: grabbing !important; background: #fff; border-color: #5a3fd9; }
 body.scaling,  body.scaling  * { cursor: se-resize !important; }
 body.rotating, body.rotating * { cursor: grabbing  !important; }
 
@@ -873,13 +891,13 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 /* Fullscreen button (bottom-right of viewport, not scaled) */
-/* Buttons in sticker bar button area - pixel art style */
+/* Buttons in sticker bar button area - pixel art style matching UI */
 .bar-btn {
   width: 36px;
   height: 36px;
-  border: none;
+  border: 3px solid #3013a9;
   border-radius: 0;
-  background: #3a3a3a;
+  background: #1a1a2e;
   color: #fff;
   cursor: url('assets/UI/hand.ico'), pointer;
   font-size: 16px;
@@ -887,52 +905,79 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   align-items: center;
   justify-content: center;
   z-index: 200;
+  image-rendering: pixelated;
   
-  /* Pixel art border */
+  /* Pixel art 3D effect */
   box-shadow: 
-    -2px -2px 0 0 #5a5a5a,
-    2px 2px 0 0 #1a1a1a,
-    -2px 0 0 0 #4a4a4a,
-    2px 0 0 0 #2a2a2a,
-    0 -2px 0 0 #4a4a4a,
-    0 2px 0 0 #2a2a2a;
+    inset -2px -2px 0 0 #0a0a1a,
+    inset 2px 2px 0 0 #2a2a4e;
   
   transition: all 0.05s ease;
 }
 
+/* Pixel art icon styling */
+.bar-btn .btn-icon {
+  font-family: 'home_videoregular', monospace;
+  font-size: 18px;
+  line-height: 1;
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: none;
+}
+
+#btn-mute .btn-icon {
+  font-size: 18px;
+}
+
+#btn-snow .btn-icon {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+#btn-fullscreen .btn-icon {
+  font-size: 22px;
+}
+
 .bar-btn:hover { 
-  background: #4a4a4a;
+  background: #2a2a4e;
+  border-color: #5a3fd9;
   box-shadow: 
-    -2px -2px 0 0 #6a6a6a,
-    2px 2px 0 0 #2a2a2a,
-    -2px 0 0 0 #5a5a5a,
-    2px 0 0 0 #3a3a3a,
-    0 -2px 0 0 #5a5a5a,
-    0 2px 0 0 #3a3a3a;
+    inset -2px -2px 0 0 #1a1a2e,
+    inset 2px 2px 0 0 #3a3a5e;
 }
 
 .bar-btn:active {
-  background: #2a2a2a;
+  background: #0a0a1a;
   box-shadow: 
-    2px 2px 0 0 #5a5a5a,
-    -2px -2px 0 0 #1a1a1a,
-    2px 0 0 0 #4a4a4a,
-    -2px 0 0 0 #2a2a2a,
-    0 2px 0 0 #4a4a4a,
-    0 -2px 0 0 #2a2a2a;
+    inset 2px 2px 0 0 #0a0a1a,
+    inset -2px -2px 0 0 #2a2a4e;
   transform: translate(1px, 1px);
 }
 
 /* Muted state for mute button */
 #btn-mute[aria-pressed="true"] {
   color: #ff6666;
-  background: #4a2a2a;
+  background: #2a1a2a;
+  border-color: #a02060;
+}
+
+#btn-mute[aria-pressed="true"] .btn-icon {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
 }
 
 /* Active state for snow button */
 #btn-snow[aria-pressed="true"] {
-  background: #2a4a5a;
+  background: #1a2a3a;
+  border-color: #3a7fd9;
   color: #8af;
+}
+
+/* Active state for fullscreen button */
+#btn-fullscreen[aria-pressed="true"] {
+  background: #1a2a1a;
+  border-color: #3ad93a;
+  color: #8f8;
 }
 
 /* Future non-sticker layers that must sit above stickers */
@@ -1014,25 +1059,28 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   position: relative;  /* For absolute positioning of generators */
 }
 
-/* For generators, prevent scrolling on the body itself (content handles its own space) */
+/* For generators and bg selection, prevent scrolling */
 .popup-body:has(.headline-generator),
 .popup-body:has(.company-generator),
-.popup-body:has(.cta-generator) {
+.popup-body:has(.cta-generator),
+.popup-body:has(.bg-grid) {
   overflow: hidden;
 }
 
 .bg-grid{
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);  /* 5 columns for 5x2 grid */
   gap: 12px;
-  padding-bottom: 40px;  /* Extra space at bottom for scrolling */
+  padding: 10px 5px;
+  height: 100%;
+  align-content: space-evenly;  /* Evenly distribute rows */
 }
 
 .bg-card{
-  background: #111;
-  border: 2px solid #3013a9;
+  background: transparent;
+  border: none;
   border-radius: 0;
-  overflow: hidden;
+  overflow: visible;  /* Allow border to show */
   display: flex;
   flex-direction: column;
   cursor: url('assets/UI/hand.ico'), pointer;
@@ -1041,7 +1089,9 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 .bg-thumb{
   aspect-ratio: 1200 / 628;
   width: 100%;
-  background: #111 center / cover no-repeat;
+  background: transparent;
+  border: 2px solid transparent;
+  box-sizing: border-box;
 }
 
 .bg-thumb > img{
@@ -1049,14 +1099,16 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   height: 100%;
   object-fit: cover;
   display: block;
-  background: #111;
+  background: transparent;
 }
 
 /* Hero thumbnails - square with contained images */
 .hero-thumb {
   aspect-ratio: 1 / 1;
   width: 100%;
-  background: #111 center / cover no-repeat;
+  background: transparent;
+  border: 2px solid transparent;
+  box-sizing: border-box;
 }
 
 .hero-thumb > img {
@@ -1064,23 +1116,34 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   height: 100%;
   object-fit: contain;
   display: block;
-  background: #111;
+  background: transparent;  /* Fully transparent - no box visible */
 }
 
 .bg-caption{
-  padding: 6px 8px;
-  font-size: 11px;
+  padding: 4px 2px;
+  font-size: 10px;
   font-family: 'home_videoregular', sans-serif;
-  line-height: 1.3;
+  line-height: 1.2;
   text-align: center;
-  color: #fff;
-  border-top: 2px solid #3013a9;
+  color: #aaa;
   word-wrap: break-word;
 }
 
-.bg-card:hover{
-  outline: 2px solid #3013a9;
-  outline-offset: -2px;
+.bg-card:hover .bg-thumb,
+.bg-card:hover .hero-thumb {
+  border-color: #5a3fd9;
+}
+
+.bg-card:hover .bg-caption{
+  color: #fff;
+}
+
+/* Hero grid - 4 columns */
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 10px 5px;
 }
 
 /* ==== HEADLINE UI ======================================================== */
