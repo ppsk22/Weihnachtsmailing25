@@ -1,3 +1,17 @@
+// ==== LOADING SCREEN ====
+function hideLoadingScreen() {
+  const loadingScreen = document.getElementById('loading-screen');
+  if (loadingScreen) {
+    loadingScreen.classList.add('hidden');
+  }
+}
+
+// Hide loading screen when everything is ready
+window.addEventListener('load', () => {
+  // Add a small delay to ensure smooth transition and let fonts load
+  setTimeout(hideLoadingScreen, 800);
+});
+
 // ==== POPUP OVER STAGE (NEW) =============================================
 
 // ==== GUIDED FLOW SYSTEM ====
@@ -4147,16 +4161,23 @@ function getElementBounds() {
     
     if (!isHero && !isHeadline && !isCompany && !isCTA) return;
     
-    const x = parseFloat(wrapper.getAttribute('data-x')) || 0;
-    const y = parseFloat(wrapper.getAttribute('data-y')) || 0;
+    const dataX = parseFloat(wrapper.getAttribute('data-x')) || 0;
+    const dataY = parseFloat(wrapper.getAttribute('data-y')) || 0;
     
     // Get the inner element for dimensions
     const inner = wrapper.querySelector('.headline-text, .company-text, .cta-button, img');
     if (!inner) return;
     
     const scale = wrapper.scale || 1;
-    const w = inner.offsetWidth * scale;
-    const h = inner.offsetHeight * scale;
+    const unscaledW = inner.offsetWidth;
+    const unscaledH = inner.offsetHeight;
+    const scaledW = unscaledW * scale;
+    const scaledH = unscaledH * scale;
+    
+    // CSS transform: translate(x,y) scale(s) - scale happens from element center
+    // So visual top-left = dataX + (unscaledW - scaledW)/2
+    const visualX = dataX + (unscaledW - scaledW) / 2;
+    const visualY = dataY + (unscaledH - scaledH) / 2;
     
     // Get or create glitter data for this element
     if (!elementGlitterData.has(wrapper)) {
@@ -4169,12 +4190,12 @@ function getElementBounds() {
     const glitterData = elementGlitterData.get(wrapper);
     
     bounds.push({
-      x: x,
-      y: y,
-      w: w,
-      h: h,
-      centerX: x + w / 2,
-      centerY: y + h / 2,
+      x: visualX,
+      y: visualY,
+      w: scaledW,
+      h: scaledH,
+      centerX: visualX + scaledW / 2,
+      centerY: visualY + scaledH / 2,
       colors: glitterData.colors,
       settings: glitterData.settings,
       element: wrapper
@@ -4204,26 +4225,32 @@ function regenerateElementGlitterPixels() {
 
 // Add glitter particles for a specific element only (doesn't affect other elements)
 function addElementGlitterPixels(element) {
-  const x = parseFloat(element.getAttribute('data-x')) || 0;
-  const y = parseFloat(element.getAttribute('data-y')) || 0;
+  const dataX = parseFloat(element.getAttribute('data-x')) || 0;
+  const dataY = parseFloat(element.getAttribute('data-y')) || 0;
   
   const inner = element.querySelector('.headline-text, .company-text, .cta-button, img');
   if (!inner) return;
   
   const scale = element.scale || 1;
-  const w = inner.offsetWidth * scale;
-  const h = inner.offsetHeight * scale;
+  const unscaledW = inner.offsetWidth;
+  const unscaledH = inner.offsetHeight;
+  const scaledW = unscaledW * scale;
+  const scaledH = unscaledH * scale;
+  
+  // CSS transform: translate(x,y) scale(s) - scale happens from element center
+  const visualX = dataX + (unscaledW - scaledW) / 2;
+  const visualY = dataY + (unscaledH - scaledH) / 2;
   
   const glitterData = elementGlitterData.get(element);
   if (!glitterData) return;
   
   const bounds = {
-    x: x,
-    y: y,
-    w: w,
-    h: h,
-    centerX: x + w / 2,
-    centerY: y + h / 2,
+    x: visualX,
+    y: visualY,
+    w: scaledW,
+    h: scaledH,
+    centerX: visualX + scaledW / 2,
+    centerY: visualY + scaledH / 2,
     colors: glitterData.colors,
     settings: glitterData.settings,
     element: element
@@ -4350,14 +4377,21 @@ function getStickerBounds() {
   const bounds = [];
   
   stickers.forEach((wrapper, index) => {
-    const x = parseFloat(wrapper.getAttribute('data-x')) || 0;
-    const y = parseFloat(wrapper.getAttribute('data-y')) || 0;
+    const dataX = parseFloat(wrapper.getAttribute('data-x')) || 0;
+    const dataY = parseFloat(wrapper.getAttribute('data-y')) || 0;
     const img = wrapper.querySelector('img');
     if (!img) return;
     
     const scale = wrapper.scale || 1;
-    const w = img.offsetWidth * scale;
-    const h = img.offsetHeight * scale;
+    const unscaledW = img.offsetWidth;
+    const unscaledH = img.offsetHeight;
+    const scaledW = unscaledW * scale;
+    const scaledH = unscaledH * scale;
+    
+    // CSS transform: translate(x,y) scale(s) - scale happens from element center
+    // So visual top-left = dataX + (unscaledW - scaledW)/2
+    const visualX = dataX + (unscaledW - scaledW) / 2;
+    const visualY = dataY + (unscaledH - scaledH) / 2;
     
     // Get or create glitter data for this sticker
     if (!stickerGlitterData.has(index)) {
@@ -4370,12 +4404,12 @@ function getStickerBounds() {
     const glitterData = stickerGlitterData.get(index);
     
     bounds.push({
-      x: x,
-      y: y,
-      w: w,
-      h: h,
-      centerX: x + w / 2,
-      centerY: y + h / 2,
+      x: visualX,
+      y: visualY,
+      w: scaledW,
+      h: scaledH,
+      centerX: visualX + scaledW / 2,
+      centerY: visualY + scaledH / 2,
       colors: glitterData.colors,
       settings: glitterData.settings,
       index: index
