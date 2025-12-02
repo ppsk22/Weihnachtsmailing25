@@ -9,7 +9,7 @@ function hideLoadingScreen() {
 // Hide loading screen when everything is ready
 window.addEventListener('load', () => {
   // Add a small delay to ensure smooth transition and let fonts load
-  setTimeout(hideLoadingScreen, 800);
+  setTimeout(hideLoadingScreen, 1800);
 });
 
 // ==== POPUP OVER STAGE (NEW) =============================================
@@ -4102,6 +4102,11 @@ function wireExportControls(){
   // PNG EXPORT
   btnPNG.addEventListener("click", async () => {
     SoundManager.play('save');
+    
+    // Show exporting screen
+    const exportingScreen = document.getElementById('exporting-screen');
+    if (exportingScreen) exportingScreen.classList.remove('hidden');
+    
     const stage = document.getElementById("stage");
     const app = document.getElementById("app");
     
@@ -4111,6 +4116,9 @@ function wireExportControls(){
     
     // Force a reflow to apply the scale change
     stage.offsetHeight;
+    
+    // Small delay to let exporting screen show
+    await new Promise(r => setTimeout(r, 50));
     
     try {
       const canvas = await html2canvas(stage, {
@@ -4138,6 +4146,9 @@ function wireExportControls(){
     } finally {
       // Restore UI scaling
       document.documentElement.style.setProperty('--ui-scale', originalScale);
+      
+      // Hide exporting screen
+      if (exportingScreen) exportingScreen.classList.add('hidden');
     }
   });
 
@@ -4155,6 +4166,10 @@ function wireExportControls(){
       alert("GIF encoder not loaded. Please refresh the page.");
       return;
     }
+
+    // Show exporting screen
+    const exportingScreen = document.getElementById('exporting-screen');
+    if (exportingScreen) exportingScreen.classList.remove('hidden');
 
     const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
     const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
@@ -4238,8 +4253,32 @@ function wireExportControls(){
       
       // Render the text element to canvas using html2canvas
       try {
-        const canvas = await html2canvas(w, {
-          scale: 1,
+        // Clone the element to capture computed styles properly
+        const clone = w.cloneNode(true);
+        clone.style.position = 'absolute';
+        clone.style.left = '-9999px';
+        clone.style.top = '-9999px';
+        clone.style.transform = 'none'; // Remove transform to get accurate size
+        document.body.appendChild(clone);
+        
+        // Get the inner element and copy computed styles explicitly
+        const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
+        if (innerEl) {
+          const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
+          if (originalInner) {
+            const computed = getComputedStyle(originalInner);
+            // Explicitly set background, border, and box-shadow
+            innerEl.style.background = computed.background;
+            innerEl.style.backgroundColor = computed.backgroundColor;
+            innerEl.style.backgroundImage = computed.backgroundImage;
+            innerEl.style.border = computed.border;
+            innerEl.style.borderRadius = computed.borderRadius;
+            innerEl.style.boxShadow = computed.boxShadow;
+          }
+        }
+        
+        const canvas = await html2canvas(clone, {
+          scale: 2,  // Higher scale for better CSS capture
           backgroundColor: null,
           logging: false,
           allowTaint: true,
@@ -4249,12 +4288,19 @@ function wireExportControls(){
                    element.classList.contains('rot-handle');
           }
         });
-        // Use canvas dimensions (what was actually rendered)
-        const baseW = canvas.width;
-        const baseH = canvas.height;
-        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH, isCTA };
+        
+        // Remove clone
+        document.body.removeChild(clone);
+        
+        // Use canvas dimensions (what was actually rendered) - divide by scale
+        const baseW = canvas.width / 2;
+        const baseH = canvas.height / 2;
+        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH, isCTA, renderScale: 2 };
       } catch (e) {
         console.warn("Failed to render text element:", e);
+        // Clean up clone if it exists
+        const orphanClone = document.querySelector('[style*="-9999px"]');
+        if (orphanClone) orphanClone.remove();
         return null;
       }
     }));
@@ -4410,6 +4456,9 @@ function wireExportControls(){
 
     // Restore UI scale
     document.documentElement.style.setProperty('--ui-scale', originalScale);
+    
+    // Hide exporting screen
+    if (exportingScreen) exportingScreen.classList.add('hidden');
     
     btnPNG.disabled = false;
     btnGIF.disabled = false;
