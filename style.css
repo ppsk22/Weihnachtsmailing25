@@ -391,7 +391,7 @@ a, button, .clickable {
   /* background-size: 100% 100%; */
   
   /* OPTION 3: Partial squash - compromise between crop and stretch */
-  /* Stretches width fully, height ~85% for subtle squash + slight crop */
+  /* Stretches width fully, height 115% for subtle squash + slight crop */
   background-size: 100% 115%;
   /* === END BACKGROUND SIZING OPTIONS === */
   

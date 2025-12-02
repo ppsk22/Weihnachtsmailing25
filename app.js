@@ -3547,21 +3547,42 @@ function wireExportControls(){
   btnPNG.addEventListener("click", async () => {
     SoundManager.play('save');
     const stage = document.getElementById("stage");
-    const canvas = await html2canvas(stage, {
-      x: 0,
-      y: 0,
-      width: STAGE_W,
-      height: STAGE_H,
-      windowWidth: STAGE_W,
-      windowHeight: STAGE_H,
-      scale: 1,
-      useCORS: true,
-      backgroundColor: null
-    });
-    const link = document.createElement("a");
-    link.download = "banner.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    const app = document.getElementById("app");
+    
+    // Temporarily remove UI scaling during capture
+    const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
+    document.documentElement.style.setProperty('--ui-scale', '1');
+    
+    // Force a reflow to apply the scale change
+    stage.offsetHeight;
+    
+    try {
+      const canvas = await html2canvas(stage, {
+        width: STAGE_W,
+        height: STAGE_H,
+        scale: 1,
+        useCORS: true,
+        backgroundColor: null,
+        logging: false,
+        allowTaint: true,
+        foreignObjectRendering: false,
+        ignoreElements: (element) => {
+          // Ignore UI elements that shouldn't be in the export
+          return element.id === 'overlay' || 
+                 element.classList.contains('scale-handle') || 
+                 element.classList.contains('rot-handle') ||
+                 element.id === 'glitter-canvas';
+        }
+      });
+      
+      const link = document.createElement("a");
+      link.download = "banner.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } finally {
+      // Restore UI scaling
+      document.documentElement.style.setProperty('--ui-scale', originalScale);
+    }
   });
 
   // GIF EXPORT
@@ -3591,7 +3612,14 @@ function wireExportControls(){
     btnCancel.onclick = () => { CANCELLED = true; };
     progEl.textContent = `Preloading… 0/${TOTAL}`;
 
+    // Temporarily reset UI scale to 1 for accurate capture
+    const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
+    document.documentElement.style.setProperty('--ui-scale', '1');
+
     const stage = document.getElementById("stage");
+    // Force reflow
+    stage.offsetHeight;
+    
     const W = STAGE_W;
     const H = STAGE_H;
 
@@ -3606,7 +3634,13 @@ function wireExportControls(){
     const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
     // preload stickers - keep top-left coordinates to match CSS transform
-    const stickers = await Promise.all(wrappers.map(async (w) => {
+    // Filter out text-based elements (headline, company, CTA) which don't have images
+    const imageWrappers = wrappers.filter(w => {
+      const hasImg = w.querySelector("img") !== null;
+      return hasImg;
+    });
+    
+    const stickers = await Promise.all(imageWrappers.map(async (w) => {
       const domImg = w.querySelector("img");
       const src    = domImg.getAttribute("src");
       const x      = parseFloat(w.getAttribute("data-x")) || 0;  // top-left
@@ -3633,6 +3667,44 @@ function wireExportControls(){
       }
     }));
 
+    // Pre-render text elements (headline, company, CTA) using html2canvas
+    const textWrappers = wrappers.filter(w => {
+      const hasImg = w.querySelector("img") !== null;
+      return !hasImg; // Text elements don't have images
+    });
+    
+    const textElements = await Promise.all(textWrappers.map(async (w) => {
+      const x = parseFloat(w.getAttribute("data-x")) || 0;
+      const y = parseFloat(w.getAttribute("data-y")) || 0;
+      const scale = w.scale || 1;
+      const angle = w.angle || 0;
+      
+      // Render the text element to canvas using html2canvas
+      try {
+        const canvas = await html2canvas(w, {
+          scale: 1,
+          backgroundColor: null,
+          logging: false,
+          allowTaint: true,
+          useCORS: true,
+          ignoreElements: (element) => {
+            return element.classList.contains('scale-handle') || 
+                   element.classList.contains('rot-handle');
+          }
+        });
+        // Use canvas dimensions (what was actually rendered)
+        const baseW = canvas.width;
+        const baseH = canvas.height;
+        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH };
+      } catch (e) {
+        console.warn("Failed to render text element:", e);
+        return null;
+      }
+    }));
+    
+    // Filter out nulls
+    const validTextElements = textElements.filter(t => t !== null);
+
     const enc = new GIFEncoder();
     enc.setRepeat(0);
     enc.setDelay(FRAME_MS);
@@ -3644,28 +3716,37 @@ function wireExportControls(){
 
       ctx.clearRect(0, 0, W, H);
       
-      // Draw background with "cover" behavior (like CSS background-size: cover)
+      // Draw background - match CSS background-size setting
+      // Currently using partial squash mode (100% 85%)
       if (bgImg) {
+        // === BACKGROUND SIZING OPTIONS (match CSS in style.css) ===
+        // OPTION 1: Cover (crop to fit)
+        /*
         const imgRatio = bgImg.width / bgImg.height;
         const canvasRatio = W / H;
-        
         let drawW, drawH, drawX, drawY;
-        
         if (imgRatio > canvasRatio) {
-          // Image is wider - fit to height
           drawH = H;
           drawW = H * imgRatio;
           drawX = (W - drawW) / 2;
           drawY = 0;
         } else {
-          // Image is taller - fit to width
           drawW = W;
           drawH = W / imgRatio;
           drawX = 0;
           drawY = (H - drawH) / 2;
         }
-        
         ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
+        */
+        
+        // OPTION 2: Full stretch (100% 100%)
+        // ctx.drawImage(bgImg, 0, 0, W, H);
+        
+        // OPTION 3: Partial squash (100% 115%) - currently active
+        const drawH = H * 1.15;
+        const drawY = (H - drawH) / 2;
+        ctx.drawImage(bgImg, 0, drawY, W, drawH);
+        // === END BACKGROUND SIZING OPTIONS ===
       }
 
       for (const s of stickers) {
@@ -3716,6 +3797,18 @@ function wireExportControls(){
         ctx.restore();
       }
 
+      // Draw text elements (headline, company, CTA)
+      for (const t of validTextElements) {
+        ctx.save();
+        // Match CSS: translate(x, y) scale(s) rotate(r) with transform-origin: center
+        ctx.translate(t.x, t.y);
+        ctx.translate(t.baseW / 2, t.baseH / 2);
+        ctx.rotate((t.angle || 0) * Math.PI / 180);
+        ctx.scale(t.scale || 1, t.scale || 1);
+        ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        ctx.restore();
+      }
+
       enc.addFrame(ctx);
       progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
       await sleep(FRAME_MS);
@@ -3732,6 +3825,9 @@ function wireExportControls(){
       progEl.textContent = "Cancelled.";
     }
 
+    // Restore UI scale
+    document.documentElement.style.setProperty('--ui-scale', originalScale);
+    
     btnPNG.disabled = false;
     btnGIF.disabled = false;
     btnCancel.style.display = "none";
