@@ -5,7 +5,7 @@
 // Step order: 'bg' (1), '2' (hero), '3' (headline), '4' (stickers), '5' (company), '6' (CTA), 'export' (7)
 const STEP_ORDER = ['bg', '2', '3', '4', '5', '6', 'export'];
 let currentStep = 0; // Index into STEP_ORDER (0 = bg, user starts here)
-let completedSteps = new Set(); // Track which steps have been completed
+let currentOpenStep = -1; // Track which step's overlay is currently open
 
 function getStepIndex(panel) {
   return STEP_ORDER.indexOf(panel);
@@ -13,25 +13,18 @@ function getStepIndex(panel) {
 
 function isStepUnlocked(panel) {
   const stepIndex = getStepIndex(panel);
-  // A step is unlocked if it's the current step, any previous step, or the next step (blinking)
-  return stepIndex <= currentStep + 1;
-}
-
-function advanceToStep(stepIndex) {
-  if (stepIndex > currentStep) {
-    currentStep = stepIndex;
-    updateSidebarButtonStates();
-  }
+  // Only the current step is unlocked (no going back!)
+  return stepIndex === currentStep;
 }
 
 function completeStep(panel) {
-  completedSteps.add(panel);
   const stepIndex = getStepIndex(panel);
   // Advance to next step if this was the current step
   if (stepIndex === currentStep && currentStep < STEP_ORDER.length - 1) {
     currentStep = stepIndex + 1;
-    updateSidebarButtonStates();
   }
+  currentOpenStep = -1;
+  updateSidebarButtonStates();
 }
 
 function updateSidebarButtonStates() {
@@ -43,20 +36,143 @@ function updateSidebarButtonStates() {
     btn.classList.remove('locked', 'blinking', 'completed', 'current');
     
     if (stepIndex < currentStep) {
-      // Previous steps - completed, can revisit (white)
-      btn.classList.add('completed');
-    } else if (stepIndex === currentStep) {
-      // Current step - active, white, not blinking
+      // Previous steps - locked, greyed out, not revisitable
+      btn.classList.add('locked');
+    } else if (stepIndex === currentOpenStep) {
+      // Currently open overlay - white, no blinking
       btn.classList.add('current');
-    } else if (stepIndex === currentStep + 1) {
-      // Next step - blinking to attract attention
+    } else if (stepIndex === currentStep && currentOpenStep === -1) {
+      // This is the next step to do AND no overlay is open - blinking
       btn.classList.add('blinking');
     } else {
-      // Future steps beyond next - locked/greyed out
+      // Future steps - locked/greyed out
       btn.classList.add('locked');
     }
   });
 }
+
+// ==== SOUND SYSTEM ====
+const SoundManager = {
+  sounds: {},
+  bgm: null,
+  muted: false,
+  bgmStarted: false,
+  initialized: false,
+  
+  init() {
+    if (this.initialized) return;
+    this.initialized = true;
+    
+    // Cache all sound elements
+    this.sounds = {
+      save: document.getElementById('sound_save'),
+      delete: document.getElementById('sound_delete'),
+      confirm: document.getElementById('sound_confirm'),
+      menuClick: document.getElementById('sound_menu_click'),
+      menuHover: document.getElementById('sound_menu_hover'),
+      drag: document.getElementById('sound_drag'),
+      drop: document.getElementById('sound_drop'),
+      click: document.getElementById('sound_click'),
+      clickDenied: document.getElementById('sound_click_denied'),
+      close: document.getElementById('sound_close'),
+      popup: document.getElementById('sound_popup')
+    };
+    // Background music
+    this.bgm = document.getElementById('bgm_jinglebells');
+    if (this.bgm) {
+      this.bgm.volume = 0.3; // Lower volume for background music
+      // Try to autoplay immediately
+      this.startBgm();
+    }
+  },
+  
+  play(soundName) {
+    if (this.muted) return;
+    // Always try to start BGM when any sound plays (fallback for first interaction)
+    this.startBgm();
+    const sound = this.sounds[soundName];
+    if (sound) {
+      sound.currentTime = 0;
+      sound.play().catch(() => {}); // Ignore autoplay errors
+    }
+  },
+  
+  startBgm() {
+    if (this.bgmStarted || this.muted || !this.bgm) return;
+    this.bgm.play().then(() => {
+      this.bgmStarted = true;
+    }).catch(() => {
+      // Autoplay blocked - will retry on user interaction
+    });
+  },
+  
+  setMuted(muted) {
+    this.muted = muted;
+    if (this.bgm) {
+      if (muted) {
+        this.bgm.pause();
+      } else if (this.bgmStarted) {
+        this.bgm.play().catch(() => {});
+      }
+    }
+  },
+  
+  toggle() {
+    this.setMuted(!this.muted);
+    return this.muted;
+  }
+};
+
+// Initialize sounds when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  SoundManager.init();
+  
+  // Also try to start BGM when window fully loads (images, etc)
+  window.addEventListener('load', () => {
+    SoundManager.startBgm();
+  });
+  
+  // Menu button sounds (sidebar category buttons)
+  // Reference: .menu_button mousedown → sound_menu_click
+  // Reference: .menu_button hover → sound_menu_hover
+  // Reference: .menu_disabled mousedown → sound_click_denied
+  document.querySelectorAll('#sidebar .category').forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      if (!btn.classList.contains('locked')) {
+        SoundManager.play('menuHover');
+      }
+    });
+    btn.addEventListener('mousedown', () => {
+      if (btn.classList.contains('locked')) {
+        SoundManager.play('clickDenied');
+      } else {
+        SoundManager.play('menuClick');
+      }
+    });
+  });
+  
+  // Global click sound - plays on body for general clicks
+  // Reference: body mousedown → sound_click
+  // This fires first on ANY click to ensure BGM starts
+  document.body.addEventListener('mousedown', (e) => {
+    // Always try to start BGM on any click
+    SoundManager.startBgm();
+    
+    // Don't play click sound for elements that have their own sounds
+    if (!e.target.closest('.category') && 
+        !e.target.closest('.export-btn') && 
+        !e.target.closest('#popup-close') &&
+        !e.target.closest('.sticker-wrapper') &&
+        !e.target.closest('.bg-card') &&
+        !e.target.closest('.sticker-src') &&
+        !e.target.closest('#sticker-bar-delete-area') &&
+        !e.target.closest('.effect-tab') &&
+        !e.target.closest('.bar-btn') &&
+        !e.target.closest('.word-box')) {
+      SoundManager.play('click');
+    }
+  }, true); // Use capture phase to fire first
+});
 
 // Elements
 const overlay = document.getElementById('overlay');
@@ -93,6 +209,10 @@ function closePopup(){
   document.querySelectorAll('#sidebar .category').forEach(btn => {
     btn.classList.remove('active');
   });
+  
+  // Update guided flow state
+  currentOpenStep = -1;
+  updateSidebarButtonStates();
   
   // Re-enable interact.js
   document.querySelectorAll('.sticker-wrapper').forEach(el => {
@@ -154,7 +274,11 @@ function openPopup(kind){
   popup.appendChild(head);
   popup.appendChild(body);
 
-  document.getElementById('popup-close').addEventListener('click', closePopup);
+  // Reference: .close mousedown → sound_close
+  document.getElementById('popup-close').addEventListener('click', () => {
+    SoundManager.play('close');
+    closePopup();
+  });
 
   if (kind === 'bg'){
     buildBGGrid(body);
@@ -219,6 +343,7 @@ function buildBGGrid(container){
     wrap.appendChild(card);
 
     card.addEventListener('click', () => {
+      SoundManager.play('confirm'); // Play confirm sound when selecting BG
       const stage = document.getElementById('stage');
       stage.style.backgroundImage = `url(${url})`;
       completeStep('bg'); // Complete step 1
@@ -256,6 +381,7 @@ function buildHeroGrid(container){
     wrap.appendChild(card);
 
     card.addEventListener('click', () => {
+      SoundManager.play('confirm'); // Play confirm sound when selecting hero
       spawnHero(url);
       completeStep('2'); // Complete step 2
       closePopup();
@@ -266,28 +392,250 @@ function buildHeroGrid(container){
 }
 
 function buildExportUI(container){
-  // Build the same controls the old panel had, but inside the popup
+  // Build the export UI with name/email fields at top, download options below
   const wrap = document.createElement('div');
+  wrap.className = 'export-ui-wrapper';
   wrap.innerHTML = `
-    <label class="lbl">FPS</label>
-    <input id="gif-fps" type="range" min="1" max="15" value="5" />
-    <span id="gif-fps-val">5</span> fps
-
-    <label class="lbl">Duration (s)</label>
-    <input id="gif-duration" type="number" min="1" max="20" value="5" class="num" />
-
-    <div class="btn-row">
-      <button id="export-png"   class="export-btn">PNG</button>
-      <button id="export-gif"   class="export-btn">GIF</button>
-      <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
+    <div class="export-section email-section">
+      <div class="input-group">
+        <label class="lbl" for="export-name">Your Name</label>
+        <input id="export-name" type="text" placeholder="Enter your name" class="export-input" />
+        <span id="name-error" class="input-error"></span>
+      </div>
+      
+      <div class="input-group">
+        <label class="lbl" for="export-email">Your Email</label>
+        <input id="export-email" type="email" placeholder="Enter your email" class="export-input" />
+        <span id="email-error" class="input-error"></span>
+      </div>
+      
+      <div class="btn-row centered">
+        <button id="export-send" class="export-btn confirm-btn">Send Banner</button>
+      </div>
+      <div id="send-status" class="send-status"></div>
     </div>
+    
+    <hr class="export-divider" />
+    
+    <div class="export-section download-section">
+      <h3 class="export-section-title">Manual Download</h3>
+      
+      <label class="lbl">FPS</label>
+      <input id="gif-fps" type="range" min="1" max="15" value="5" />
+      <span id="gif-fps-val">5</span> fps
 
-    <div id="export-progress" class="progress"></div>
+      <label class="lbl">Duration (s)</label>
+      <input id="gif-duration" type="number" min="1" max="20" value="5" class="num" />
+
+      <div class="btn-row">
+        <button id="export-png" class="export-btn regen-btn">PNG</button>
+        <button id="export-gif" class="export-btn regen-btn">GIF</button>
+        <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
+      </div>
+
+      <div id="export-progress" class="progress"></div>
+    </div>
   `;
   container.appendChild(wrap);
 
+  // Wire up validation and send button
+  wireEmailValidation();
+  
   // Re-bind the existing handlers to these freshly created elements
   wireExportControls();
+}
+
+// Email/Name validation
+function wireEmailValidation() {
+  const nameInput = document.getElementById('export-name');
+  const emailInput = document.getElementById('export-email');
+  const nameError = document.getElementById('name-error');
+  const emailError = document.getElementById('email-error');
+  const sendBtn = document.getElementById('export-send');
+  const sendStatus = document.getElementById('send-status');
+  
+  if (!nameInput || !emailInput || !sendBtn) return;
+  
+  // Validation rules
+  const validateName = (name) => {
+    const errors = [];
+    if (!name || name.trim().length === 0) {
+      errors.push('Name is required');
+    } else if (name.trim().length < 2) {
+      errors.push('Name must be at least 2 characters');
+    } else if (name.length > 100) {
+      errors.push('Name is too long (max 100 characters)');
+    }
+    // Check for problematic characters - be permissive, only block dangerous ones
+    const invalidChars = name.match(/[<>{}[\]\\\/=+%$#@!^*()~`|"]/g);
+    if (invalidChars) {
+      errors.push(`Invalid characters: ${[...new Set(invalidChars)].join(' ')}`);
+    }
+    return errors;
+  };
+  
+  const validateEmail = (email) => {
+    const errors = [];
+    if (!email || email.trim().length === 0) {
+      errors.push('Email is required');
+      return errors;
+    }
+    
+    email = email.trim();
+    
+    // Basic structure check (local@domain)
+    if (!email.includes('@')) {
+      errors.push('Email must contain @');
+      return errors;
+    }
+    
+    const parts = email.split('@');
+    if (parts.length !== 2) {
+      errors.push('Email must have exactly one @');
+      return errors;
+    }
+    
+    const [local, domain] = parts;
+    
+    // Local part validation
+    if (local.length === 0) {
+      errors.push('Email local part is empty');
+    } else if (local.length > 64) {
+      errors.push('Email local part is too long');
+    }
+    
+    // Domain validation - be permissive for international/new TLDs
+    if (domain.length === 0) {
+      errors.push('Email domain is empty');
+    } else if (!domain.includes('.')) {
+      errors.push('Email domain must have a dot');
+    } else if (domain.length > 255) {
+      errors.push('Email domain is too long');
+    }
+    
+    // Check for definitely invalid characters in email
+    // Be permissive - allow + . _ - in local, most things in domain
+    const invalidLocalChars = local.match(/[<>()[\]\\,;:\s&"]/g);
+    if (invalidLocalChars) {
+      errors.push(`Invalid characters in email: ${[...new Set(invalidLocalChars)].join(' ')}`);
+    }
+    
+    // Domain can't have spaces or certain chars
+    const invalidDomainChars = domain.match(/[<>()[\]\\,;:\s&"]/g);
+    if (invalidDomainChars) {
+      errors.push(`Invalid characters in domain: ${[...new Set(invalidDomainChars)].join(' ')}`);
+    }
+    
+    return errors;
+  };
+  
+  // Send button handler - validation only happens on click
+  sendBtn.addEventListener('click', async () => {
+    const name = nameInput.value;
+    const email = emailInput.value;
+    
+    // Validate both
+    const nameErrors = validateName(name);
+    const emailErrors = validateEmail(email);
+    
+    nameError.textContent = nameErrors.length > 0 ? nameErrors[0] : '';
+    emailError.textContent = emailErrors.length > 0 ? emailErrors[0] : '';
+    nameInput.classList.toggle('input-invalid', nameErrors.length > 0);
+    emailInput.classList.toggle('input-invalid', emailErrors.length > 0);
+    
+    if (nameErrors.length > 0 || emailErrors.length > 0) {
+      SoundManager.play('clickDenied');
+      sendStatus.textContent = 'Please fix the errors above';
+      sendStatus.className = 'send-status error';
+      return;
+    }
+    
+    // All valid - proceed with send
+    SoundManager.play('confirm');
+    sendStatus.textContent = 'Preparing your banner...';
+    sendStatus.className = 'send-status pending';
+    sendBtn.disabled = true;
+    
+    try {
+      // Generate the banner image
+      const stage = document.getElementById("stage");
+      const canvas = await html2canvas(stage, {
+        x: 0,
+        y: 0,
+        width: STAGE_W,
+        height: STAGE_H,
+        windowWidth: STAGE_W,
+        windowHeight: STAGE_H,
+        scale: 1,
+        useCORS: true,
+        backgroundColor: null
+      });
+      
+      const imageData = canvas.toDataURL("image/png");
+      
+      // Prepare data for sending
+      const exportData = {
+        name: name.trim(),
+        email: email.trim(),
+        image: imageData,
+        timestamp: new Date().toISOString(),
+      };
+      
+      // Send to PHP backend
+      sendStatus.textContent = 'Sending to ' + email.trim() + '...';
+      
+      const result = await sendBannerToAPI(exportData);
+      
+      if (result.success) {
+        SoundManager.play('save');
+        sendStatus.textContent = '✓ Banner sent to ' + email.trim() + '!';
+        sendStatus.className = 'send-status success';
+      } else {
+        throw new Error(result.error || 'Failed to send');
+      }
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      SoundManager.play('clickDenied');
+      sendStatus.textContent = 'Error: ' + error.message;
+      sendStatus.className = 'send-status error';
+    } finally {
+      sendBtn.disabled = false;
+    }
+  });
+}
+
+// ==== API INTEGRATION ====
+// Sends the banner to your PHP backend
+async function sendBannerToAPI(exportData) {
+  // Change this to your actual PHP endpoint path
+  const API_ENDPOINT = 'send-banner.php';
+  
+  try {
+    const response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: exportData.name,
+        email: exportData.email,
+        image: exportData.image,
+        timestamp: exportData.timestamp,
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error || `Server error: ${response.status}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('API Error:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 
@@ -303,10 +651,12 @@ document.querySelectorAll('#sidebar .category').forEach(btn => {
       return;
     }
     
-    // If clicking the next step (blinking), advance to it
-    if (stepIndex === currentStep + 1) {
-      currentStep = stepIndex;
-      updateSidebarButtonStates();
+    // Special case: step 4 doesn't open an overlay, just unlocks stickers
+    // openPopup handles this internally and advances the step
+    if (which === '4') {
+      openPopup(which);
+      // Don't set currentOpenStep - openPopup already handled everything
+      return;
     }
     
     const isOpen = overlay.classList.contains('open');
@@ -314,17 +664,24 @@ document.querySelectorAll('#sidebar .category').forEach(btn => {
       const current = popup.querySelector('.popup-head span')?.textContent?.toLowerCase();
       if (current === which){
         closePopup();
+        currentOpenStep = -1;
+        updateSidebarButtonStates();
       } else {
         openPopup(which);
+        currentOpenStep = stepIndex;
+        updateSidebarButtonStates();
       }
     } else {
       openPopup(which);
+      currentOpenStep = stepIndex;
+      updateSidebarButtonStates();
     }
   });
 });
 
 // Initialize guided flow on page load
 setTimeout(() => {
+  currentOpenStep = 0; // BG overlay is open
   updateSidebarButtonStates();
   // Auto-open the BG selection overlay
   openPopup('bg');
@@ -632,9 +989,10 @@ function buildHeadlineUI(container) {
   
   // Create a wrapper that fills the space
   const wrapper = document.createElement('div');
-  wrapper.style.height = '100%';  // MUST be height, not minHeight!
+  wrapper.className = 'vibes-wrapper';
+  wrapper.style.height = '100%';
   wrapper.style.width = '100%';
-  wrapper.style.position = 'relative';  // For absolute positioning of buttons!
+  wrapper.style.position = 'relative';
   wrapper.addEventListener('click', (e) => {
     // Only stop propagation, don't close
     e.stopPropagation();
@@ -660,6 +1018,7 @@ function buildHeadlineUI(container) {
     wordBox.addEventListener('click', () => {
       if (wordBox.classList.contains('selected')) {
         // Deselect
+        SoundManager.play('click');
         wordBox.classList.remove('selected');
         const idx = selectedWords.indexOf(word);
         if (idx > -1) selectedWords.splice(idx, 1);
@@ -667,23 +1026,22 @@ function buildHeadlineUI(container) {
         // Select
         wordBox.classList.add('selected');
         selectedWords.push(word);
-      }
-      
-      // If 4 words selected, show generator
-      if (selectedWords.length === 4) {
-        // Store vibes globally for company name generator to use
-        selectedHeadlineVibes = [...selectedWords];
         
-        wordGrid.style.display = 'none';
-        let vibesText = 'Vibes: ' + selectedWords.join(' / ');
-        if (currentHeroCategory && currentHeroCategory !== 'other') {
-          const categoryNames = {
-            motor: 'Motor', chemistry: 'Chemistry', defence: 'Defence', agriculture: 'Agriculture', drinks: 'Drinks'
-          };
-          vibesText += ' + ' + categoryNames[currentHeroCategory];
+        // If 4 words selected, play confirm and show generator
+        if (selectedWords.length === 4) {
+          SoundManager.play('confirm'); // All vibes selected!
+          // Store vibes globally for company name generator to use
+          selectedHeadlineVibes = [...selectedWords];
+          
+          wordGrid.style.display = 'none';
+          instructions.style.display = 'none'; // Hide instructions
+          showHeadlineGenerator(wrapper, selectedWords);
+        } else {
+          SoundManager.play('click');
         }
-        instructions.textContent = vibesText;
-        showHeadlineGenerator(wrapper, selectedWords);
+      } else {
+        // Already have 4 selected
+        SoundManager.play('clickDenied');
       }
     });
     
@@ -702,12 +1060,14 @@ function showHeadlineGenerator(container, selectedVibeWords) {
   preview.className = 'headline-preview';
   
   const regenBtn = document.createElement('button');
-  regenBtn.className = 'export-btn';
+  regenBtn.className = 'export-btn regen-btn';
   regenBtn.textContent = 'Regenerate';
+  regenBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'export-btn';
+  confirmBtn.className = 'export-btn confirm-btn';
   confirmBtn.textContent = 'Confirm';
+  confirmBtn.addEventListener('click', () => SoundManager.play('confirm'));
   
   function generateHeadline() {
     // Generate headline text based on selected vibes
@@ -1063,26 +1423,6 @@ function buildCompanyNameUI(container) {
     e.stopPropagation();
   });
   
-  // Show influences hint at top (using same class as headline instructions)
-  const influenceHint = document.createElement('div');
-  influenceHint.className = 'headline-instructions';
-  
-  let hints = [];
-  if (currentHeroCategory && currentHeroCategory !== 'other') {
-    const categoryNames = { motor: 'Motor', chemistry: 'Chemistry', defence: 'Defence', agriculture: 'Agriculture', drinks: 'Drinks' };
-    hints.push(categoryNames[currentHeroCategory]);
-  }
-  if (selectedHeadlineVibes.length > 0) {
-    hints.push('Vibes');
-  }
-  
-  if (hints.length > 0) {
-    influenceHint.textContent = 'Influenced by: ' + hints.join(' + ');
-  } else {
-    influenceHint.textContent = 'Tip: Pick a hero & headline vibes first for themed names!';
-  }
-  wrapper.appendChild(influenceHint);
-  
   const genContainer = document.createElement('div');
   genContainer.className = 'company-generator';
   
@@ -1090,20 +1430,24 @@ function buildCompanyNameUI(container) {
   preview.className = 'company-preview';
   
   const regenBtn = document.createElement('button');
-  regenBtn.className = 'export-btn';
+  regenBtn.className = 'export-btn regen-btn';
   regenBtn.textContent = 'Regenerate';
+  regenBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const regenNameBtn = document.createElement('button');
-  regenNameBtn.className = 'export-btn';
+  regenNameBtn.className = 'export-btn regen-btn';
   regenNameBtn.textContent = 'Regenerate Name';
+  regenNameBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const regenStyleBtn = document.createElement('button');
-  regenStyleBtn.className = 'export-btn';
+  regenStyleBtn.className = 'export-btn regen-btn';
   regenStyleBtn.textContent = 'Regenerate Style';
+  regenStyleBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'export-btn';
+  confirmBtn.className = 'export-btn confirm-btn';
   confirmBtn.textContent = 'Confirm';
+  confirmBtn.addEventListener('click', () => SoundManager.play('confirm'));
   
   function generateName() {
     const parts = getMergedCompanyParts();
@@ -1379,24 +1723,29 @@ function buildCTAButtonUI(container) {
   preview.className = 'cta-preview';
   
   const regenBtn = document.createElement('button');
-  regenBtn.className = 'export-btn';
+  regenBtn.className = 'export-btn regen-btn';
   regenBtn.textContent = 'Regenerate';
+  regenBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const regenTextBtn = document.createElement('button');
-  regenTextBtn.className = 'export-btn';
+  regenTextBtn.className = 'export-btn regen-btn';
   regenTextBtn.textContent = 'Regenerate Text';
+  regenTextBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const regenTextStyleBtn = document.createElement('button');
-  regenTextStyleBtn.className = 'export-btn';
+  regenTextStyleBtn.className = 'export-btn regen-btn';
   regenTextStyleBtn.textContent = 'Regenerate Text Style';
+  regenTextStyleBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const regenButtonStyleBtn = document.createElement('button');
-  regenButtonStyleBtn.className = 'export-btn';
+  regenButtonStyleBtn.className = 'export-btn regen-btn';
   regenButtonStyleBtn.textContent = 'Regenerate Button Style';
+  regenButtonStyleBtn.addEventListener('click', () => SoundManager.play('click'));
   
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'export-btn';
+  confirmBtn.className = 'export-btn confirm-btn';
   confirmBtn.textContent = 'Confirm';
+  confirmBtn.addEventListener('click', () => SoundManager.play('confirm'));
   
   function generateText() {
     const verb = ctaVerbs[Math.floor(Math.random() * ctaVerbs.length)];
@@ -2061,6 +2410,7 @@ function getStickerCount() {
 }
 
 function showStickerLimitMessage() {
+  SoundManager.play('clickDenied'); // Play denied sound
   const stage = document.getElementById('stage');
   
   // Remove existing message if any
@@ -2109,6 +2459,8 @@ interact('.sticker-src').draggable({
         return;
       }
       
+      SoundManager.play('drag'); // Play drag sound
+      
       const stage = document.getElementById("stage");
       const r = stage.getBoundingClientRect();
       const s = uiScale();
@@ -2147,6 +2499,7 @@ interact('.sticker-src').draggable({
         // final snap-in just in case
         clampStickerPosition(spawningWrapper);
         applyTransform(spawningWrapper);
+        SoundManager.play('drop'); // Play drop sound
       }
       spawningWrapper = null;
     }
@@ -2199,6 +2552,7 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
     const randomX = Math.random() * (stageWidth - stickerSize);
     const randomY = Math.random() * (stageHeight - stickerSize);
     
+    SoundManager.play('drop'); // Play drop sound when spawning sticker
     createStickerAt(stickerSrc.src, randomX, randomY);
   });
   
@@ -2239,6 +2593,7 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
     const randomX = Math.random() * (stageWidth - stickerSize);
     const randomY = Math.random() * (stageHeight - stickerSize);
     
+    SoundManager.play('drop'); // Play drop sound when spawning sticker
     createStickerAt(stickerSrc.src, randomX, randomY);
   });
 });
@@ -2342,7 +2697,10 @@ function makeInteractive(el, isHero = false) {
 	interact(el).draggable({
   allowFrom: "img",
   listeners: {
-    start(){ el.classList.add("dragging"); },
+    start(){ 
+      el.classList.add("dragging"); 
+      SoundManager.play('drag');
+    },
     move(event) {
       const s = uiScale ? uiScale() : 1;
       const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx / s;
@@ -2352,7 +2710,10 @@ function makeInteractive(el, isHero = false) {
 	  clampStickerPosition(el);
       applyTransform(el);
     },
-    end(){ el.classList.remove("dragging"); }
+    end(){ 
+      el.classList.remove("dragging"); 
+      SoundManager.play('drop');
+    }
   }
 });
 
@@ -2377,6 +2738,7 @@ interact(scaleHandle).draggable({
     start() {
       scaleHandle.classList.add("dragging");
       document.body.classList.add("scaling");     // <— NEW: force se-resize
+      SoundManager.play('drag');
     },
     move(event) {
 	  const s = uiScale ? uiScale() : 1;
@@ -2387,6 +2749,7 @@ interact(scaleHandle).draggable({
     end() {
       scaleHandle.classList.remove("dragging");
       document.body.classList.remove("scaling");  // <— NEW
+      SoundManager.play('drop');
     }
   }
 });
@@ -2398,6 +2761,7 @@ interact(rotHandle).draggable({
     start() {
       rotHandle.classList.add("dragging");
       document.body.classList.add("rotating");    // <— NEW: force grabbing
+      SoundManager.play('drag');
     },
     move(event) {
       el.angle += event.dx * 0.5;
@@ -2406,6 +2770,7 @@ interact(rotHandle).draggable({
     end() {
       rotHandle.classList.remove("dragging");
       document.body.classList.remove("rotating"); // <— NEW
+      SoundManager.play('drop');
     }
   }
 });
@@ -2421,7 +2786,10 @@ function makeInteractiveText(el, textClassName) {
     interact(el).draggable({
         allowFrom: `.${textClassName}`,
         listeners: {
-            start(){ el.classList.add("dragging"); },
+            start(){ 
+                el.classList.add("dragging"); 
+                SoundManager.play('drag');
+            },
             move(event) {
                 const s = uiScale ? uiScale() : 1;
                 const x = (parseFloat(el.getAttribute("data-x")) || 0) + event.dx / s;
@@ -2432,6 +2800,7 @@ function makeInteractiveText(el, textClassName) {
             },
             end(){ 
                 el.classList.remove("dragging");
+                SoundManager.play('drop');
                 clampTextPosition(el);  // Clamp position when drag ends
                 applyTransform(el);
             }
@@ -2445,6 +2814,7 @@ function makeInteractiveText(el, textClassName) {
             start() {
                 scaleHandle.classList.add("dragging");
                 document.body.classList.add("scaling");
+                SoundManager.play('drag');
             },
             move(event) {
                 const s = uiScale ? uiScale() : 1;
@@ -2454,6 +2824,7 @@ function makeInteractiveText(el, textClassName) {
             end() {
                 scaleHandle.classList.remove("dragging");
                 document.body.classList.remove("scaling");
+                SoundManager.play('drop');
             }
         }
     });
@@ -2465,6 +2836,7 @@ function makeInteractiveText(el, textClassName) {
             start() {
                 rotHandle.classList.add("dragging");
                 document.body.classList.add("rotating");
+                SoundManager.play('drag');
             },
             move(event) {
                 el.angle += event.dx * 0.5;
@@ -2473,6 +2845,7 @@ function makeInteractiveText(el, textClassName) {
             end() {
                 rotHandle.classList.remove("dragging");
                 document.body.classList.remove("rotating");
+                SoundManager.play('drop');
             }
         }
     });
@@ -2487,6 +2860,7 @@ function setFsButton(isFull){
 }
 
 fsBtn.addEventListener('click', async () => {
+  SoundManager.play('click');
   try {
     if (!document.fullscreenElement) {
       // Scroll to top before entering fullscreen to prevent offset issues on mobile
@@ -2510,13 +2884,12 @@ setFsButton(false);
 
 // ==== MUTE BUTTON ====
 const muteBtn = document.getElementById('btn-mute');
-let isMuted = false;
 
 muteBtn.addEventListener('click', () => {
-  isMuted = !isMuted;
+  SoundManager.play('click'); // Play before toggling so it's audible when muting
+  const isMuted = SoundManager.toggle();
   muteBtn.setAttribute('aria-pressed', String(isMuted));
   muteBtn.textContent = isMuted ? '🔇' : '🔊';
-  // TODO: Actually mute/unmute audio when sound is added
 });
 
 // ==== SNOW EFFECT ====
@@ -2552,8 +2925,8 @@ const UI_SNOW_SETTINGS = {
 // Snow accumulation settings (fake accumulation on UI borders)
 const ACCUMULATION_SETTINGS = {
   maxHeight: 12,           // Max snow pile height in pixels
-  growthRate: 0.008,       // Chance to grow per column per frame
-  resolution: 1.0,         // Resolution multiplier (higher = more columns/rows = smoother)
+  growthRate: 0.002,       // Chance to grow per column per frame
+  resolution: 2.0,         // Resolution multiplier (higher = more columns/rows = smoother)
   organicVariation: 0.4,   // How much the max height varies (0-1, creates hills/valleys)
   verticalGravityBias: 4.0, // How much more snow accumulates at bottom vs top (1 = even, higher = more at bottom)
   verticalThickness: 1.0,  // Multiplier for vertical accumulation width (1.0 = same as horizontal height)
@@ -2938,6 +3311,7 @@ function stopSnow() {
 
 // Snow button click handler
 snowBtn.addEventListener('click', () => {
+  SoundManager.play('click');
   isSnowActive = !isSnowActive;
   snowBtn.setAttribute('aria-pressed', String(isSnowActive));
   
@@ -3157,6 +3531,7 @@ function wireExportControls(){
 
   // PNG EXPORT
   btnPNG.addEventListener("click", async () => {
+    SoundManager.play('save');
     const stage = document.getElementById("stage");
     const canvas = await html2canvas(stage, {
       x: 0,
@@ -3177,6 +3552,7 @@ function wireExportControls(){
 
   // GIF EXPORT
   btnGIF.addEventListener("click", async () => {
+    SoundManager.play('save');
     if (typeof window.__gif_parseGIF !== "function" ||
         typeof window.__gif_decompressFrames !== "function") {
       console.error("gifuct-js not loaded"); 
@@ -3388,6 +3764,7 @@ if (deleteButtonArea) {
         !selectedSticker.classList.contains('headline-layer') &&
         !selectedSticker.classList.contains('company-layer') &&
         !selectedSticker.classList.contains('cta-layer')) {
+      SoundManager.play('delete');
       selectedSticker.remove();
       deleteButtonArea.style.display = 'none';
     }
@@ -3430,10 +3807,16 @@ function updateStickerEffects() {
 
 // Add event listeners to effect checkboxes
 if (effectOutline) {
-  effectOutline.addEventListener('change', updateStickerEffects);
+  effectOutline.addEventListener('change', () => {
+    SoundManager.play('click');
+    updateStickerEffects();
+  });
 }
 if (effectShadow) {
-  effectShadow.addEventListener('change', updateStickerEffects);
+  effectShadow.addEventListener('change', () => {
+    SoundManager.play('click');
+    updateStickerEffects();
+  });
 }
 
 // ==== GLITTER EFFECT SYSTEM ==================================================
@@ -4440,6 +4823,7 @@ function stopGlitter() {
 
 if (effectGlitter) {
   effectGlitter.addEventListener('change', () => {
+    SoundManager.play('click');
     if (effectGlitter.checked) {
       startGlitter();
     } else {

@@ -30,13 +30,13 @@
 
     <!-- SIDEBAR -->
     <aside id="sidebar">
-      <button class="category" data-panel="bg">1</button>
-      <button class="category" data-panel="2">2</button>
-      <button class="category" data-panel="3">3</button>
-      <button class="category" data-panel="4">4</button>
-      <button class="category" data-panel="5">5</button>
-      <button class="category" data-panel="6">6</button>
-      <button class="category" data-panel="export">7</button>
+      <button class="category" data-panel="bg"><img src="assets/UI/button_theme.png" alt="Theme"></button>
+      <button class="category" data-panel="2"><img src="assets/UI/button_hero.png" alt="Hero"></button>
+      <button class="category" data-panel="3"><img src="assets/UI/button_claim.png" alt="Claim"></button>
+      <button class="category" data-panel="4"><img src="assets/UI/button_decor.png" alt="Decor"></button>
+      <button class="category" data-panel="5"><img src="assets/UI/button_brand.png" alt="Brand"></button>
+      <button class="category" data-panel="6"><img src="assets/UI/button_cta.png" alt="CTA"></button>
+      <button class="category" data-panel="export"><img src="assets/UI/button_save.png" alt="Save"></button>
     </aside>
 
     <!-- STAGE (fixed 2:1) + local overlay host -->
@@ -212,6 +212,23 @@
     </div>
 
   </div>
+</div>
+
+<!-- UI SOUNDS -->
+<div class="hidden" id="ui-sounds">
+  <audio id="sound_save" preload="auto"><source src="assets/UI/sound_save.wav"></source></audio>
+  <audio id="sound_delete" preload="auto"><source src="assets/UI/sound_delete.wav"></source></audio>
+  <audio id="sound_confirm" preload="auto"><source src="assets/UI/sound_confirm.wav"></source></audio>
+  <audio id="sound_menu_click" preload="auto"><source src="assets/UI/sound_menu_click.wav"></source></audio>
+  <audio id="sound_menu_hover" preload="auto"><source src="assets/UI/sound_menu_hover.wav"></source></audio>
+  <audio id="sound_drag" preload="auto"><source src="assets/UI/sound_drag.wav"></source></audio>
+  <audio id="sound_drop" preload="auto"><source src="assets/UI/sound_drop.wav"></source></audio>
+  <audio id="sound_click" preload="auto"><source src="assets/UI/sound_click.wav"></source></audio>
+  <audio id="sound_click_denied" preload="auto"><source src="assets/UI/sound_click_denied.wav"></source></audio>
+  <audio id="sound_close" preload="auto"><source src="assets/UI/sound_close.wav"></source></audio>
+  <audio id="sound_popup" preload="auto"><source src="assets/UI/sound_popup.wav"></source></audio>
+  <!-- Background music - loops -->
+  <audio id="bgm_jinglebells" loop preload="auto"><source src="assets/UI/jinglebells.ogg" type="audio/ogg"></source></audio>
 </div>
 
 <script src="app.js"></script>
