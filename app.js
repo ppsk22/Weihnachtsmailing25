@@ -2648,53 +2648,100 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
 }
 
 //------------------------------------------------------
-// LANDSCAPE ORIENTATION FOR MOBILE
+// MOBILE FULLSCREEN PROMPT (YouTube-style)
 //------------------------------------------------------
-function checkOrientation() {
+let mobileFullscreenActive = false;
+
+function showMobileFullscreenPrompt() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const isPortrait = window.innerHeight > window.innerWidth;
   
-  if (isMobile && isPortrait) {
-    // Show rotation message
-    let rotateMsg = document.getElementById('rotate-message');
-    if (!rotateMsg) {
-      rotateMsg = document.createElement('div');
-      rotateMsg.id = 'rotate-message';
-      rotateMsg.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: #000;
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        z-index: 99999;
-        font-family: sans-serif;
-      `;
-      rotateMsg.innerHTML = `
-        <div style="font-size: 48px; margin-bottom: 20px;">↻</div>
-        <div style="font-size: 18px;">Please rotate your device</div>
-        <div style="font-size: 14px; opacity: 0.7; margin-top: 10px;">This app works best in landscape mode</div>
-      `;
-      document.body.appendChild(rotateMsg);
-    }
-    rotateMsg.style.display = 'flex';
-  } else {
-    const rotateMsg = document.getElementById('rotate-message');
-    if (rotateMsg) {
-      rotateMsg.style.display = 'none';
-    }
+  // Only show on mobile and when not already in fullscreen
+  if (!isMobile || document.fullscreenElement || mobileFullscreenActive) {
+    hideMobileFullscreenPrompt();
+    return;
+  }
+  
+  let prompt = document.getElementById('mobile-fullscreen-prompt');
+  if (!prompt) {
+    prompt = document.createElement('div');
+    prompt.id = 'mobile-fullscreen-prompt';
+    prompt.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.95);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 99999;
+      font-family: 'home_videoregular', sans-serif;
+      cursor: pointer;
+      image-rendering: pixelated;
+    `;
+    prompt.innerHTML = `
+      <div style="
+        border: 4px solid #3013a9;
+        background: #1a1a2e;
+        padding: 40px 50px;
+        text-align: center;
+        max-width: 80%;
+      ">
+        <div style="font-size: 64px; margin-bottom: 20px; animation: pulse 1.5s ease-in-out infinite;">⛶</div>
+        <div style="font-size: 20px; color: #fff; margin-bottom: 10px;">TAP TO ENTER</div>
+        <div style="font-size: 28px; color: #5a3fd9; margin-bottom: 20px;">FULLSCREEN</div>
+        <div style="font-size: 12px; color: #888;">Best experience in landscape mode</div>
+      </div>
+      <style>
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+      </style>
+    `;
+    
+    prompt.addEventListener('click', async () => {
+      try {
+        // Enter fullscreen
+        const fsHost = document.getElementById('root');
+        await fsHost.requestFullscreen({ navigationUI: 'hide' });
+        
+        // Try to lock orientation to landscape
+        if (screen.orientation && screen.orientation.lock) {
+          try {
+            await screen.orientation.lock('landscape');
+          } catch (e) {
+            // Orientation lock not supported or denied, that's okay
+            console.log('Orientation lock not available:', e.message);
+          }
+        }
+        
+        mobileFullscreenActive = true;
+        hideMobileFullscreenPrompt();
+        SoundManager.play('confirm');
+      } catch (e) {
+        console.error('Fullscreen error:', e);
+      }
+    });
+    
+    document.body.appendChild(prompt);
+  }
+  
+  prompt.style.display = 'flex';
+}
+
+function hideMobileFullscreenPrompt() {
+  const prompt = document.getElementById('mobile-fullscreen-prompt');
+  if (prompt) {
+    prompt.style.display = 'none';
   }
 }
 
-// Check on load and on orientation change
-checkOrientation();
-window.addEventListener('orientationchange', checkOrientation);
-window.addEventListener('resize', checkOrientation);
+// Show prompt on load for mobile
+showMobileFullscreenPrompt();
 
 
 //------------------------------------------------------
@@ -3367,6 +3414,34 @@ document.addEventListener('fullscreenchange', () => {
     if (fsHost) {
       fsHost.scrollTop = 0;
       fsHost.scrollLeft = 0;
+    }
+    
+    // Hide mobile prompt when in fullscreen
+    hideMobileFullscreenPrompt();
+    mobileFullscreenActive = true;
+    
+    // Try to lock orientation to landscape on mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile && screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  } else {
+    // Exiting fullscreen
+    mobileFullscreenActive = false;
+    
+    // Unlock orientation when exiting fullscreen
+    if (screen.orientation && screen.orientation.unlock) {
+      try {
+        screen.orientation.unlock();
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    
+    // Show prompt again on mobile after a delay
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      setTimeout(showMobileFullscreenPrompt, 300);
     }
   }
   
