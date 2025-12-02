@@ -484,6 +484,8 @@ body.modal-open #sticker-bar * {
   overflow-y: hidden;        /* No vertical scrollbar */
   box-sizing: border-box;
   image-rendering: pixelated;
+  touch-action: pan-x;       /* Allow horizontal scroll, vertical for drag-out */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 /* Add top padding when stickers are unlocked to make room for title */
@@ -837,6 +839,38 @@ body.modal-open #sticker-bar * {
 .rot-handle.dragging          { cursor: grabbing !important; background: #5a3fd9; }
 body.scaling,  body.scaling  * { cursor: se-resize !important; }
 body.rotating, body.rotating * { cursor: grabbing  !important; }
+
+/* Mobile: Bigger scale/rotate handles for touch */
+@media (max-width: 768px), (pointer: coarse) {
+  .scale-handle {
+    width: 44px;
+    height: 44px;
+    bottom: -22px;
+    right: -22px;
+  }
+  
+  .scale-handle::before {
+    inset: -12px;
+  }
+  
+  .scale-handle::after {
+    font-size: 20px;
+  }
+  
+  .rot-handle {
+    width: 44px;
+    height: 44px;
+    top: -52px;
+  }
+  
+  .rot-handle::before {
+    inset: -16px;
+  }
+  
+  .rot-handle::after {
+    font-size: 20px;
+  }
+}
 
 /* Fullscreen button (bottom-right of viewport, not scaled) */
 /* Buttons in sticker bar button area - pixel art style */

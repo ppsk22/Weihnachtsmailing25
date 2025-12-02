@@ -2465,7 +2465,44 @@ function uiScale() {
 }
 
 interact('.sticker-src').draggable({
+  // Require vertical movement to start drag (prevents scroll from being detected as drag)
+  startAxis: 'y',
+  lockAxis: 'start',
+  // Manual start with distance threshold - prevents accidental drags while scrolling
+  manualStart: true,
   listeners: {
+    move (event) {
+      const { interaction } = event;
+      // Check if drag hasn't started yet - manual start logic
+      if (interaction.pointerIsDown && !interaction.interacting()) {
+        // Calculate vertical distance moved
+        const dy = Math.abs(event.clientY - event.clientY0);
+        const dx = Math.abs(event.clientX - event.clientX0);
+        
+        // Only start drag if moved more vertically than horizontally AND moved at least 10px vertically
+        if (dy > 10 && dy > dx) {
+          interaction.start({ name: 'drag' }, event.interactable, event.target);
+        }
+        return; // Don't process as a drag move yet
+      }
+      
+      // Regular drag move - update sticker position
+      if (!spawningWrapper) return;
+
+      const stage = document.getElementById("stage");
+      const r = stage.getBoundingClientRect();
+      const s = uiScale();
+
+      const x = (event.clientX - r.left) / s - 75;
+      const y = (event.clientY - r.top)  / s - 75;
+
+      spawningWrapper.setAttribute("data-x", x);
+      spawningWrapper.setAttribute("data-y", y);
+
+      // keep center inside stage while dragging in
+      clampStickerPosition(spawningWrapper);
+      applyTransform(spawningWrapper);
+    },
     start (event) {
       // Check sticker limit before spawning
       if (getStickerCount() >= MAX_STICKERS) {
@@ -2486,24 +2523,6 @@ interact('.sticker-src').draggable({
       spawningWrapper = createStickerAt(event.target.src, x0, y0);
 
       // clamp immediately so it can’t start off-stage
-      clampStickerPosition(spawningWrapper);
-      applyTransform(spawningWrapper);
-    },
-
-    move (event) {
-      if (!spawningWrapper) return;
-
-      const stage = document.getElementById("stage");
-      const r = stage.getBoundingClientRect();
-      const s = uiScale();
-
-      const x = (event.clientX - r.left) / s - 75;
-      const y = (event.clientY - r.top)  / s - 75;
-
-      spawningWrapper.setAttribute("data-x", x);
-      spawningWrapper.setAttribute("data-y", y);
-
-      // keep center inside stage while dragging in
       clampStickerPosition(spawningWrapper);
       applyTransform(spawningWrapper);
     },
@@ -2879,6 +2898,12 @@ fsBtn.addEventListener('click', async () => {
     if (!document.fullscreenElement) {
       // Scroll to top before entering fullscreen to prevent offset issues on mobile
       window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+      
+      // Small delay to let scroll complete before fullscreen
+      await new Promise(r => setTimeout(r, 50));
+      
       await fsHost.requestFullscreen({ navigationUI: 'hide' });
     } else {
       await document.exitFullscreen();
