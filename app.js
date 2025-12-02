@@ -3568,10 +3568,10 @@ function wireExportControls(){
         foreignObjectRendering: false,
         ignoreElements: (element) => {
           // Ignore UI elements that shouldn't be in the export
+          // Keep glitter-canvas and snow-canvas for visual effects!
           return element.id === 'overlay' || 
                  element.classList.contains('scale-handle') || 
-                 element.classList.contains('rot-handle') ||
-                 element.id === 'glitter-canvas';
+                 element.classList.contains('rot-handle');
         }
       });
       
@@ -3678,6 +3678,7 @@ function wireExportControls(){
       const y = parseFloat(w.getAttribute("data-y")) || 0;
       const scale = w.scale || 1;
       const angle = w.angle || 0;
+      const isCTA = w.classList.contains('cta-layer');
       
       // Render the text element to canvas using html2canvas
       try {
@@ -3695,7 +3696,7 @@ function wireExportControls(){
         // Use canvas dimensions (what was actually rendered)
         const baseW = canvas.width;
         const baseH = canvas.height;
-        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH };
+        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH, isCTA };
       } catch (e) {
         console.warn("Failed to render text element:", e);
         return null;
@@ -3798,15 +3799,41 @@ function wireExportControls(){
       }
 
       // Draw text elements (headline, company, CTA)
+      // CTA bounce: pixelBounce animation is 2s with scale 1 -> 1.10 -> 1.20 -> 1.10 -> 1
+      const BOUNCE_DURATION = 2000; // 2 seconds
+      const bounceScales = [1, 1.10, 1.20, 1.10]; // 4 steps
+      const frameTime = i * FRAME_MS;
+      const bounceProgress = (frameTime % BOUNCE_DURATION) / BOUNCE_DURATION;
+      const bounceStep = Math.floor(bounceProgress * 4) % 4;
+      const ctaBounceScale = bounceScales[bounceStep];
+      
       for (const t of validTextElements) {
         ctx.save();
         // Match CSS: translate(x, y) scale(s) rotate(r) with transform-origin: center
         ctx.translate(t.x, t.y);
         ctx.translate(t.baseW / 2, t.baseH / 2);
         ctx.rotate((t.angle || 0) * Math.PI / 180);
-        ctx.scale(t.scale || 1, t.scale || 1);
+        
+        // Apply extra bounce scale for CTA elements
+        let finalScale = t.scale || 1;
+        if (t.isCTA) {
+          finalScale *= ctaBounceScale;
+        }
+        ctx.scale(finalScale, finalScale);
         ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
         ctx.restore();
+      }
+
+      // Draw glitter effect (if active)
+      const glitterCanvasEl = document.getElementById('glitter-canvas');
+      if (glitterCanvasEl) {
+        ctx.drawImage(glitterCanvasEl, 0, 0, W, H);
+      }
+      
+      // Draw snow effect (if active)
+      const snowCanvasEl = document.getElementById('snow-canvas');
+      if (snowCanvasEl) {
+        ctx.drawImage(snowCanvasEl, 0, 0, W, H);
       }
 
       enc.addFrame(ctx);
