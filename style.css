@@ -162,7 +162,7 @@ html, body {
 }
 body { 
   font-family: 'home_videoregular', sans-serif; 
-  background:#000;
+  background:#3013a9;
   color: #fff;
   cursor: url('assets/UI/cursor.ico'), auto;
 }
@@ -192,7 +192,7 @@ a, button, .clickable {
   height:100vh;
   width:100vw;
   overflow:auto;
-  background:#000;
+  background:#3013a9;
 }
 
 /* Frame: 3 columns (sidebar | panel | stage), 2 rows (stage | sticker bar) */
@@ -780,7 +780,7 @@ body.modal-open #sticker-bar * {
 .sticker-src{
   z-index: 100;
   height: 70px;              /* Reduced from 80px to avoid scrollbar */
-  cursor: grab;
+  cursor: url('assets/UI/hand.ico'), pointer;
   user-drag: none;
   -webkit-user-drag: none;
   border-radius: 0;
