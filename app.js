@@ -5923,7 +5923,6 @@ if (elementShadowCheckbox) {
   });
 }
 
-
 // Element effect: Outline (black)
 const elementOutlineCheckbox = document.getElementById('element-effect-outline');
 if (elementOutlineCheckbox) {
