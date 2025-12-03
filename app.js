@@ -3574,7 +3574,7 @@ document.addEventListener('fullscreenchange', () => {
       uiSnowCanvas.width = window.innerWidth;
       uiSnowCanvas.height = window.innerHeight;
       regenerateUISnowPixels();
-      initAccumulation();
+      // Note: Don't reset accumulation here - we want to preserve it
     }, 100);
   }
 });
