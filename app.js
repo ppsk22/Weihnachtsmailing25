@@ -869,6 +869,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
     const hasOutline = w.getAttribute('data-has-outline') === 'true';
     const hasShadow = w.getAttribute('data-has-shadow') === 'true';
+    const zIndex = parseInt(w.style.zIndex) || 0;
     
     if (/\.gif(?:[?#].*)?$/i.test(src)) {
       const ab = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
@@ -876,12 +877,15 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow };
+      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow, zIndex };
     } else {
       const bmp = await loadImageForExport(src);
-      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow };
+      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow, zIndex };
     }
   }));
+  
+  // Sort stickers by z-index (lowest first, drawn first = bottom)
+  stickers.sort((a, b) => a.zIndex - b.zIndex);
   
   // Pre-render text elements
   const textWrappers = wrappers.filter(w => w.querySelector("img") === null);
@@ -893,6 +897,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const isCTA = w.classList.contains('cta-layer');
     const hasOutline = w.getAttribute('data-has-outline') === 'true';
     const hasShadow = w.getAttribute('data-has-shadow') === 'true';
+    const zIndex = parseInt(w.style.zIndex) || 0;
     
     // Extract CTA's box-shadow for manual rendering (html2canvas doesn't render box-shadow well)
     let ctaBoxShadow = null;
@@ -973,7 +978,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, ctaBoxShadow };
+      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, ctaBoxShadow, zIndex };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -981,6 +986,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   }));
   
   const validTextElements = textElements.filter(t => t !== null);
+  
+  // Sort text elements by z-index (lowest first, drawn first = bottom)
+  validTextElements.sort((a, b) => a.zIndex - b.zIndex);
   
   // Encode GIF
   const enc = new GIFEncoder();
