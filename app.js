@@ -658,6 +658,21 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const TOTAL = fps * durationSeconds;
   const FRAME_MS = Math.round(1000 / fps);
   
+  // Set exporting flag to prevent animation pausing
+  isExporting = true;
+  
+  // Start animation keep-alive interval (runs even when tab is hidden)
+  const animationKeepAlive = setInterval(() => {
+    // Manually update snow
+    if (typeof updateSnowFrame === 'function') {
+      updateSnowFrame(1); // dt of 1 for normal speed
+    }
+    // Manually update glitter
+    if (typeof updateGlitterFrame === 'function') {
+      updateGlitterFrame(1);
+    }
+  }, FRAME_MS);
+  
   // Temporarily reset UI scale
   const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
   document.documentElement.style.setProperty('--ui-scale', '1');
@@ -785,6 +800,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   enc.start();
   
   const snowCanvasEl = document.getElementById('snow-canvas');
+  const glitterCanvasEl = document.getElementById('glitter-canvas');
   
   for (let i = 0; i < TOTAL; i++) {
     ctx.clearRect(0, 0, W, H);
@@ -875,6 +891,11 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.restore();
     }
     
+    // Draw glitter
+    if (glitterCanvasEl) {
+      ctx.drawImage(glitterCanvasEl, 0, 0, W, H);
+    }
+    
     // Draw snow
     if (snowCanvasEl) {
       ctx.drawImage(snowCanvasEl, 0, 0, W, H);
@@ -890,6 +911,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   }
   
   enc.finish();
+  
+  // Clean up export state
+  clearInterval(animationKeepAlive);
+  isExporting = false;
   
   // Restore UI scale
   document.documentElement.style.setProperty('--ui-scale', originalScale);
@@ -3632,6 +3657,7 @@ muteBtn.addEventListener('click', () => {
 // ==== SNOW EFFECT ====
 const snowBtn = document.getElementById('btn-snow');
 let isSnowActive = true; // Enabled by default!
+let isExporting = false; // Flag to prevent animation pausing during export
 
 // Snow settings (from user's pixel snow example)
 const SNOW_SETTINGS = {
@@ -3934,6 +3960,39 @@ function makeSnowPixel(width, height, settings) {
   };
 }
 
+// Manual snow update for export (doesn't rely on rAF)
+function updateSnowFrame(dt) {
+  if (!isSnowActive || !snowCtx || !snowCanvas) return;
+  
+  snowCtx.clearRect(0, 0, STAGE_W, STAGE_H);
+  
+  for (let i = 0; i < snowPixels.length; i++) {
+    const p = snowPixels[i];
+    
+    const vx = p.baseVx + SNOW_SETTINGS.wind;
+    p.y += p.vy * dt;
+    p.x += vx * dt;
+    p.wobblePhase += p.wobbleSpeed * dt;
+    const wobble = Math.sin(p.wobblePhase) * p.wobbleAmp;
+    const drawX = (p.x + wobble) | 0;
+    const drawY = p.y | 0;
+    
+    // Wrap around
+    if (p.y > STAGE_H + 10) {
+      p.y = -10;
+      p.x = Math.random() * STAGE_W;
+    }
+    if (drawX < -10) p.x = STAGE_W + 10;
+    if (drawX > STAGE_W + 10) p.x = -10;
+    
+    snowCtx.globalAlpha = p.alpha;
+    snowCtx.fillStyle = '#ffffff';
+    snowCtx.fillRect(drawX, drawY, p.size, p.size);
+  }
+  
+  snowCtx.globalAlpha = 1;
+}
+
 function snowLoop(timestamp) {
   if (!isSnowActive) {
     if (snowCtx && snowCanvas) {
@@ -4088,6 +4147,9 @@ setTimeout(() => {
 // Handle page visibility changes to prevent animation weirdness
 // when switching tabs or minimizing the window
 document.addEventListener('visibilitychange', () => {
+  // Skip visibility handling during export to keep animations running
+  if (isExporting) return;
+  
   if (document.hidden) {
     // Page is hidden - animations will pause automatically via requestAnimationFrame
     // Nothing special needed here
@@ -5541,6 +5603,120 @@ let glitterPerfStats = {
 
 // PERFORMANCE: Max particles across ALL stickers
 const MAX_GLITTER_PARTICLES = 250;
+
+// Manual glitter update for export (simplified version)
+function updateGlitterFrame(dt) {
+  if (!glitterCanvas || !glitterCtx) return;
+  
+  const hasStickerGlitter = effectGlitter?.checked;
+  const hasElementGlitter = hasAnyElementGlitter();
+  
+  if (!hasStickerGlitter && !hasElementGlitter) return;
+  
+  glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+  
+  const globalTime = performance.now() * 0.001;
+  glitterCtx.shadowBlur = 0;
+  const brightness = GLITTER_SETTINGS.brightness;
+  
+  // Update and draw sticker glitter
+  if (hasStickerGlitter && glitterPixels) {
+    for (let i = 0; i < glitterPixels.length; i++) {
+      const p = glitterPixels[i];
+      if (!p) continue;
+      
+      const stickerSettings = p.stickerSettings || {};
+      p.phase += p.speed * dt;
+      
+      let pulse = (1 + Math.sin(p.phase)) * 0.5;
+      const hardness = Math.max(0, Math.min(1, 
+        GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+      ));
+      pulse = Math.pow(pulse, 1 - hardness * 0.8);
+      
+      if (Math.random() < 0.05) {
+        pulse = Math.random() < 0.5 ? 1 : 0;
+      }
+      
+      const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+      const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+      const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+      
+      if (alpha < 0.1) continue;
+      
+      const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+      const jx = (Math.random() - 0.5) * jitter;
+      const jy = (Math.random() - 0.5) * jitter;
+      
+      const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+      const colorPhase = stickerSettings.colorPhase || 0;
+      const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+      const currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+      const color = p.colors[currentColorIndex];
+      
+      const x = (p.x + jx) | 0;
+      const y = (p.y + jy) | 0;
+      
+      glitterCtx.globalAlpha = alpha;
+      glitterCtx.fillStyle = color;
+      if (typeof drawGlitterShape === 'function') {
+        drawGlitterShape(x, y, size, p.shapeType);
+      } else {
+        glitterCtx.fillRect(x, y, size, size);
+      }
+    }
+  }
+  
+  // Update and draw element glitter
+  if (hasElementGlitter && elementGlitterPixels) {
+    for (let i = 0; i < elementGlitterPixels.length; i++) {
+      const p = elementGlitterPixels[i];
+      if (!p) continue;
+      
+      const stickerSettings = p.stickerSettings || {};
+      p.phase += p.speed * dt;
+      
+      let pulse = (1 + Math.sin(p.phase)) * 0.5;
+      const hardness = Math.max(0, Math.min(1, 
+        GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+      ));
+      pulse = Math.pow(pulse, 1 - hardness * 0.8);
+      
+      if (Math.random() < 0.05) {
+        pulse = Math.random() < 0.5 ? 1 : 0;
+      }
+      
+      const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+      const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+      const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+      
+      if (alpha < 0.1) continue;
+      
+      const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+      const jx = (Math.random() - 0.5) * jitter;
+      const jy = (Math.random() - 0.5) * jitter;
+      
+      const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+      const colorPhase = stickerSettings.colorPhase || 0;
+      const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+      const currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+      const color = p.colors[currentColorIndex];
+      
+      const x = (p.x + jx) | 0;
+      const y = (p.y + jy) | 0;
+      
+      glitterCtx.globalAlpha = alpha;
+      glitterCtx.fillStyle = color;
+      if (typeof drawGlitterShape === 'function') {
+        drawGlitterShape(x, y, size, p.shapeType);
+      } else {
+        glitterCtx.fillRect(x, y, size, size);
+      }
+    }
+  }
+  
+  glitterCtx.globalAlpha = 1;
+}
 
 function glitterLoop(timestamp) {
   // Check if EITHER sticker glitter OR element glitter is active
