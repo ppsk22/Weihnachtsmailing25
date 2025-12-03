@@ -1,4 +1,21 @@
 // ==== LOADING SCREEN ====
+let loadingReady = false;
+let videoEnded = false;
+
+function checkShowGetStarted() {
+  if (loadingReady && videoEnded) {
+    const loadingText = document.getElementById('loading-text');
+    const getStartedBtn = document.getElementById('get-started-btn');
+    
+    if (loadingText) {
+      loadingText.classList.add('hidden');
+    }
+    if (getStartedBtn) {
+      getStartedBtn.classList.remove('hidden');
+    }
+  }
+}
+
 function hideLoadingScreen() {
   const loadingScreen = document.getElementById('loading-screen');
   if (loadingScreen) {
@@ -6,10 +23,40 @@ function hideLoadingScreen() {
   }
 }
 
-// Hide loading screen when everything is ready
+// Wait for page to load
 window.addEventListener('load', () => {
   // Add a small delay to ensure smooth transition and let fonts load
-  setTimeout(hideLoadingScreen, 1800);
+  setTimeout(() => {
+    loadingReady = true;
+    checkShowGetStarted();
+  }, 500);
+});
+
+// Wait for video to end
+document.addEventListener('DOMContentLoaded', () => {
+  const loadingVideo = document.getElementById('loading-video');
+  const getStartedBtn = document.getElementById('get-started-btn');
+  
+  if (loadingVideo) {
+    loadingVideo.addEventListener('ended', () => {
+      videoEnded = true;
+      checkShowGetStarted();
+    });
+    
+    // Fallback in case video fails to load or play
+    loadingVideo.addEventListener('error', () => {
+      videoEnded = true;
+      checkShowGetStarted();
+    });
+  }
+  
+  // Get Started button click handler
+  if (getStartedBtn) {
+    getStartedBtn.addEventListener('click', () => {
+      SoundManager.play('confirm');
+      hideLoadingScreen();
+    });
+  }
 });
 
 // ==== POPUP OVER STAGE (NEW) =============================================

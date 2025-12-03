@@ -29,18 +29,27 @@
 <div id="loading-screen">
   <div class="loading-content">
     <div class="loading-logo">
-      <img src="assets/UI/logo.png" alt="Logo">
+      <video id="loading-video" autoplay muted playsinline>
+        <source src="assets/UI/logo_anim.mp4" type="video/mp4">
+      </video>
     </div>
-    <div class="loading-text">loading<span class="loading-dots"></span></div>
+    <div class="loading-status">
+      <div id="loading-text" class="loading-text">loading<span class="loading-dots"></span></div>
+      <button id="get-started-btn" class="get-started-btn hidden">Get Started</button>
+    </div>
   </div>
 </div>
 
 <div id="exporting-screen" class="hidden">
   <div class="loading-content">
     <div class="loading-logo">
-      <img src="assets/UI/logo.png" alt="Logo">
+      <video id="exporting-video" autoplay muted playsinline loop>
+        <source src="assets/UI/logo_anim.mp4" type="video/mp4">
+      </video>
     </div>
-    <div class="loading-text">exporting<span class="loading-dots"></span></div>
+    <div class="loading-status">
+      <div class="loading-text">exporting<span class="loading-dots"></span></div>
+    </div>
   </div>
 </div>
 

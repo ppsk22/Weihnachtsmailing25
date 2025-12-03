@@ -95,21 +95,32 @@
 
 .loading-content {
   text-align: center;
+  position: relative;
 }
 
 .loading-logo {
-  width: 320px;
-  max-width: 80vw;
+  width: 480px;
+  max-width: 90vw;
   margin-bottom: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.loading-logo img {
+.loading-logo img,
+.loading-logo video {
   width: 100%;
   height: auto;
   object-fit: contain;
+}
+
+/* Container for loading text and button - fixed height to prevent shift */
+.loading-status {
+  height: 80px;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .loading-text {
@@ -118,6 +129,19 @@
   color: #5a3fd9;
   letter-spacing: 4px;
   text-transform: uppercase;
+  position: relative;
+  display: inline-block;
+}
+
+.loading-text.hidden {
+  display: none;
+}
+
+/* Dots positioned absolutely so they don't shift the text */
+.loading-dots {
+  position: absolute;
+  left: 100%;
+  top: 0;
 }
 
 .loading-dots::after {
@@ -132,6 +156,39 @@
   75% { content: '...'; }
   100% { content: ''; }
 }
+
+/* Get Started button - purple with white text */
+.get-started-btn {
+  padding: 12px 32px;
+  border: 4px solid #5a3fd9;
+  background: #3013a9;
+  color: #fff;
+  cursor: url('assets/UI/hand.ico'), pointer;
+  min-width: 200px;
+  text-align: center;
+  font-family: 'home_videoregular', sans-serif;
+  font-weight: normal;
+  font-size: 22px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  filter: drop-shadow(0px 2px 0px #5a3fd9) drop-shadow(0px 8px 0px #1a0a5c);
+  transition: filter 0.05s, transform 0.1s;
+  image-rendering: pixelated;
+}
+
+.get-started-btn:hover {
+  filter: brightness(1.2) drop-shadow(0px 2px 0px #5a3fd9) drop-shadow(0px 8px 0px #1a0a5c);
+}
+
+.get-started-btn:active {
+  transform: translateY(8px);
+  filter: drop-shadow(0px 0px 0px) drop-shadow(0px 0px 0px);
+}
+
+.get-started-btn.hidden {
+  display: none;
+}
+
 
 /* ---- sizing tokens ---- */
 :root{
