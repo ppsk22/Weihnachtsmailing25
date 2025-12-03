@@ -1,6 +1,7 @@
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
+let mobileLoadingStarted = false; // Track if mobile loading has started
 
 function checkShowGetStarted() {
   if (loadingReady && videoEnded) {
@@ -23,6 +24,27 @@ function hideLoadingScreen() {
   }
 }
 
+function showLoadingScreen() {
+  const loadingScreen = document.getElementById('loading-screen');
+  if (loadingScreen) {
+    loadingScreen.classList.remove('hidden');
+  }
+}
+
+// Start the loading sequence on mobile (called after entering fullscreen)
+function startMobileLoading() {
+  if (mobileLoadingStarted) return;
+  mobileLoadingStarted = true;
+  
+  showLoadingScreen();
+  
+  const loadingVideo = document.getElementById('loading-video');
+  if (loadingVideo) {
+    loadingVideo.currentTime = 0;
+    loadingVideo.play().catch(() => {});
+  }
+}
+
 // Wait for page to load
 window.addEventListener('load', () => {
   // Add a small delay to ensure smooth transition and let fonts load
@@ -35,13 +57,17 @@ window.addEventListener('load', () => {
 // Wait for video to end
 document.addEventListener('DOMContentLoaded', () => {
   const loadingVideo = document.getElementById('loading-video');
+  const loadingScreen = document.getElementById('loading-screen');
   const getStartedBtn = document.getElementById('get-started-btn');
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   
   if (loadingVideo) {
-    // On mobile, pause the video until fullscreen is entered
+    // On mobile, pause the video and hide loading screen until fullscreen is entered
     if (isMobile) {
       loadingVideo.pause();
+      if (loadingScreen) {
+        loadingScreen.classList.add('hidden');
+      }
     }
     
     loadingVideo.addEventListener('ended', () => {
@@ -3139,12 +3165,6 @@ function showMobileFullscreenPrompt() {
     return;
   }
   
-  // Pause loading video until fullscreen is entered
-  const loadingVideo = document.getElementById('loading-video');
-  if (loadingVideo) {
-    loadingVideo.pause();
-  }
-  
   let prompt = document.getElementById('mobile-fullscreen-prompt');
   if (!prompt) {
     prompt = document.createElement('div');
@@ -3210,18 +3230,22 @@ function showMobileFullscreenPrompt() {
         hideMobileFullscreenPrompt();
         SoundManager.play('confirm');
         
-        // Start loading video after entering fullscreen
-        const loadingVideo = document.getElementById('loading-video');
-        if (loadingVideo) {
-          loadingVideo.currentTime = 0;
-          loadingVideo.play().catch(() => {});
+        // Start loading screen and video after entering fullscreen
+        if (typeof startMobileLoading === 'function') {
+          startMobileLoading();
         }
       } catch (e) {
         console.error('Fullscreen error:', e);
       }
     });
     
-    document.body.appendChild(prompt);
+    // Append to #root so it's visible in fullscreen mode
+    const root = document.getElementById('root');
+    if (root) {
+      root.appendChild(prompt);
+    } else {
+      document.body.appendChild(prompt);
+    }
   }
   
   prompt.style.display = 'flex';
