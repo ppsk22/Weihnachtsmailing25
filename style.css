@@ -273,12 +273,24 @@
 html, body { 
   margin:0; 
   height:100%; 
+  overflow: hidden; /* Prevent scrollbars when in iframe */
 }
 body { 
   font-family: 'home_videoregular', sans-serif; 
   background:#3013a9;
   color: #fff;
   cursor: url('assets/UI/cursor.ico'), auto;
+}
+
+/* Hide scrollbars globally but allow scrolling where needed */
+html, body, #root {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
 }
 
 /* Custom cursors */
@@ -305,7 +317,7 @@ a, button, .clickable {
   align-items:center;      /* center vertically */
   height:100vh;
   width:100vw;
-  overflow:auto;
+  overflow:hidden; /* Prevent scrollbars in iframe */
   background:#3013a9;
 }
 
