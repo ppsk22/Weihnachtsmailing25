@@ -94,38 +94,51 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==== EXPORT COMPLETED & RESTART ====
 function showExportCompleted() {
   const exportingText = document.getElementById('exporting-text');
-  const completedContainer = document.getElementById('export-completed-container');
-  const errorContainer = document.getElementById('export-error-container');
+  const completedText = document.getElementById('export-completed-text');
+  const errorText = document.getElementById('export-error-text');
+  const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
-  const loadingStatus = document.querySelector('#exporting-screen .loading-status');
+  const restartBtn = document.getElementById('restart-btn');
+  const fallbackBtn = document.getElementById('fallback-png-btn');
+  const errorRestartBtn = document.getElementById('error-restart-btn');
   
   // Hide exporting text and progress bar
   if (exportingText) exportingText.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
-  if (loadingStatus) loadingStatus.style.display = 'none';
-  if (errorContainer) errorContainer.classList.add('hidden');
+  if (errorText) errorText.classList.add('hidden');
+  if (errorMessage) errorMessage.classList.add('hidden');
+  if (fallbackBtn) fallbackBtn.classList.add('hidden');
+  if (errorRestartBtn) errorRestartBtn.classList.add('hidden');
   
-  // Show completed container (with text and button stacked)
-  if (completedContainer) completedContainer.classList.remove('hidden');
+  // Show completed text and restart button
+  if (completedText) completedText.classList.remove('hidden');
+  if (restartBtn) restartBtn.classList.remove('hidden');
 }
 
-function showExportError(errorMessage) {
+function showExportError(errorMsg) {
   const exportingText = document.getElementById('exporting-text');
-  const completedContainer = document.getElementById('export-completed-container');
-  const errorContainer = document.getElementById('export-error-container');
-  const errorMessageEl = document.getElementById('export-error-message');
+  const completedText = document.getElementById('export-completed-text');
+  const errorText = document.getElementById('export-error-text');
+  const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
-  const loadingStatus = document.querySelector('#exporting-screen .loading-status');
+  const restartBtn = document.getElementById('restart-btn');
+  const fallbackBtn = document.getElementById('fallback-png-btn');
+  const errorRestartBtn = document.getElementById('error-restart-btn');
   
   // Hide exporting text and progress bar
   if (exportingText) exportingText.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
-  if (loadingStatus) loadingStatus.style.display = 'none';
-  if (completedContainer) completedContainer.classList.add('hidden');
+  if (completedText) completedText.classList.add('hidden');
+  if (restartBtn) restartBtn.classList.add('hidden');
   
-  // Show error container
-  if (errorContainer) errorContainer.classList.remove('hidden');
-  if (errorMessageEl) errorMessageEl.textContent = errorMessage || 'Unknown error';
+  // Show error state
+  if (errorText) errorText.classList.remove('hidden');
+  if (errorMessage) {
+    errorMessage.textContent = errorMsg || 'Unknown error';
+    errorMessage.classList.remove('hidden');
+  }
+  if (fallbackBtn) fallbackBtn.classList.remove('hidden');
+  if (errorRestartBtn) errorRestartBtn.classList.remove('hidden');
   
   // Make sure exporting screen is visible
   const exportingScreen = document.getElementById('exporting-screen');
@@ -134,21 +147,27 @@ function showExportError(errorMessage) {
 
 function resetExportScreen() {
   const exportingText = document.getElementById('exporting-text');
-  const completedContainer = document.getElementById('export-completed-container');
-  const errorContainer = document.getElementById('export-error-container');
+  const completedText = document.getElementById('export-completed-text');
+  const errorText = document.getElementById('export-error-text');
+  const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
   const progressBar = document.getElementById('export-progress-bar');
   const exportingScreen = document.getElementById('exporting-screen');
-  const loadingStatus = document.querySelector('#exporting-screen .loading-status');
+  const restartBtn = document.getElementById('restart-btn');
+  const fallbackBtn = document.getElementById('fallback-png-btn');
+  const errorRestartBtn = document.getElementById('error-restart-btn');
   
   // Reset to initial state
   if (exportingText) exportingText.classList.remove('hidden');
-  if (completedContainer) completedContainer.classList.add('hidden');
-  if (errorContainer) errorContainer.classList.add('hidden');
+  if (completedText) completedText.classList.add('hidden');
+  if (errorText) errorText.classList.add('hidden');
+  if (errorMessage) errorMessage.classList.add('hidden');
+  if (restartBtn) restartBtn.classList.add('hidden');
+  if (fallbackBtn) fallbackBtn.classList.add('hidden');
+  if (errorRestartBtn) errorRestartBtn.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
   if (progressBar) progressBar.style.width = '0%';
   if (exportingScreen) exportingScreen.classList.add('hidden');
-  if (loadingStatus) loadingStatus.style.display = '';
 }
 
 function restartTool() {
@@ -3917,6 +3936,61 @@ document.addEventListener('fullscreenchange', () => {
       regenerateUISnowPixels();
       // Note: Don't reset accumulation here - we want to preserve it
     }, 100);
+  }
+});
+
+// Orientation change handler - enforce landscape on mobile
+if (screen.orientation) {
+  screen.orientation.addEventListener('change', () => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (!isMobile) return;
+    
+    const isPortrait = screen.orientation.type.includes('portrait');
+    const isFullscreen = !!document.fullscreenElement;
+    
+    if (isFullscreen) {
+      // In fullscreen but rotated to portrait - try to re-lock to landscape
+      if (isPortrait && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } else {
+      // Not in fullscreen - show prompt to enter fullscreen
+      // Don't show if loading or exporting screen is visible
+      const loadingScreen = document.getElementById('loading-screen');
+      const exportingScreen = document.getElementById('exporting-screen');
+      const loadingVisible = loadingScreen && !loadingScreen.classList.contains('hidden');
+      const exportingVisible = exportingScreen && !exportingScreen.classList.contains('hidden');
+      
+      if (!loadingVisible && !exportingVisible) {
+        showMobileFullscreenPrompt();
+      }
+    }
+  });
+}
+
+// Also listen for resize events as a fallback for orientation changes
+window.addEventListener('resize', () => {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile) return;
+  
+  const isFullscreen = !!document.fullscreenElement;
+  const isPortrait = window.innerHeight > window.innerWidth;
+  
+  if (!isFullscreen && isPortrait) {
+    // Not in fullscreen and in portrait - show prompt
+    const loadingScreen = document.getElementById('loading-screen');
+    const exportingScreen = document.getElementById('exporting-screen');
+    const loadingVisible = loadingScreen && !loadingScreen.classList.contains('hidden');
+    const exportingVisible = exportingScreen && !exportingScreen.classList.contains('hidden');
+    
+    if (!loadingVisible && !exportingVisible) {
+      showMobileFullscreenPrompt();
+    }
+  } else if (isFullscreen && isPortrait) {
+    // In fullscreen but portrait - try to lock to landscape
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
   }
 });
 

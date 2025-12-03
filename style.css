@@ -119,11 +119,13 @@
 
 /* Container for loading text and button - fixed height to prevent shift */
 .loading-status {
-  height: 80px;
+  min-height: 100px;
   position: relative;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
 }
 
 /* Mobile adjustments for loading/export screens */
@@ -134,7 +136,8 @@
   }
   
   .loading-status {
-    height: 60px;
+    min-height: 80px;
+    gap: 8px;
   }
   
   .loading-text {
@@ -162,16 +165,6 @@
   
   .export-progress-container {
     width: 200px !important;
-  }
-  
-  /* Position completed/error containers absolutely on mobile so logo doesn't move */
-  #exporting-screen .completed-container {
-    position: absolute;
-    bottom: 15vh;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-top: 0;
-    gap: 12px;
   }
 }
 
@@ -242,18 +235,6 @@
 }
 
 /* Completed state container */
-.completed-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  margin-top: 16px;
-}
-
-.completed-container.hidden {
-  display: none;
-}
-
 /* Completed text - same style as loading text */
 .completed-text {
   font-family: 'home_videoregular', sans-serif;
