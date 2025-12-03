@@ -905,21 +905,27 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const ctaBtn = w.querySelector('.cta-button');
       if (ctaBtn) {
         const boxShadowStyle = ctaBtn.style.boxShadow || getComputedStyle(ctaBtn).boxShadow;
+        console.log('CTA boxShadow raw:', boxShadowStyle);
         if (boxShadowStyle && boxShadowStyle !== 'none') {
-          // Parse box-shadow to extract non-inset shadows
+          // Parse box-shadow to extract non-inset drop shadows (not spread outlines)
           const shadows = boxShadowStyle.split(/,(?![^(]*\))/);
+          console.log('CTA shadows split:', shadows);
           for (const shadow of shadows) {
             const trimmed = shadow.trim();
             if (!trimmed.startsWith('inset')) {
               // Parse: Xpx Ypx [blur[px]] [spread[px]] color
-              // Extract numbers and color separately
               const parts = trimmed.match(/^(-?\d+)px\s+(-?\d+)px\s*(.*)/);
               if (parts) {
                 const offsetX = parseInt(parts[1]) || 0;
                 const offsetY = parseInt(parts[2]) || 0;
-                const rest = parts[3].trim();
                 
-                // Rest could be: "0 #0f0", "0px #0f0", "0 0 #0f0", "0px 0px #0f0", or just "#0f0"
+                // Skip spread outlines (0 0 offset shadows are outlines, not drop shadows)
+                if (offsetX === 0 && offsetY === 0) {
+                  console.log('Skipping spread outline:', trimmed);
+                  continue;
+                }
+                
+                const rest = parts[3].trim();
                 let blur = 0;
                 let color = rest;
                 
@@ -930,8 +936,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
                   color = blurMatch[3].trim();
                 }
                 
+                console.log('Parsed drop shadow:', { offsetX, offsetY, blur, color });
                 if (color) {
                   ctaBoxShadow = { offsetX, offsetY, blur, color };
+                  console.log('Using CTA box-shadow:', ctaBoxShadow);
                   break;
                 }
               }
@@ -1067,7 +1075,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       if (s.hasOutline) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
-        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+        const offsets = [[3, 0], [-3, 0], [0, 3], [0, -3]];
         for (const [ox, oy] of offsets) {
           ctx.shadowOffsetX = ox;
           ctx.shadowOffsetY = oy;
@@ -2048,10 +2056,10 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     let filterParts = [];
     if (hasOutline) {
       filterParts.push(
-        'drop-shadow(2px 0 0 #000)',
-        'drop-shadow(-2px 0 0 #000)',
-        'drop-shadow(0 2px 0 #000)',
-        'drop-shadow(0 -2px 0 #000)'
+        'drop-shadow(3px 0 0 #000)',
+        'drop-shadow(-3px 0 0 #000)',
+        'drop-shadow(0 3px 0 #000)',
+        'drop-shadow(0 -3px 0 #000)'
       );
     }
     if (hasEffectShadow) {
@@ -2490,10 +2498,10 @@ function buildCompanyNameUI(container) {
     let filterParts = [];
     if (hasOutline) {
       filterParts.push(
-        'drop-shadow(2px 0 0 #000)',
-        'drop-shadow(-2px 0 0 #000)',
-        'drop-shadow(0 2px 0 #000)',
-        'drop-shadow(0 -2px 0 #000)'
+        'drop-shadow(3px 0 0 #000)',
+        'drop-shadow(-3px 0 0 #000)',
+        'drop-shadow(0 3px 0 #000)',
+        'drop-shadow(0 -3px 0 #000)'
       );
     }
     if (hasEffectShadow) {
@@ -4806,10 +4814,10 @@ function updateStickerEffects() {
   // Outline effect - multiple drop shadows to create border around transparent PNG
   if (outlineChecked) {
     filterParts.push(
-      'drop-shadow(2px 0 0 #000)',
-      'drop-shadow(-2px 0 0 #000)',
-      'drop-shadow(0 2px 0 #000)',
-      'drop-shadow(0 -2px 0 #000)'
+      'drop-shadow(3px 0 0 #000)',
+      'drop-shadow(-3px 0 0 #000)',
+      'drop-shadow(0 3px 0 #000)',
+      'drop-shadow(0 -3px 0 #000)'
     );
   }
   
@@ -6105,10 +6113,10 @@ function updateElementEffects(wrapper) {
   // Outline effect first (same as stickers)
   if (hasOutline) {
     filterParts.push(
-      'drop-shadow(2px 0 0 #000)',
-      'drop-shadow(-2px 0 0 #000)',
-      'drop-shadow(0 2px 0 #000)',
-      'drop-shadow(0 -2px 0 #000)'
+      'drop-shadow(3px 0 0 #000)',
+      'drop-shadow(-3px 0 0 #000)',
+      'drop-shadow(0 3px 0 #000)',
+      'drop-shadow(0 -3px 0 #000)'
     );
   }
   
