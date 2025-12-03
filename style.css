@@ -149,10 +149,6 @@
     border-width: 3px;
   }
   
-  .completed-container {
-    gap: 16px;
-  }
-  
   .completed-text,
   .error-text {
     font-size: 14px;
@@ -168,10 +164,14 @@
     width: 200px !important;
   }
   
-  /* Move export screen content up on mobile for better spacing from bottom */
-  #exporting-screen {
-    padding-bottom: 20vh;
-    box-sizing: border-box;
+  /* Position completed/error containers absolutely on mobile so logo doesn't move */
+  #exporting-screen .completed-container {
+    position: absolute;
+    bottom: 15vh;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 0;
+    gap: 12px;
   }
 }
 
