@@ -952,10 +952,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         innerEl.classList.remove('bouncing');
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
-        // Clear CTA box-shadow - we render it manually since html2canvas doesn't handle it
-        if (isCTA) {
-          innerEl.style.boxShadow = 'none';
-        }
+        // Don't clear boxShadow - let html2canvas try to render it
+        // We'll add the shadow manually anyway if it doesn't work
       }
       
       const canvas = await html2canvas(clone, {
@@ -1056,16 +1054,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
       
-      // Scale factor for effects (outline/shadow should scale with element)
-      const effectScale = stickerScale;
-      
       // Apply outline effect (draw multiple times with offset shadows)
-      // Scale the outline thickness with the element
+      // Note: ctx.scale already applied, shadow offsets scale with it
       if (s.hasOutline) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
-        const outlineSize = 2 * effectScale;
-        const offsets = [[outlineSize, 0], [-outlineSize, 0], [0, outlineSize], [0, -outlineSize]];
+        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
         for (const [ox, oy] of offsets) {
           ctx.shadowOffsetX = ox;
           ctx.shadowOffsetY = oy;
@@ -1095,12 +1089,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.shadowOffsetY = 0;
       }
       
-      // Apply drop shadow effect (scaled with element)
+      // Apply drop shadow effect
       if (s.hasShadow) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4 * effectScale;
-        ctx.shadowOffsetY = 4 * effectScale;
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
       }
       
       if (s.kind === "static") {
@@ -1159,43 +1153,13 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       ctx.scale(finalScale, finalScale);
       
-      // Scale factor for user-applied effects
-      const effectScale = finalScale;
-      
-      // Apply user's outline effect (draw multiple times with offset shadows)
-      if (t.hasOutline) {
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 0;
-        const outlineSize = 2 * effectScale;
-        const offsets = [[outlineSize, 0], [-outlineSize, 0], [0, outlineSize], [0, -outlineSize]];
-        for (const [ox, oy] of offsets) {
-          ctx.shadowOffsetX = ox;
-          ctx.shadowOffsetY = oy;
-          ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        }
-        ctx.shadowColor = 'transparent';
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-      }
-      
-      // Apply CTA's built-in box-shadow (html2canvas doesn't render this)
+      // For CTA: manually render the box-shadow since html2canvas doesn't handle it
+      // All other effects (filter-based outline/shadow, text styling) are captured by html2canvas
       if (t.ctaBoxShadow) {
         ctx.shadowColor = t.ctaBoxShadow.color;
         ctx.shadowBlur = t.ctaBoxShadow.blur;
         ctx.shadowOffsetX = t.ctaBoxShadow.offsetX;
         ctx.shadowOffsetY = t.ctaBoxShadow.offsetY;
-        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        ctx.shadowColor = 'transparent';
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-      }
-      
-      // Apply user's drop shadow effect
-      if (t.hasShadow) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4 * effectScale;
-        ctx.shadowOffsetY = 4 * effectScale;
       }
       
       ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
