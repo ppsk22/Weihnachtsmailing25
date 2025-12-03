@@ -894,37 +894,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const hasOutline = w.getAttribute('data-has-outline') === 'true';
     const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     
-    // Extract CTA's built-in box-shadow for manual rendering
-    let ctaBoxShadow = null;
-    if (isCTA) {
-      const ctaBtn = w.querySelector('.cta-button');
-      if (ctaBtn) {
-        const boxShadowStyle = ctaBtn.style.boxShadow || getComputedStyle(ctaBtn).boxShadow;
-        if (boxShadowStyle && boxShadowStyle !== 'none') {
-          // Parse box-shadow to extract non-inset shadows
-          // Format: [inset] x y blur spread color, ...
-          const shadows = boxShadowStyle.split(/,(?![^(]*\))/); // Split by comma, not inside ()
-          for (const shadow of shadows) {
-            const trimmed = shadow.trim();
-            if (!trimmed.startsWith('inset')) {
-              // This is a drop shadow - parse it
-              // Match: Xpx Ypx [blur] [spread] color
-              const match = trimmed.match(/^(-?\d+)px\s+(-?\d+)px\s+(\d+)?(?:px)?\s*(\d+)?(?:px)?\s*(.+)$/);
-              if (match) {
-                ctaBoxShadow = {
-                  offsetX: parseInt(match[1]) || 0,
-                  offsetY: parseInt(match[2]) || 0,
-                  blur: parseInt(match[3]) || 0,
-                  color: match[5] || 'rgba(0,0,0,0.5)'
-                };
-                break; // Use first non-inset shadow
-              }
-            }
-          }
-        }
-      }
-    }
-    
     try {
       const clone = w.cloneNode(true);
       clone.style.position = 'fixed';
@@ -941,13 +910,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         innerEl.classList.remove('bouncing');
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
-        // Clear CSS filter as html2canvas doesn't render drop-shadow correctly
-        innerEl.style.filter = 'none';
-        innerEl.style.webkitFilter = 'none';
-        // Clear box-shadow for CTA - we'll render it manually
-        if (isCTA) {
-          innerEl.style.boxShadow = 'none';
-        }
+        // DON'T clear filter or boxShadow - let html2canvas try to render them
       }
       
       const canvas = await html2canvas(clone, {
@@ -967,7 +930,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, ctaBoxShadow };
+      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -1151,11 +1114,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       ctx.scale(finalScale, finalScale);
       
-      // Scale factor for effects (outline/shadow should scale with element)
+      // Scale factor for user-applied effects
       const effectScale = finalScale;
       
-      // Apply outline effect (draw multiple times with offset shadows)
-      // Scale the outline thickness with the element
+      // Apply user's outline effect (draw multiple times with offset shadows)
       if (t.hasOutline) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
@@ -1171,19 +1133,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.shadowOffsetY = 0;
       }
       
-      // Apply CTA's built-in box-shadow first (if present)
-      if (t.ctaBoxShadow) {
-        ctx.shadowColor = t.ctaBoxShadow.color;
-        ctx.shadowBlur = t.ctaBoxShadow.blur * effectScale;
-        ctx.shadowOffsetX = t.ctaBoxShadow.offsetX * effectScale;
-        ctx.shadowOffsetY = t.ctaBoxShadow.offsetY * effectScale;
-        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        ctx.shadowColor = 'transparent';
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-      }
-      
-      // Apply user's drop shadow effect (draws on top, both shadows visible)
+      // Apply user's drop shadow effect
       if (t.hasShadow) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 0;
