@@ -848,6 +848,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const domH = domImg.naturalHeight || domImg.height || 150;
     const baseW = parseFloat(domImg.style.width) || 150;
     const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
+    const hasOutline = w.getAttribute('data-has-outline') === 'true';
+    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     
     if (/\.gif(?:[?#].*)?$/i.test(src)) {
       const ab = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
@@ -855,10 +857,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH };
+      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow };
     } else {
       const bmp = await loadImageForExport(src);
-      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH };
+      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow };
     }
   }));
   
@@ -889,6 +891,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         innerEl.classList.remove('bouncing');
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
+        // Clear CSS filter as html2canvas doesn't render drop-shadow correctly
+        innerEl.style.filter = 'none';
+        innerEl.style.webkitFilter = 'none';
       }
       
       const canvas = await html2canvas(clone, {
@@ -988,6 +993,48 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
       
+      // Apply outline effect (draw multiple times with offset shadows)
+      if (s.hasOutline) {
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 0;
+        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+        for (const [ox, oy] of offsets) {
+          ctx.shadowOffsetX = ox;
+          ctx.shadowOffsetY = oy;
+          if (s.kind === "static") {
+            ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+          } else {
+            const elapsed = i * FRAME_MS;
+            const mod = elapsed % s.totalDur;
+            let acc = 0, idx = 0;
+            for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
+            const f = s.frames[idx % s.frames.length];
+            const fullGif = document.createElement("canvas");
+            fullGif.width = s.domW;
+            fullGif.height = s.domH;
+            const fullCtx = fullGif.getContext("2d");
+            const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+            const pc = document.createElement("canvas");
+            pc.width = f.dims.width;
+            pc.height = f.dims.height;
+            pc.getContext("2d").putImageData(patch, 0, 0);
+            fullCtx.drawImage(pc, f.dims.left, f.dims.top);
+            ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
+          }
+        }
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      // Apply drop shadow effect
+      if (s.hasShadow) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+      }
+      
       if (s.kind === "static") {
         ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
       } else {
@@ -1043,6 +1090,30 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         finalScale *= ctaBounceScale;
       }
       ctx.scale(finalScale, finalScale);
+      
+      // Apply outline effect (draw multiple times with offset shadows)
+      if (t.hasOutline) {
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 0;
+        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+        for (const [ox, oy] of offsets) {
+          ctx.shadowOffsetX = ox;
+          ctx.shadowOffsetY = oy;
+          ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        }
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      // Apply drop shadow effect
+      if (t.hasShadow) {
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+      }
+      
       ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
       ctx.restore();
     }
