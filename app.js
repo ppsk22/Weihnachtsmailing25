@@ -36,8 +36,14 @@ window.addEventListener('load', () => {
 document.addEventListener('DOMContentLoaded', () => {
   const loadingVideo = document.getElementById('loading-video');
   const getStartedBtn = document.getElementById('get-started-btn');
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   
   if (loadingVideo) {
+    // On mobile, pause the video until fullscreen is entered
+    if (isMobile) {
+      loadingVideo.pause();
+    }
+    
     loadingVideo.addEventListener('ended', () => {
       videoEnded = true;
       checkShowGetStarted();
@@ -63,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function showExportCompleted() {
   const exportingText = document.getElementById('exporting-text');
   const completedContainer = document.getElementById('export-completed-container');
+  const errorContainer = document.getElementById('export-error-container');
   const progressContainer = document.getElementById('export-progress-container');
   const loadingStatus = document.querySelector('#exporting-screen .loading-status');
   
@@ -70,14 +77,39 @@ function showExportCompleted() {
   if (exportingText) exportingText.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
   if (loadingStatus) loadingStatus.style.display = 'none';
+  if (errorContainer) errorContainer.classList.add('hidden');
   
   // Show completed container (with text and button stacked)
   if (completedContainer) completedContainer.classList.remove('hidden');
 }
 
+function showExportError(errorMessage) {
+  const exportingText = document.getElementById('exporting-text');
+  const completedContainer = document.getElementById('export-completed-container');
+  const errorContainer = document.getElementById('export-error-container');
+  const errorMessageEl = document.getElementById('export-error-message');
+  const progressContainer = document.getElementById('export-progress-container');
+  const loadingStatus = document.querySelector('#exporting-screen .loading-status');
+  
+  // Hide exporting text and progress bar
+  if (exportingText) exportingText.classList.add('hidden');
+  if (progressContainer) progressContainer.classList.add('hidden');
+  if (loadingStatus) loadingStatus.style.display = 'none';
+  if (completedContainer) completedContainer.classList.add('hidden');
+  
+  // Show error container
+  if (errorContainer) errorContainer.classList.remove('hidden');
+  if (errorMessageEl) errorMessageEl.textContent = errorMessage || 'Unknown error';
+  
+  // Make sure exporting screen is visible
+  const exportingScreen = document.getElementById('exporting-screen');
+  if (exportingScreen) exportingScreen.classList.remove('hidden');
+}
+
 function resetExportScreen() {
   const exportingText = document.getElementById('exporting-text');
   const completedContainer = document.getElementById('export-completed-container');
+  const errorContainer = document.getElementById('export-error-container');
   const progressContainer = document.getElementById('export-progress-container');
   const progressBar = document.getElementById('export-progress-bar');
   const exportingScreen = document.getElementById('exporting-screen');
@@ -86,6 +118,7 @@ function resetExportScreen() {
   // Reset to initial state
   if (exportingText) exportingText.classList.remove('hidden');
   if (completedContainer) completedContainer.classList.add('hidden');
+  if (errorContainer) errorContainer.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
   if (progressBar) progressBar.style.width = '0%';
   if (exportingScreen) exportingScreen.classList.add('hidden');
@@ -112,7 +145,98 @@ document.addEventListener('DOMContentLoaded', () => {
       SoundManager.play('menuHover');
     });
   }
+  
+  // Error restart button
+  const errorRestartBtn = document.getElementById('error-restart-btn');
+  if (errorRestartBtn) {
+    errorRestartBtn.addEventListener('click', restartTool);
+    errorRestartBtn.addEventListener('mouseenter', () => {
+      SoundManager.play('menuHover');
+    });
+  }
+  
+  // Fallback PNG button
+  const fallbackPngBtn = document.getElementById('fallback-png-btn');
+  if (fallbackPngBtn) {
+    fallbackPngBtn.addEventListener('click', exportFallbackPNG);
+    fallbackPngBtn.addEventListener('mouseenter', () => {
+      SoundManager.play('menuHover');
+    });
+  }
 });
+
+// Fallback PNG export when GIF fails
+async function exportFallbackPNG() {
+  const fallbackBtn = document.getElementById('fallback-png-btn');
+  if (fallbackBtn) fallbackBtn.disabled = true;
+  
+  try {
+    SoundManager.play('confirm');
+    
+    const stage = document.getElementById("stage");
+    
+    // Temporarily reset UI scale for accurate capture
+    const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
+    document.documentElement.style.setProperty('--ui-scale', '1');
+    stage.offsetHeight; // Force reflow
+    
+    const canvas = await html2canvas(stage, {
+      width: STAGE_W,
+      height: STAGE_H,
+      scale: 1,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: null,
+      foreignObjectRendering: false,
+      ignoreElements: (element) => {
+        return element.id === 'overlay' || 
+               element.classList.contains('scale-handle') || 
+               element.classList.contains('rot-handle');
+      }
+    });
+    
+    // Restore UI scale
+    document.documentElement.style.setProperty('--ui-scale', originalScale);
+    
+    // Get banner name
+    const bannerNameInput = document.getElementById('banner-name');
+    const bannerName = sanitizeFilename(bannerNameInput ? bannerNameInput.value : '');
+    
+    // Generate filename
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 8);
+    const filename = bannerName 
+      ? `${bannerName}_${timestamp}_${randomId}.png`
+      : `banner_${timestamp}_${randomId}.png`;
+    
+    const pngData = canvas.toDataURL("image/png");
+    
+    // Try to save to server
+    try {
+      await saveBannerToServer(pngData, filename);
+    } catch (e) {
+      console.warn('Server save failed:', e);
+    }
+    
+    // Download the PNG
+    const a = document.createElement('a');
+    a.href = pngData;
+    a.download = filename;
+    a.click();
+    
+    SoundManager.play('save');
+    
+    // Show completed state
+    showExportCompleted();
+    
+  } catch (error) {
+    console.error('PNG export error:', error);
+    SoundManager.play('clickDenied');
+    alert('PNG export also failed: ' + error.message);
+  } finally {
+    if (fallbackBtn) fallbackBtn.disabled = false;
+  }
+}
 
 // ==== POPUP OVER STAGE (NEW) =============================================
 
@@ -634,11 +758,9 @@ function wireMainExport() {
     } catch (error) {
       console.error('Export error:', error);
       SoundManager.play('clickDenied');
-      exportStatus.textContent = 'Error: ' + error.message;
-      exportStatus.className = 'send-status error';
       
-      // Hide exporting screen on error
-      if (exportingScreen) exportingScreen.classList.add('hidden');
+      // Show error state with fallback PNG option
+      showExportError(error.message);
     } finally {
       exportBtn.disabled = false;
     }
@@ -677,8 +799,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
   document.documentElement.style.setProperty('--ui-scale', '1');
   
-  const stage = document.getElementById("stage");
-  stage.offsetHeight; // Force reflow
+  try {
+    const stage = document.getElementById("stage");
+    stage.offsetHeight; // Force reflow
   
   const W = STAGE_W;
   const H = STAGE_H;
@@ -912,15 +1035,17 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   
   enc.finish();
   
-  // Clean up export state
-  clearInterval(animationKeepAlive);
-  isExporting = false;
-  
-  // Restore UI scale
-  document.documentElement.style.setProperty('--ui-scale', originalScale);
-  
   const binary = enc.stream().getData();
   return "data:image/gif;base64," + btoa(binary);
+  
+  } finally {
+    // Clean up export state - always runs even on error
+    clearInterval(animationKeepAlive);
+    isExporting = false;
+    
+    // Restore UI scale
+    document.documentElement.style.setProperty('--ui-scale', originalScale);
+  }
 }
 
 function loadImageForExport(url) {
@@ -2964,6 +3089,18 @@ function showMobileFullscreenPrompt() {
     return;
   }
   
+  // Don't show if export screen is visible
+  const exportingScreen = document.getElementById('exporting-screen');
+  if (exportingScreen && !exportingScreen.classList.contains('hidden')) {
+    return;
+  }
+  
+  // Pause loading video until fullscreen is entered
+  const loadingVideo = document.getElementById('loading-video');
+  if (loadingVideo) {
+    loadingVideo.pause();
+  }
+  
   let prompt = document.getElementById('mobile-fullscreen-prompt');
   if (!prompt) {
     prompt = document.createElement('div');
@@ -2980,23 +3117,26 @@ function showMobileFullscreenPrompt() {
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      z-index: 99999;
+      z-index: 9999999;
       font-family: 'home_videoregular', sans-serif;
       cursor: pointer;
       image-rendering: pixelated;
+      padding: 20px;
+      box-sizing: border-box;
     `;
     prompt.innerHTML = `
       <div style="
-        border: 4px solid #3013a9;
+        border: 3px solid #3013a9;
         background: #1a1a2e;
-        padding: 40px 50px;
+        padding: 24px 28px;
         text-align: center;
-        max-width: 80%;
+        max-width: 85%;
+        width: 280px;
       ">
-        <div style="font-size: 64px; margin-bottom: 20px; animation: pulse 1.5s ease-in-out infinite;">⛶</div>
-        <div style="font-size: 20px; color: #fff; margin-bottom: 10px;">TAP TO ENTER</div>
-        <div style="font-size: 28px; color: #5a3fd9; margin-bottom: 20px;">FULLSCREEN</div>
-        <div style="font-size: 12px; color: #888;">Best experience in landscape mode</div>
+        <div style="font-size: 40px; margin-bottom: 12px; animation: pulse 1.5s ease-in-out infinite;">⛶</div>
+        <div style="font-size: 14px; color: #fff; margin-bottom: 6px;">TAP TO ENTER</div>
+        <div style="font-size: 18px; color: #5a3fd9; margin-bottom: 12px;">FULLSCREEN</div>
+        <div style="font-size: 10px; color: #888;">Best experience in landscape mode</div>
       </div>
       <style>
         @keyframes pulse {
@@ -3025,6 +3165,13 @@ function showMobileFullscreenPrompt() {
         mobileFullscreenActive = true;
         hideMobileFullscreenPrompt();
         SoundManager.play('confirm');
+        
+        // Start loading video after entering fullscreen
+        const loadingVideo = document.getElementById('loading-video');
+        if (loadingVideo) {
+          loadingVideo.currentTime = 0;
+          loadingVideo.play().catch(() => {});
+        }
       } catch (e) {
         console.error('Fullscreen error:', e);
       }
@@ -3222,12 +3369,13 @@ function uiScale() {
 // CLICK-TO-SPAWN STICKERS
 //------------------------------------------------------
 // Simple click to spawn - no drag detection needed
+// Track touch for scroll detection
+let stickerTouchStartX = 0;
+let stickerTouchStartY = 0;
+let stickerIsScrolling = false;
+const SCROLL_THRESHOLD = 10; // pixels of movement to count as scroll
+
 document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
-  // Hover sound
-  stickerSrc.addEventListener('mouseenter', () => {
-    SoundManager.play('menuHover');
-  });
-  
   // Click to spawn
   stickerSrc.addEventListener('click', () => {
     // Check sticker limit
@@ -3248,8 +3396,34 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
     createStickerAt(stickerSrc.src, randomX, randomY);
   });
   
-  // Touch support for mobile
+  // Touch support for mobile - with scroll detection
+  stickerSrc.addEventListener('touchstart', (event) => {
+    const touch = event.touches[0];
+    stickerTouchStartX = touch.clientX;
+    stickerTouchStartY = touch.clientY;
+    stickerIsScrolling = false;
+  }, { passive: true });
+  
+  stickerSrc.addEventListener('touchmove', (event) => {
+    if (stickerIsScrolling) return;
+    
+    const touch = event.touches[0];
+    const deltaX = Math.abs(touch.clientX - stickerTouchStartX);
+    const deltaY = Math.abs(touch.clientY - stickerTouchStartY);
+    
+    // If moved more than threshold, it's a scroll
+    if (deltaX > SCROLL_THRESHOLD || deltaY > SCROLL_THRESHOLD) {
+      stickerIsScrolling = true;
+    }
+  }, { passive: true });
+  
   stickerSrc.addEventListener('touchend', (event) => {
+    // If user was scrolling, don't spawn sticker
+    if (stickerIsScrolling) {
+      stickerIsScrolling = false;
+      return;
+    }
+    
     event.preventDefault(); // Prevent click from also firing
     
     // Check sticker limit
@@ -3619,7 +3793,14 @@ document.addEventListener('fullscreenchange', () => {
     // Show prompt again on mobile after a delay
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
-      setTimeout(showMobileFullscreenPrompt, 300);
+      setTimeout(() => {
+        // Don't show prompt if export screen is visible
+        const exportingScreen = document.getElementById('exporting-screen');
+        if (exportingScreen && !exportingScreen.classList.contains('hidden')) {
+          return;
+        }
+        showMobileFullscreenPrompt();
+      }, 300);
     }
   }
   

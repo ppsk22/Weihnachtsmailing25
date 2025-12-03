@@ -83,7 +83,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999999;
+  z-index: 99999999;
   transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
@@ -96,6 +96,9 @@
 .loading-content {
   text-align: center;
   position: relative;
+  padding: 20px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .loading-logo {
@@ -121,6 +124,49 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
+}
+
+/* Mobile adjustments for loading/export screens */
+@media (max-width: 600px) {
+  .loading-logo {
+    width: 280px;
+    margin-bottom: 16px;
+  }
+  
+  .loading-status {
+    height: 60px;
+  }
+  
+  .loading-text {
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+  
+  .get-started-btn {
+    padding: 10px 24px;
+    font-size: 16px;
+    min-width: 160px;
+    border-width: 3px;
+  }
+  
+  .completed-container {
+    gap: 16px;
+  }
+  
+  .completed-text,
+  .error-text {
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+  
+  .error-message {
+    font-size: 10px;
+    max-width: 250px;
+  }
+  
+  .export-progress-container {
+    width: 200px !important;
+  }
 }
 
 .loading-text {
@@ -209,6 +255,29 @@
   color: #5a3fd9;
   letter-spacing: 4px;
   text-transform: uppercase;
+}
+
+/* Error state */
+.error-text {
+  font-family: 'home_videoregular', sans-serif;
+  font-size: 18px;
+  color: #ff6666;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.error-message {
+  font-family: 'home_videoregular', sans-serif;
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  max-width: 300px;
+  margin-top: -10px;
+}
+
+.get-started-btn.secondary {
+  background: #1a1a2e;
+  border-color: #3013a9;
 }
 
 /* Export progress bar */
@@ -911,11 +980,19 @@ body.modal-open #sticker-bar * {
   -webkit-user-drag: none;
   border-radius: 0;
   display: none;             /* hidden by default */
+  transition: transform 0.15s ease;
+  box-sizing: border-box;
 }
 
 /* Show stickers when unlocked */
 #sticker-bar.unlocked .sticker-src {
   display: block;
+}
+
+/* Sticker hover effect */
+#sticker-bar.unlocked .sticker-src:hover {
+  transform: scale(1.2);
+  z-index: 101;
 }
 
 /* STICKER WRAPPER */
