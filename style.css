@@ -1687,12 +1687,6 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   letter-spacing: 2px;
 }
 
-.export-divider {
-  border: none;
-  border-top: 2px solid #3013a9;
-  margin: 24px 0;
-}
-
 .input-group {
   margin-bottom: 16px;
 }
@@ -1772,37 +1766,6 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 .send-status.error {
   color: #ff6666;
-}
-
-.email-section {
-  text-align: left;
-}
-
-.download-section .lbl {
-  display: block;
-  margin: 12px 0 6px;
-  font-family: 'home_videoregular', sans-serif;
-}
-
-.download-section input[type="range"] {
-  width: 100%;
-  margin: 8px 0;
-  cursor: url('assets/UI/hand.ico'), pointer;
-}
-
-.download-section input[type="number"] {
-  font-family: 'home_videoregular', sans-serif;
-  font-size: 14px;
-  color: #fff;
-  background: #111;
-  border: 2px solid #3013a9;
-  padding: 6px 10px;
-  border-radius: 0;
-}
-
-.download-section input[type="number"]:focus {
-  outline: none;
-  border-color: #5a3fd9;
 }
 
 .export-btn:disabled {

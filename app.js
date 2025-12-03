@@ -648,7 +648,7 @@ function buildHeroGrid(container){
 }
 
 function buildExportUI(container){
-  // Build the export UI with main export button and manual download options
+  // Build the export UI with main export button
   const wrap = document.createElement('div');
   wrap.className = 'export-ui-wrapper';
   wrap.innerHTML = `
@@ -663,35 +663,11 @@ function buildExportUI(container){
       </div>
       <div id="export-main-status" class="send-status"></div>
     </div>
-    
-    <hr class="export-divider" />
-    
-    <div class="export-section download-section">
-      <h3 class="export-section-title">Manual Download</h3>
-      
-      <label class="lbl">FPS</label>
-      <input id="gif-fps" type="range" min="1" max="15" value="5" />
-      <span id="gif-fps-val">5</span> fps
-
-      <label class="lbl">Duration (s)</label>
-      <input id="gif-duration" type="number" min="1" max="20" value="5" class="num" />
-
-      <div class="btn-row">
-        <button id="export-png" class="export-btn regen-btn">PNG</button>
-        <button id="export-gif" class="export-btn regen-btn">GIF</button>
-        <button id="export-cancel" class="export-btn" style="display:none;">Cancel</button>
-      </div>
-
-      <div id="export-progress" class="progress"></div>
-    </div>
   `;
   container.appendChild(wrap);
 
   // Wire up main export button
   wireMainExport();
-  
-  // Re-bind the existing handlers to these freshly created elements
-  wireExportControls();
 }
 
 // Sanitize filename - remove invalid characters, replace spaces with underscores
@@ -745,8 +721,8 @@ function wireMainExport() {
     if (progressBar) progressBar.style.width = '0%';
     
     try {
-      // Generate GIF with fixed settings (15 fps, 5 seconds)
-      const gifData = await generateGIF(15, 5, (progress) => {
+      // Generate GIF with fixed settings (10 fps, 5 seconds)
+      const gifData = await generateGIF(10, 5, (progress) => {
         if (progressBar) progressBar.style.width = `${progress * 100}%`;
       });
       
@@ -894,75 +870,26 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const scale = w.scale || 1;
     const angle = w.angle || 0;
     const isCTA = w.classList.contains('cta-layer');
+    const hasOutline = w.getAttribute('data-has-outline') === 'true';
+    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     
     try {
       const clone = w.cloneNode(true);
-      clone.style.position = 'absolute';
-      clone.style.left = '-9999px';
-      clone.style.top = '-9999px';
+      clone.style.position = 'fixed';
+      clone.style.left = '0';
+      clone.style.top = '0';
       clone.style.transform = 'none';
-      // Append to #root for better style inheritance
-      const root = document.getElementById('root') || document.body;
-      root.appendChild(clone);
+      clone.style.zIndex = '-9999';
+      clone.style.pointerEvents = 'none';
+      document.body.appendChild(clone);
       
+      // Remove bouncing class and animation from inner elements
       const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
       if (innerEl) {
-        // Remove bouncing class to capture clean state
         innerEl.classList.remove('bouncing');
-        
-        const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
-        if (originalInner) {
-          const computed = getComputedStyle(originalInner);
-          
-          // For CTA buttons, copy inline styles directly (they have complex gradients)
-          if (isCTA && originalInner.style.background) {
-            innerEl.style.background = originalInner.style.background;
-          } else {
-            innerEl.style.background = computed.background;
-          }
-          innerEl.style.backgroundColor = computed.backgroundColor;
-          // Copy backgroundImage separately for gradients
-          if (originalInner.style.backgroundImage) {
-            innerEl.style.backgroundImage = originalInner.style.backgroundImage;
-          } else if (computed.backgroundImage && computed.backgroundImage !== 'none') {
-            innerEl.style.backgroundImage = computed.backgroundImage;
-          }
-          // For CTA, copy inline border/boxShadow directly
-          if (isCTA) {
-            innerEl.style.border = originalInner.style.border || computed.border;
-            innerEl.style.boxShadow = originalInner.style.boxShadow || computed.boxShadow;
-            innerEl.style.borderRadius = originalInner.style.borderRadius || computed.borderRadius;
-          } else {
-            innerEl.style.border = computed.border;
-            innerEl.style.boxShadow = computed.boxShadow;
-            innerEl.style.borderRadius = computed.borderRadius;
-          }
-          innerEl.style.borderWidth = computed.borderWidth;
-          innerEl.style.borderStyle = computed.borderStyle;
-          innerEl.style.borderColor = computed.borderColor;
-          innerEl.style.color = computed.color;
-          innerEl.style.textShadow = computed.textShadow;
-          innerEl.style.fontFamily = computed.fontFamily;
-          innerEl.style.fontSize = computed.fontSize;
-          innerEl.style.fontWeight = computed.fontWeight;
-          innerEl.style.fontStyle = computed.fontStyle;
-          innerEl.style.letterSpacing = computed.letterSpacing;
-          innerEl.style.textTransform = computed.textTransform;
-          innerEl.style.textDecoration = computed.textDecoration;
-          innerEl.style.webkitTextStroke = computed.webkitTextStroke;
-          innerEl.style.padding = computed.padding;
-          // Copy filter for drop-shadow effects (outline/shadow)
-          innerEl.style.filter = computed.filter;
-          innerEl.style.webkitFilter = computed.webkitFilter;
-          // Reset transform to avoid capturing mid-animation state
-          innerEl.style.transform = 'none';
-          innerEl.style.animation = 'none';
-        }
+        innerEl.style.transform = 'none';
+        innerEl.style.animation = 'none';
       }
-      
-      // Store styles for onclone callback
-      const ctaStyles = isCTA ? originalInner.style.cssText : '';
-      const filterValue = computed.filter;
       
       const canvas = await html2canvas(clone, {
         scale: 2,
@@ -973,34 +900,17 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ignoreElements: (element) => {
           return element.classList.contains('scale-handle') || 
                  element.classList.contains('rot-handle');
-        },
-        onclone: (clonedDoc, element) => {
-          // Ensure styles are applied in the cloned document
-          const clonedInner = element.querySelector('.cta-button, .headline-text, .company-text');
-          if (clonedInner) {
-            // Re-apply inline styles in cloned document for CTA
-            if (ctaStyles) {
-              clonedInner.style.cssText = ctaStyles;
-            }
-            // Re-apply filter
-            if (filterValue && filterValue !== 'none') {
-              clonedInner.style.filter = filterValue;
-            }
-          }
         }
       });
       
-      clone.parentNode.removeChild(clone);
+      document.body.removeChild(clone);
       
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      // Get shadow/outline flags for manual rendering if needed
-      const hasOutline = w.getAttribute('data-has-outline') === 'true';
-      const hasShadow = w.getAttribute('data-has-shadow') === 'true';
-      
       return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow };
     } catch (e) {
+      console.error('Text element capture error:', e);
       return null;
     }
   }));
@@ -1018,6 +928,15 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const glitterCanvasEl = document.getElementById('glitter-canvas');
   
   for (let i = 0; i < TOTAL; i++) {
+    // Manually update snow and glitter animations before capturing frame
+    // This ensures animations continue even when tab is unfocused
+    if (typeof updateSnowFrame === 'function') {
+      updateSnowFrame(1);
+    }
+    if (typeof updateGlitterFrame === 'function') {
+      updateGlitterFrame(1);
+    }
+    
     ctx.clearRect(0, 0, W, H);
     
     // Draw background
@@ -1124,40 +1043,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         finalScale *= ctaBounceScale;
       }
       ctx.scale(finalScale, finalScale);
-      
-      // Apply manual shadow/outline if element has those effects
-      // (html2canvas may not capture CSS filter: drop-shadow properly)
-      if (t.hasOutline) {
-        // Draw outline by drawing the image multiple times with offset
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 0;
-        // Draw outline in 4 directions
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 0;
-        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        ctx.shadowOffsetX = -2;
-        ctx.shadowOffsetY = 0;
-        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 2;
-        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = -2;
-        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        // Reset shadow
-        ctx.shadowColor = 'transparent';
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-      }
-      
-      if (t.hasShadow) {
-        // Apply drop shadow
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
-      }
-      
       ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
       ctx.restore();
     }
@@ -4671,565 +4556,6 @@ function bringStickerToFront(el){
   }
 }
 
-	
-//------------------------------------------------------
-// EXPORT UI wiring
-//------------------------------------------------------
-function wireExportControls(){
-  const fpsInput = document.getElementById("gif-fps");
-  const fpsVal   = document.getElementById("gif-fps-val");
-  const durInput = document.getElementById("gif-duration");
-  const btnPNG   = document.getElementById("export-png");
-  const btnGIF   = document.getElementById("export-gif");
-  const btnCancel= document.getElementById("export-cancel");
-  const progEl   = document.getElementById("export-progress");
-
-  if (!fpsInput || !btnPNG || !btnGIF) return; // popup not present yet
-
-  // Update the readout
-  fpsInput.addEventListener("input", () => { fpsVal.textContent = fpsInput.value; });
-
-  // PNG EXPORT
-  btnPNG.addEventListener("click", async () => {
-    SoundManager.play('save');
-    
-    // Show exporting screen and play video
-    const exportingScreen = document.getElementById('exporting-screen');
-    const exportingVideo = document.getElementById('exporting-video');
-    if (exportingScreen) exportingScreen.classList.remove('hidden');
-    if (exportingVideo) {
-      exportingVideo.currentTime = 0;
-      exportingVideo.play().catch(() => {});
-    }
-    
-    const stage = document.getElementById("stage");
-    const app = document.getElementById("app");
-    
-    // Temporarily remove UI scaling during capture
-    const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
-    document.documentElement.style.setProperty('--ui-scale', '1');
-    
-    // Force a reflow to apply the scale change
-    stage.offsetHeight;
-    
-    // Small delay to let exporting screen show
-    await new Promise(r => setTimeout(r, 50));
-    
-    try {
-      const canvas = await html2canvas(stage, {
-        width: STAGE_W,
-        height: STAGE_H,
-        scale: 1,
-        useCORS: true,
-        backgroundColor: null,
-        logging: false,
-        allowTaint: true,
-        foreignObjectRendering: false,
-        ignoreElements: (element) => {
-          // Ignore UI elements that shouldn't be in the export
-          // Keep glitter-canvas and snow-canvas for visual effects!
-          return element.id === 'overlay' || 
-                 element.classList.contains('scale-handle') || 
-                 element.classList.contains('rot-handle');
-        }
-      });
-      
-      const link = document.createElement("a");
-      link.download = "banner.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    } finally {
-      // Restore UI scaling
-      document.documentElement.style.setProperty('--ui-scale', originalScale);
-      
-      // Show completed state instead of hiding
-      showExportCompleted();
-    }
-  });
-
-  // GIF EXPORT
-  btnGIF.addEventListener("click", async () => {
-    SoundManager.play('save');
-    if (typeof window.__gif_parseGIF !== "function" ||
-        typeof window.__gif_decompressFrames !== "function") {
-      console.error("gifuct-js not loaded"); 
-      alert("GIF library not loaded. Please refresh the page.");
-      return;
-    }
-    if (typeof GIFEncoder !== "function") {
-      console.error("jsgif not loaded"); 
-      alert("GIF encoder not loaded. Please refresh the page.");
-      return;
-    }
-
-    // Show exporting screen and play video
-    const exportingScreen = document.getElementById('exporting-screen');
-    const exportingVideo = document.getElementById('exporting-video');
-    if (exportingScreen) exportingScreen.classList.remove('hidden');
-    if (exportingVideo) {
-      exportingVideo.currentTime = 0;
-      exportingVideo.play().catch(() => {});
-    }
-
-    const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
-    const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
-    const TOTAL = FPS * DURATION_S;
-    const FRAME_MS = Math.round(1000 / FPS);
-
-    let CANCELLED = false;
-    btnPNG.disabled = true;
-    btnGIF.disabled = true;
-    btnCancel.style.display = "inline-block";
-    btnCancel.onclick = () => { CANCELLED = true; };
-    progEl.textContent = `Preloading… 0/${TOTAL}`;
-
-    // Show and reset progress bar
-    const progressContainer = document.getElementById('export-progress-container');
-    const progressBar = document.getElementById('export-progress-bar');
-    if (progressContainer) progressContainer.classList.remove('hidden');
-    if (progressBar) progressBar.style.width = '0%';
-
-    // Temporarily reset UI scale to 1 for accurate capture
-    const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
-    document.documentElement.style.setProperty('--ui-scale', '1');
-
-    const stage = document.getElementById("stage");
-    // Force reflow
-    stage.offsetHeight;
-    
-    const W = STAGE_W;
-    const H = STAGE_H;
-
-    const buf  = document.createElement("canvas");
-    buf.width  = W; buf.height = H;
-    const ctx  = buf.getContext("2d", { willReadFrequently: true });
-
-    const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
-    const bgURL   = bgMatch ? bgMatch[1] : null;
-    
-    // Load background - check if it's an animated GIF
-    let bgData = null;
-    if (bgURL) {
-      if (/\.gif(?:[?#].*)?$/i.test(bgURL)) {
-        // Animated GIF background
-        const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-        const gif = window.__gif_parseGIF(ab);
-        const frs = window.__gif_decompressFrames(gif, true);
-        const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-        const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-        // Get dimensions from first frame
-        const firstFrame = frs[0];
-        const gifW = gif.lsd.width;
-        const gifH = gif.lsd.height;
-        bgData = { kind: "anim", frames: frs, delays, totalDur, width: gifW, height: gifH };
-      } else {
-        // Static image background
-        const img = await loadImage(bgURL);
-        bgData = { kind: "static", img };
-      }
-    }
-
-    const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
-
-    // preload stickers - keep top-left coordinates to match CSS transform
-    // Filter out text-based elements (headline, company, CTA) which don't have images
-    const imageWrappers = wrappers.filter(w => {
-      const hasImg = w.querySelector("img") !== null;
-      return hasImg;
-    });
-    
-    const stickers = await Promise.all(imageWrappers.map(async (w) => {
-      const domImg = w.querySelector("img");
-      const src    = domImg.getAttribute("src");
-      const x      = parseFloat(w.getAttribute("data-x")) || 0;  // top-left
-      const y      = parseFloat(w.getAttribute("data-y")) || 0;  // top-left
-      const scale  = w.scale || 1;
-      const angle  = w.angle || 0;
-      const domW   = domImg.naturalWidth  || domImg.width  || 150;
-      const domH   = domImg.naturalHeight || domImg.height || 150;
-      
-      // Get base dimensions to match CSS transform-origin: center behavior
-      const baseW = parseFloat(domImg.style.width) || 150;
-      const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
-
-      if (/\.gif(?:[?#].*)?$/i.test(src)) {
-        const ab   = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-        const gif  = window.__gif_parseGIF(ab);
-        const frs  = window.__gif_decompressFrames(gif, true);
-        const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-        const totalDur = delays.reduce((a,b)=>a+b, 0) || 1;
-        return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH };
-      } else {
-        const bmp = await loadImage(src);
-        return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH };
-      }
-    }));
-
-    // Pre-render text elements (headline, company, CTA) using html2canvas
-    const textWrappers = wrappers.filter(w => {
-      const hasImg = w.querySelector("img") !== null;
-      return !hasImg; // Text elements don't have images
-    });
-    
-    const textElements = await Promise.all(textWrappers.map(async (w) => {
-      const x = parseFloat(w.getAttribute("data-x")) || 0;
-      const y = parseFloat(w.getAttribute("data-y")) || 0;
-      const scale = w.scale || 1;
-      const angle = w.angle || 0;
-      const isCTA = w.classList.contains('cta-layer');
-      
-      // Render the text element to canvas using html2canvas
-      try {
-        // Clone the element to capture computed styles properly
-        const clone = w.cloneNode(true);
-        clone.style.position = 'absolute';
-        clone.style.left = '-9999px';
-        clone.style.top = '-9999px';
-        clone.style.transform = 'none'; // Remove transform to get accurate size
-        // Append to #root for better style inheritance
-        const root = document.getElementById('root') || document.body;
-        root.appendChild(clone);
-        
-        // Get the inner element and copy computed styles explicitly
-        const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
-        if (innerEl) {
-          // Remove bouncing class to capture clean state
-          innerEl.classList.remove('bouncing');
-          
-          const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
-          if (originalInner) {
-            const computed = getComputedStyle(originalInner);
-            
-            // For CTA buttons, copy inline styles directly (they have complex gradients)
-            if (isCTA && originalInner.style.background) {
-              innerEl.style.background = originalInner.style.background;
-            } else {
-              innerEl.style.background = computed.background;
-            }
-            innerEl.style.backgroundColor = computed.backgroundColor;
-            // Copy backgroundImage separately for gradients
-            if (originalInner.style.backgroundImage) {
-              innerEl.style.backgroundImage = originalInner.style.backgroundImage;
-            } else if (computed.backgroundImage && computed.backgroundImage !== 'none') {
-              innerEl.style.backgroundImage = computed.backgroundImage;
-            }
-            // For CTA, copy inline border/boxShadow directly
-            if (isCTA) {
-              innerEl.style.border = originalInner.style.border || computed.border;
-              innerEl.style.boxShadow = originalInner.style.boxShadow || computed.boxShadow;
-              innerEl.style.borderRadius = originalInner.style.borderRadius || computed.borderRadius;
-            } else {
-              innerEl.style.border = computed.border;
-              innerEl.style.boxShadow = computed.boxShadow;
-              innerEl.style.borderRadius = computed.borderRadius;
-            }
-            innerEl.style.borderWidth = computed.borderWidth;
-            innerEl.style.borderStyle = computed.borderStyle;
-            innerEl.style.borderColor = computed.borderColor;
-            innerEl.style.color = computed.color;
-            innerEl.style.textShadow = computed.textShadow;
-            innerEl.style.fontFamily = computed.fontFamily;
-            innerEl.style.fontSize = computed.fontSize;
-            innerEl.style.fontWeight = computed.fontWeight;
-            innerEl.style.fontStyle = computed.fontStyle;
-            innerEl.style.letterSpacing = computed.letterSpacing;
-            innerEl.style.textTransform = computed.textTransform;
-            innerEl.style.textDecoration = computed.textDecoration;
-            innerEl.style.webkitTextStroke = computed.webkitTextStroke;
-            innerEl.style.padding = computed.padding;
-            // Copy filter for drop-shadow effects (outline/shadow)
-            innerEl.style.filter = computed.filter;
-            innerEl.style.webkitFilter = computed.webkitFilter;
-            // Reset transform to avoid capturing mid-animation state
-            innerEl.style.transform = 'none';
-            innerEl.style.animation = 'none';
-          }
-        }
-        
-        // Store styles for onclone callback
-        const ctaStyles = isCTA && originalInner ? originalInner.style.cssText : '';
-        const filterValue = originalInner ? getComputedStyle(originalInner).filter : '';
-        
-        const canvas = await html2canvas(clone, {
-          scale: 2,  // Higher scale for better CSS capture
-          backgroundColor: null,
-          logging: false,
-          allowTaint: true,
-          useCORS: true,
-          ignoreElements: (element) => {
-            return element.classList.contains('scale-handle') || 
-                   element.classList.contains('rot-handle');
-          },
-          onclone: (clonedDoc, element) => {
-            // Ensure styles are applied in the cloned document
-            const clonedInner = element.querySelector('.cta-button, .headline-text, .company-text');
-            if (clonedInner) {
-              // Re-apply inline styles in cloned document for CTA
-              if (ctaStyles) {
-                clonedInner.style.cssText = ctaStyles;
-              }
-              // Re-apply filter
-              if (filterValue && filterValue !== 'none') {
-                clonedInner.style.filter = filterValue;
-              }
-            }
-          }
-        });
-        
-        // Remove clone
-        clone.parentNode.removeChild(clone);
-        
-        // Use canvas dimensions (what was actually rendered) - divide by scale
-        const baseW = canvas.width / 2;
-        const baseH = canvas.height / 2;
-        
-        // Get shadow/outline flags for manual rendering if needed
-        const hasOutline = w.getAttribute('data-has-outline') === 'true';
-        const hasShadow = w.getAttribute('data-has-shadow') === 'true';
-        
-        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, renderScale: 2 };
-      } catch (e) {
-        console.warn("Failed to render text element:", e);
-        // Clean up clone if it exists
-        const orphanClone = document.querySelector('[style*="-9999px"]');
-        if (orphanClone) orphanClone.remove();
-        return null;
-      }
-    }));
-    
-    // Filter out nulls
-    const validTextElements = textElements.filter(t => t !== null);
-
-    const enc = new GIFEncoder();
-    enc.setRepeat(0);
-    enc.setDelay(FRAME_MS);
-    enc.setQuality(10);
-    enc.start();
-
-    for (let i = 0; i < TOTAL; i++) {
-      if (CANCELLED) break;
-
-      ctx.clearRect(0, 0, W, H);
-      
-      // Draw background - match CSS background-size setting
-      // Currently using partial squash mode (100% 115%)
-      if (bgData) {
-        const drawH = H * 1.15;
-        const drawY = (H - drawH) / 2;
-        
-        if (bgData.kind === "static") {
-          // Static image background
-          ctx.drawImage(bgData.img, 0, drawY, W, drawH);
-        } else {
-          // Animated GIF background
-          const elapsed = i * FRAME_MS;
-          const mod = elapsed % bgData.totalDur;
-          let acc = 0, idx = 0;
-          for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
-          idx = idx % bgData.frames.length;
-          
-          // Create a temporary canvas for the full GIF frame
-          const fullGif = document.createElement("canvas");
-          fullGif.width = bgData.width;
-          fullGif.height = bgData.height;
-          const fullCtx = fullGif.getContext("2d");
-          
-          // Render all frames up to current index to handle disposal properly
-          for (let fi = 0; fi <= idx; fi++) {
-            const f = bgData.frames[fi];
-            
-            // Handle disposal from previous frame
-            if (fi > 0) {
-              const prevF = bgData.frames[fi - 1];
-              if (prevF.disposalType === 2) {
-                // Restore to background (clear)
-                fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
-              }
-              // disposalType 3 (restore to previous) is complex, treat as 1 (do nothing)
-            }
-            
-            // Draw the frame patch
-            const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-            const pc = document.createElement("canvas");
-            pc.width = f.dims.width;
-            pc.height = f.dims.height;
-            pc.getContext("2d").putImageData(patch, 0, 0);
-            fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-          }
-          
-          // Draw the full frame scaled to canvas
-          ctx.drawImage(fullGif, 0, drawY, W, drawH);
-        }
-      }
-
-      for (const s of stickers) {
-        ctx.save();
-        // Match CSS: translate(x, y) scale(s) rotate(r) with transform-origin: center
-        // Step 1: translate to top-left position
-        ctx.translate(s.x, s.y);
-        // Step 2: move to element's center (transform-origin: center)
-        ctx.translate(s.baseW / 2, s.baseH / 2);
-        // Step 3: apply rotation and scale (now around center)
-        ctx.rotate((s.angle || 0) * Math.PI / 180);
-        ctx.scale(s.scale || 1, s.scale || 1);
-        // Step 4: draw using BASE dimensions (CSS-sized), offset so center is at origin
-        const offsetX = -s.baseW / 2;
-        const offsetY = -s.baseH / 2;
-
-        if (s.kind === "static") {
-          ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-        } else {
-          // Animated GIF: need to scale frames from natural size to base size
-          const elapsed = i * FRAME_MS;
-          const mod     = elapsed % s.totalDur;
-          let acc = 0, idx = 0;
-          for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-          const f = s.frames[idx % s.frames.length];
-
-          // Create a temporary canvas for the full GIF frame at natural size
-          const fullGif = document.createElement("canvas");
-          fullGif.width = s.domW;
-          fullGif.height = s.domH;
-          const fullCtx = fullGif.getContext("2d");
-
-          if (f.disposalType === 2) {
-            fullCtx.clearRect(f.dims.left, f.dims.top, f.dims.width, f.dims.height);
-          }
-
-          // Draw the patch at natural size
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width; 
-          pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-
-          // Now draw the full frame scaled to base dimensions
-          ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
-        }
-        ctx.restore();
-      }
-
-      // Draw text elements (headline, company, CTA)
-      // CTA bounce: pixelBounce animation - bounce at start, then rest
-      const BOUNCE_DURATION = 2000; // 2 second bounce
-      const bounceScales = [1, 1.10, 1.20, 1.10]; // 4 steps
-      const frameTime = i * FRAME_MS;
-      
-      let ctaBounceScale = 1;
-      // First bounce starts at 500ms (after a short delay) and lasts 2 seconds
-      const bounceStart = 500;
-      if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
-        const bounceProgress = (frameTime - bounceStart) / BOUNCE_DURATION;
-        const bounceStep = Math.floor(bounceProgress * 4) % 4;
-        ctaBounceScale = bounceScales[bounceStep];
-      }
-      
-      for (const t of validTextElements) {
-        ctx.save();
-        // Match CSS: translate(x, y) scale(s) rotate(r) with transform-origin: center
-        ctx.translate(t.x, t.y);
-        ctx.translate(t.baseW / 2, t.baseH / 2);
-        ctx.rotate((t.angle || 0) * Math.PI / 180);
-        
-        // Apply extra bounce scale for CTA elements
-        let finalScale = t.scale || 1;
-        if (t.isCTA) {
-          finalScale *= ctaBounceScale;
-        }
-        ctx.scale(finalScale, finalScale);
-        
-        // Apply manual shadow/outline if element has those effects
-        // (html2canvas may not capture CSS filter: drop-shadow properly)
-        if (t.hasOutline) {
-          // Draw outline by drawing the image multiple times with offset
-          ctx.shadowColor = '#000';
-          ctx.shadowBlur = 0;
-          // Draw outline in 4 directions
-          ctx.shadowOffsetX = 2;
-          ctx.shadowOffsetY = 0;
-          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-          ctx.shadowOffsetX = -2;
-          ctx.shadowOffsetY = 0;
-          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 2;
-          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = -2;
-          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-          // Reset shadow
-          ctx.shadowColor = 'transparent';
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 0;
-        }
-        
-        if (t.hasShadow) {
-          // Apply drop shadow
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-          ctx.shadowBlur = 0;
-          ctx.shadowOffsetX = 4;
-          ctx.shadowOffsetY = 4;
-        }
-        
-        ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-        ctx.restore();
-      }
-
-      // Draw glitter effect (if active)
-      const glitterCanvasEl = document.getElementById('glitter-canvas');
-      if (glitterCanvasEl) {
-        ctx.drawImage(glitterCanvasEl, 0, 0, W, H);
-      }
-      
-      // Draw snow effect (if active)
-      const snowCanvasEl = document.getElementById('snow-canvas');
-      if (snowCanvasEl) {
-        ctx.drawImage(snowCanvasEl, 0, 0, W, H);
-      }
-
-      enc.addFrame(ctx);
-      progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
-      // Update progress bar
-      if (progressBar) progressBar.style.width = `${((i + 1) / TOTAL) * 100}%`;
-      await sleep(FRAME_MS);
-    }
-
-    if (!CANCELLED) {
-      enc.finish();
-      const binary = enc.stream().getData();
-      const url = "data:image/gif;base64," + btoa(binary);
-      const a = document.createElement("a");
-      a.href = url; a.download = "banner.gif"; a.click();
-      
-      // Restore UI scale
-      document.documentElement.style.setProperty('--ui-scale', originalScale);
-      
-      // Show completed state
-      showExportCompleted();
-    } else {
-      // Cancelled - restore UI scale and hide exporting screen
-      document.documentElement.style.setProperty('--ui-scale', originalScale);
-      resetExportScreen();
-    }
-    
-    btnPNG.disabled = false;
-    btnGIF.disabled = false;
-    btnCancel.style.display = "none";
-
-    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-    function loadImage(url) {
-      return new Promise((res, rej) => {
-        if (!url) return res(null);
-        const im = new Image();
-        im.crossOrigin = "anonymous";
-        im.onload = () => res(im);
-        im.onerror = rej;
-        im.src = url;
-      });
-    }
-  });
-}
 
 // ==== RANDOMIZE STICKER ORDER =============================================
 // Shuffle stickers on page load
