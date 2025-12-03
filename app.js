@@ -4146,9 +4146,14 @@ function wireExportControls(){
   btnPNG.addEventListener("click", async () => {
     SoundManager.play('save');
     
-    // Show exporting screen
+    // Show exporting screen and play video
     const exportingScreen = document.getElementById('exporting-screen');
+    const exportingVideo = document.getElementById('exporting-video');
     if (exportingScreen) exportingScreen.classList.remove('hidden');
+    if (exportingVideo) {
+      exportingVideo.currentTime = 0;
+      exportingVideo.play().catch(() => {});
+    }
     
     const stage = document.getElementById("stage");
     const app = document.getElementById("app");
@@ -4210,9 +4215,14 @@ function wireExportControls(){
       return;
     }
 
-    // Show exporting screen
+    // Show exporting screen and play video
     const exportingScreen = document.getElementById('exporting-screen');
+    const exportingVideo = document.getElementById('exporting-video');
     if (exportingScreen) exportingScreen.classList.remove('hidden');
+    if (exportingVideo) {
+      exportingVideo.currentTime = 0;
+      exportingVideo.play().catch(() => {});
+    }
 
     const FPS = Math.max(1, Math.min(15, parseInt(fpsInput?.value || "5", 10)));
     const DURATION_S = Math.max(1, Math.min(20, parseInt(durInput?.value || "5", 10)));
