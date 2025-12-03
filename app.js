@@ -2890,11 +2890,6 @@ function applyTransform(el) {
     el.style.transform = `translate(${x}px, ${y}px) scale(${el.scale}) rotate(${el.angle}deg)`;
 }
 
-//------------------------------------------------------
-// DRAG FROM BAR → SPAWN UNDER POINTER
-//------------------------------------------------------
-let spawningWrapper = null;
-
 // Sticker limit constants and functions
 const MAX_STICKERS = 10;
 
@@ -2945,167 +2940,40 @@ function uiScale() {
   return v ? parseFloat(v) : 1;
 }
 
-interact('.sticker-src').draggable({
-  // Require vertical movement to start drag (prevents scroll from being detected as drag)
-  startAxis: 'y',
-  lockAxis: 'start',
-  // Manual start with distance threshold - prevents accidental drags while scrolling
-  manualStart: true,
-  listeners: {
-    move (event) {
-      const { interaction } = event;
-      // Check if drag hasn't started yet - manual start logic
-      if (interaction.pointerIsDown && !interaction.interacting()) {
-        // Calculate vertical distance moved
-        const dy = Math.abs(event.clientY - event.clientY0);
-        const dx = Math.abs(event.clientX - event.clientX0);
-        
-        // Only start drag if moved more vertically than horizontally AND moved at least 10px vertically
-        if (dy > 10 && dy > dx) {
-          interaction.start({ name: 'drag' }, event.interactable, event.target);
-        }
-        return; // Don't process as a drag move yet
-      }
-      
-      // Regular drag move - update sticker position
-      if (!spawningWrapper) return;
-
-      const stage = document.getElementById("stage");
-      const r = stage.getBoundingClientRect();
-      const s = uiScale();
-
-      const x = (event.clientX - r.left) / s - 75;
-      const y = (event.clientY - r.top)  / s - 75;
-
-      spawningWrapper.setAttribute("data-x", x);
-      spawningWrapper.setAttribute("data-y", y);
-
-      // keep center inside stage while dragging in
-      clampStickerPosition(spawningWrapper);
-      applyTransform(spawningWrapper);
-    },
-    start (event) {
-      // Check sticker limit before spawning
-      if (getStickerCount() >= MAX_STICKERS) {
-        showStickerLimitMessage();
-        return;
-      }
-      
-      SoundManager.play('drag'); // Play drag sound
-      
-      const stage = document.getElementById("stage");
-      const r = stage.getBoundingClientRect();
-      const s = uiScale();
-
-      // pointer → stage coords (unscaled)
-      const x0 = (event.clientX - r.left) / s - 75; // 150/2
-      const y0 = (event.clientY - r.top)  / s - 75;
-
-      spawningWrapper = createStickerAt(event.target.src, x0, y0);
-
-      // clamp immediately so it can’t start off-stage
-      clampStickerPosition(spawningWrapper);
-      applyTransform(spawningWrapper);
-    },
-
-    end () {
-      if (spawningWrapper) {
-        // final snap-in just in case
-        clampStickerPosition(spawningWrapper);
-        applyTransform(spawningWrapper);
-        SoundManager.play('drop'); // Play drop sound
-      }
-      spawningWrapper = null;
-    }
-  }
-});
 
 //------------------------------------------------------
 // CLICK-TO-SPAWN STICKERS
 //------------------------------------------------------
-// Add click handler to sticker sources
+// Simple click to spawn - no drag detection needed
 document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
-  let isDragging = false;
-  let dragTimeout = null;
-  let touchHandled = false; // Prevent double-spawn from touch+click
-  
   // Hover sound
   stickerSrc.addEventListener('mouseenter', () => {
     SoundManager.play('menuHover');
   });
   
-  stickerSrc.addEventListener('mousedown', () => {
-    isDragging = false;
-    dragTimeout = setTimeout(() => {
-      isDragging = true;
-    }, 100); // If held for 100ms, consider it a drag
-  });
-  
-  stickerSrc.addEventListener('mousemove', () => {
-    isDragging = true;
-  });
-  
-  stickerSrc.addEventListener('mouseup', () => {
-    clearTimeout(dragTimeout);
-  });
-  
-  stickerSrc.addEventListener('click', (event) => {
-    // If touch already handled this, skip
-    if (touchHandled) {
-      touchHandled = false;
-      return;
-    }
-    
-    // If it was a drag, don't spawn on click
-    if (isDragging) {
-      isDragging = false;
-      return;
-    }
-    
+  // Click to spawn
+  stickerSrc.addEventListener('click', () => {
     // Check sticker limit
     if (getStickerCount() >= MAX_STICKERS) {
       showStickerLimitMessage();
       return;
     }
     
-    // Spawn sticker at random position on stage (always fully within bounds)
-    const stage = document.getElementById('stage');
+    // Spawn sticker at random position on stage
     const stageWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
     const stageHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
     
-    // Random position (accounting for 150px sticker width to stay within bounds)
     const stickerSize = 150;
     const randomX = Math.random() * (stageWidth - stickerSize);
     const randomY = Math.random() * (stageHeight - stickerSize);
     
-    SoundManager.play('drop'); // Play drop sound when spawning sticker
+    SoundManager.play('drop');
     createStickerAt(stickerSrc.src, randomX, randomY);
   });
   
   // Touch support for mobile
-  stickerSrc.addEventListener('touchstart', () => {
-    isDragging = false;
-    touchHandled = false;
-    dragTimeout = setTimeout(() => {
-      isDragging = true;
-    }, 100);
-  });
-  
-  stickerSrc.addEventListener('touchmove', () => {
-    isDragging = true;
-  });
-  
   stickerSrc.addEventListener('touchend', (event) => {
-    clearTimeout(dragTimeout);
-    
-    // Mark that touch handled this interaction
-    touchHandled = true;
-    
-    // If it was a drag, don't spawn
-    if (isDragging) {
-      isDragging = false;
-      return;
-    }
+    event.preventDefault(); // Prevent click from also firing
     
     // Check sticker limit
     if (getStickerCount() >= MAX_STICKERS) {
@@ -3113,17 +2981,15 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
       return;
     }
     
-    // Spawn at random position on stage (always fully within bounds)
-    const stage = document.getElementById('stage');
+    // Spawn at random position
     const stageWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
     const stageHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
     
-    // Random position (accounting for 150px sticker width to stay within bounds)
     const stickerSize = 150;
     const randomX = Math.random() * (stageWidth - stickerSize);
     const randomY = Math.random() * (stageHeight - stickerSize);
     
-    SoundManager.play('drop'); // Play drop sound when spawning sticker
+    SoundManager.play('drop');
     createStickerAt(stickerSrc.src, randomX, randomY);
   });
 });
