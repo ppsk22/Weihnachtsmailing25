@@ -59,6 +59,61 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ==== EXPORT COMPLETED & RESTART ====
+function showExportCompleted() {
+  const exportingText = document.getElementById('exporting-text');
+  const completedContainer = document.getElementById('export-completed-container');
+  const progressContainer = document.getElementById('export-progress-container');
+  const loadingStatus = document.querySelector('#exporting-screen .loading-status');
+  
+  // Hide exporting text and progress bar
+  if (exportingText) exportingText.classList.add('hidden');
+  if (progressContainer) progressContainer.classList.add('hidden');
+  if (loadingStatus) loadingStatus.style.display = 'none';
+  
+  // Show completed container (with text and button stacked)
+  if (completedContainer) completedContainer.classList.remove('hidden');
+}
+
+function resetExportScreen() {
+  const exportingText = document.getElementById('exporting-text');
+  const completedContainer = document.getElementById('export-completed-container');
+  const progressContainer = document.getElementById('export-progress-container');
+  const progressBar = document.getElementById('export-progress-bar');
+  const exportingScreen = document.getElementById('exporting-screen');
+  const loadingStatus = document.querySelector('#exporting-screen .loading-status');
+  
+  // Reset to initial state
+  if (exportingText) exportingText.classList.remove('hidden');
+  if (completedContainer) completedContainer.classList.add('hidden');
+  if (progressContainer) progressContainer.classList.add('hidden');
+  if (progressBar) progressBar.style.width = '0%';
+  if (exportingScreen) exportingScreen.classList.add('hidden');
+  if (loadingStatus) loadingStatus.style.display = '';
+}
+
+function restartTool() {
+  // Play sound first
+  SoundManager.play('confirm');
+  
+  // Full page reload to guarantee clean state
+  // This ensures no leftover state from previous exports
+  setTimeout(() => {
+    window.location.reload();
+  }, 100); // Small delay to let the sound play
+}
+
+// Add restart button click handler
+document.addEventListener('DOMContentLoaded', () => {
+  const restartBtn = document.getElementById('restart-btn');
+  if (restartBtn) {
+    restartBtn.addEventListener('click', restartTool);
+    restartBtn.addEventListener('mouseenter', () => {
+      SoundManager.play('menuHover');
+    });
+  }
+});
+
 // ==== POPUP OVER STAGE (NEW) =============================================
 
 // ==== GUIDED FLOW SYSTEM ====
@@ -443,27 +498,16 @@ function buildHeroGrid(container){
 }
 
 function buildExportUI(container){
-  // Build the export UI with name/email fields at top, download options below
+  // Build the export UI with main export button and manual download options
   const wrap = document.createElement('div');
   wrap.className = 'export-ui-wrapper';
   wrap.innerHTML = `
-    <div class="export-section email-section">
-      <div class="input-group">
-        <label class="lbl" for="export-name">Your Name</label>
-        <input id="export-name" type="text" placeholder="Enter your name" class="export-input" />
-        <span id="name-error" class="input-error"></span>
-      </div>
-      
-      <div class="input-group">
-        <label class="lbl" for="export-email">Your Email</label>
-        <input id="export-email" type="email" placeholder="Enter your email" class="export-input" />
-        <span id="email-error" class="input-error"></span>
-      </div>
-      
+    <div class="export-section main-export-section">
+      <p class="export-congrats">Your banner is ready!</p>
       <div class="btn-row centered">
-        <button id="export-send" class="export-btn confirm-btn">Send Banner</button>
+        <button id="export-main" class="export-btn confirm-btn">Export Banner</button>
       </div>
-      <div id="send-status" class="send-status"></div>
+      <div id="export-main-status" class="send-status"></div>
     </div>
     
     <hr class="export-divider" />
@@ -489,178 +533,354 @@ function buildExportUI(container){
   `;
   container.appendChild(wrap);
 
-  // Wire up validation and send button
-  wireEmailValidation();
+  // Wire up main export button
+  wireMainExport();
   
   // Re-bind the existing handlers to these freshly created elements
   wireExportControls();
 }
 
-// Email/Name validation
-function wireEmailValidation() {
-  const nameInput = document.getElementById('export-name');
-  const emailInput = document.getElementById('export-email');
-  const nameError = document.getElementById('name-error');
-  const emailError = document.getElementById('email-error');
-  const sendBtn = document.getElementById('export-send');
-  const sendStatus = document.getElementById('send-status');
+// Main export button handler
+function wireMainExport() {
+  const exportBtn = document.getElementById('export-main');
+  const exportStatus = document.getElementById('export-main-status');
   
-  if (!nameInput || !emailInput || !sendBtn) return;
+  if (!exportBtn) return;
   
-  // Validation rules
-  const validateName = (name) => {
-    const errors = [];
-    if (!name || name.trim().length === 0) {
-      errors.push('Name is required');
-    } else if (name.trim().length < 2) {
-      errors.push('Name must be at least 2 characters');
-    } else if (name.length > 100) {
-      errors.push('Name is too long (max 100 characters)');
-    }
-    // Check for problematic characters - be permissive, only block dangerous ones
-    const invalidChars = name.match(/[<>{}[\]\\\/=+%$#@!^*()~`|"]/g);
-    if (invalidChars) {
-      errors.push(`Invalid characters: ${[...new Set(invalidChars)].join(' ')}`);
-    }
-    return errors;
-  };
-  
-  const validateEmail = (email) => {
-    const errors = [];
-    if (!email || email.trim().length === 0) {
-      errors.push('Email is required');
-      return errors;
-    }
-    
-    email = email.trim();
-    
-    // Basic structure check (local@domain)
-    if (!email.includes('@')) {
-      errors.push('Email must contain @');
-      return errors;
-    }
-    
-    const parts = email.split('@');
-    if (parts.length !== 2) {
-      errors.push('Email must have exactly one @');
-      return errors;
-    }
-    
-    const [local, domain] = parts;
-    
-    // Local part validation
-    if (local.length === 0) {
-      errors.push('Email local part is empty');
-    } else if (local.length > 64) {
-      errors.push('Email local part is too long');
-    }
-    
-    // Domain validation - be permissive for international/new TLDs
-    if (domain.length === 0) {
-      errors.push('Email domain is empty');
-    } else if (!domain.includes('.')) {
-      errors.push('Email domain must have a dot');
-    } else if (domain.length > 255) {
-      errors.push('Email domain is too long');
-    }
-    
-    // Check for definitely invalid characters in email
-    // Be permissive - allow + . _ - in local, most things in domain
-    const invalidLocalChars = local.match(/[<>()[\]\\,;:\s&"]/g);
-    if (invalidLocalChars) {
-      errors.push(`Invalid characters in email: ${[...new Set(invalidLocalChars)].join(' ')}`);
-    }
-    
-    // Domain can't have spaces or certain chars
-    const invalidDomainChars = domain.match(/[<>()[\]\\,;:\s&"]/g);
-    if (invalidDomainChars) {
-      errors.push(`Invalid characters in domain: ${[...new Set(invalidDomainChars)].join(' ')}`);
-    }
-    
-    return errors;
-  };
-  
-  // Send button handler - validation only happens on click
-  sendBtn.addEventListener('click', async () => {
-    const name = nameInput.value;
-    const email = emailInput.value;
-    
-    // Validate both
-    const nameErrors = validateName(name);
-    const emailErrors = validateEmail(email);
-    
-    nameError.textContent = nameErrors.length > 0 ? nameErrors[0] : '';
-    emailError.textContent = emailErrors.length > 0 ? emailErrors[0] : '';
-    nameInput.classList.toggle('input-invalid', nameErrors.length > 0);
-    emailInput.classList.toggle('input-invalid', emailErrors.length > 0);
-    
-    if (nameErrors.length > 0 || emailErrors.length > 0) {
-      SoundManager.play('clickDenied');
-      sendStatus.textContent = 'Please fix the errors above';
-      sendStatus.className = 'send-status error';
-      return;
-    }
-    
-    // All valid - proceed with send
+  exportBtn.addEventListener('click', async () => {
     SoundManager.play('confirm');
-    sendStatus.textContent = 'Preparing your banner...';
-    sendStatus.className = 'send-status pending';
-    sendBtn.disabled = true;
+    exportStatus.textContent = 'Preparing your banner...';
+    exportStatus.className = 'send-status pending';
+    exportBtn.disabled = true;
+    
+    // Show exporting screen
+    const exportingScreen = document.getElementById('exporting-screen');
+    const exportingVideo = document.getElementById('exporting-video');
+    const progressContainer = document.getElementById('export-progress-container');
+    const progressBar = document.getElementById('export-progress-bar');
+    
+    if (exportingScreen) exportingScreen.classList.remove('hidden');
+    if (exportingVideo) {
+      exportingVideo.currentTime = 0;
+      exportingVideo.play().catch(() => {});
+    }
+    if (progressContainer) progressContainer.classList.remove('hidden');
+    if (progressBar) progressBar.style.width = '0%';
     
     try {
-      // Generate the banner image
-      const stage = document.getElementById("stage");
-      const canvas = await html2canvas(stage, {
-        x: 0,
-        y: 0,
-        width: STAGE_W,
-        height: STAGE_H,
-        windowWidth: STAGE_W,
-        windowHeight: STAGE_H,
-        scale: 1,
-        useCORS: true,
-        backgroundColor: null
+      // Generate GIF with fixed settings (15 fps, 5 seconds)
+      const gifData = await generateGIF(15, 5, (progress) => {
+        if (progressBar) progressBar.style.width = `${progress * 100}%`;
       });
       
-      const imageData = canvas.toDataURL("image/png");
+      // Generate unique filename with timestamp
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 8);
+      const filename = `banner_${timestamp}_${randomId}.gif`;
       
-      // Prepare data for sending
-      const exportData = {
-        name: name.trim(),
-        email: email.trim(),
-        image: imageData,
-        timestamp: new Date().toISOString(),
-      };
+      // Save to server
+      exportStatus.textContent = 'Saving to server...';
+      const saveResult = await saveBannerToServer(gifData, filename);
       
-      // Send to PHP backend
-      sendStatus.textContent = 'Sending to ' + email.trim() + '...';
-      
-      const result = await sendBannerToAPI(exportData);
-      
-      if (result.success) {
-        SoundManager.play('save');
-        sendStatus.textContent = '✓ Banner sent to ' + email.trim() + '!';
-        sendStatus.className = 'send-status success';
-      } else {
-        throw new Error(result.error || 'Failed to send');
+      if (!saveResult.success) {
+        console.warn('Server save failed:', saveResult.error);
+        // Continue anyway - still download for user
       }
+      
+      // Download the GIF
+      const a = document.createElement('a');
+      a.href = gifData;
+      a.download = filename;
+      a.click();
+      
+      SoundManager.play('save');
+      
+      // Show completed state
+      showExportCompleted();
       
     } catch (error) {
       console.error('Export error:', error);
       SoundManager.play('clickDenied');
-      sendStatus.textContent = 'Error: ' + error.message;
-      sendStatus.className = 'send-status error';
+      exportStatus.textContent = 'Error: ' + error.message;
+      exportStatus.className = 'send-status error';
+      
+      // Hide exporting screen on error
+      if (exportingScreen) exportingScreen.classList.add('hidden');
     } finally {
-      sendBtn.disabled = false;
+      exportBtn.disabled = false;
     }
   });
 }
 
+// Generate GIF with specified settings - returns base64 data URL
+async function generateGIF(fps, durationSeconds, progressCallback) {
+  if (typeof window.__gif_parseGIF !== "function" ||
+      typeof window.__gif_decompressFrames !== "function") {
+    throw new Error("GIF library not loaded. Please refresh the page.");
+  }
+  if (typeof GIFEncoder !== "function") {
+    throw new Error("GIF encoder not loaded. Please refresh the page.");
+  }
+  
+  const TOTAL = fps * durationSeconds;
+  const FRAME_MS = Math.round(1000 / fps);
+  
+  // Temporarily reset UI scale
+  const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
+  document.documentElement.style.setProperty('--ui-scale', '1');
+  
+  const stage = document.getElementById("stage");
+  stage.offsetHeight; // Force reflow
+  
+  const W = STAGE_W;
+  const H = STAGE_H;
+  
+  const buf = document.createElement("canvas");
+  buf.width = W; buf.height = H;
+  const ctx = buf.getContext("2d", { willReadFrequently: true });
+  
+  // Load background
+  const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+  const bgURL = bgMatch ? bgMatch[1] : null;
+  
+  let bgData = null;
+  if (bgURL) {
+    if (/\.gif(?:[?#].*)?$/i.test(bgURL)) {
+      const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+      const gif = window.__gif_parseGIF(ab);
+      const frs = window.__gif_decompressFrames(gif, true);
+      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+      const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
+      const gifW = gif.lsd.width;
+      const gifH = gif.lsd.height;
+      bgData = { kind: "anim", frames: frs, delays, totalDur, width: gifW, height: gifH };
+    } else {
+      const img = await loadImageForExport(bgURL);
+      bgData = { kind: "static", img };
+    }
+  }
+  
+  // Load stickers (simplified - using same logic as main export)
+  const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
+  const imageWrappers = wrappers.filter(w => w.querySelector("img") !== null);
+  
+  const stickers = await Promise.all(imageWrappers.map(async (w) => {
+    const domImg = w.querySelector("img");
+    const src = domImg.getAttribute("src");
+    const x = parseFloat(w.getAttribute("data-x")) || 0;
+    const y = parseFloat(w.getAttribute("data-y")) || 0;
+    const scale = w.scale || 1;
+    const angle = w.angle || 0;
+    const domW = domImg.naturalWidth || domImg.width || 150;
+    const domH = domImg.naturalHeight || domImg.height || 150;
+    const baseW = parseFloat(domImg.style.width) || 150;
+    const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
+    
+    if (/\.gif(?:[?#].*)?$/i.test(src)) {
+      const ab = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+      const gif = window.__gif_parseGIF(ab);
+      const frs = window.__gif_decompressFrames(gif, true);
+      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+      const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
+      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH };
+    } else {
+      const bmp = await loadImageForExport(src);
+      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH };
+    }
+  }));
+  
+  // Pre-render text elements
+  const textWrappers = wrappers.filter(w => w.querySelector("img") === null);
+  const textElements = await Promise.all(textWrappers.map(async (w) => {
+    const x = parseFloat(w.getAttribute("data-x")) || 0;
+    const y = parseFloat(w.getAttribute("data-y")) || 0;
+    const scale = w.scale || 1;
+    const angle = w.angle || 0;
+    
+    try {
+      const clone = w.cloneNode(true);
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '-9999px';
+      clone.style.transform = 'none';
+      document.body.appendChild(clone);
+      
+      const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
+      if (innerEl) {
+        const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
+        if (originalInner) {
+          const computed = getComputedStyle(originalInner);
+          innerEl.style.background = computed.background;
+          innerEl.style.backgroundColor = computed.backgroundColor;
+          innerEl.style.backgroundImage = computed.backgroundImage;
+          innerEl.style.border = computed.border;
+          innerEl.style.borderRadius = computed.borderRadius;
+          innerEl.style.boxShadow = computed.boxShadow;
+        }
+      }
+      
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        backgroundColor: null,
+        logging: false,
+        allowTaint: true,
+        useCORS: true,
+        ignoreElements: (element) => {
+          return element.classList.contains('scale-handle') || 
+                 element.classList.contains('rot-handle');
+        }
+      });
+      
+      document.body.removeChild(clone);
+      
+      const baseW = canvas.width / 2;
+      const baseH = canvas.height / 2;
+      
+      return { canvas, x, y, scale, angle, baseW, baseH };
+    } catch (e) {
+      return null;
+    }
+  }));
+  
+  const validTextElements = textElements.filter(t => t !== null);
+  
+  // Encode GIF
+  const enc = new GIFEncoder();
+  enc.setRepeat(0);
+  enc.setDelay(FRAME_MS);
+  enc.setQuality(10);
+  enc.start();
+  
+  const snowCanvasEl = document.getElementById('snow-canvas');
+  
+  for (let i = 0; i < TOTAL; i++) {
+    ctx.clearRect(0, 0, W, H);
+    
+    // Draw background
+    if (bgData) {
+      const drawH = H * 1.15;
+      const drawY = (H - drawH) / 2;
+      
+      if (bgData.kind === "static") {
+        ctx.drawImage(bgData.img, 0, drawY, W, drawH);
+      } else {
+        const elapsed = i * FRAME_MS;
+        const mod = elapsed % bgData.totalDur;
+        let acc = 0, idx = 0;
+        for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
+        idx = idx % bgData.frames.length;
+        
+        const fullGif = document.createElement("canvas");
+        fullGif.width = bgData.width;
+        fullGif.height = bgData.height;
+        const fullCtx = fullGif.getContext("2d");
+        
+        for (let fi = 0; fi <= idx; fi++) {
+          const f = bgData.frames[fi];
+          if (fi > 0) {
+            const prevF = bgData.frames[fi - 1];
+            if (prevF.disposalType === 2) {
+              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+            }
+          }
+          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+          const pc = document.createElement("canvas");
+          pc.width = f.dims.width;
+          pc.height = f.dims.height;
+          pc.getContext("2d").putImageData(patch, 0, 0);
+          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
+        }
+        
+        ctx.drawImage(fullGif, 0, drawY, W, drawH);
+      }
+    }
+    
+    // Draw stickers
+    for (const s of stickers) {
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.translate(s.baseW / 2, s.baseH / 2);
+      ctx.rotate((s.angle || 0) * Math.PI / 180);
+      ctx.scale(s.scale || 1, s.scale || 1);
+      const offsetX = -s.baseW / 2;
+      const offsetY = -s.baseH / 2;
+      
+      if (s.kind === "static") {
+        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+      } else {
+        const elapsed = i * FRAME_MS;
+        const mod = elapsed % s.totalDur;
+        let acc = 0, idx = 0;
+        for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
+        const f = s.frames[idx % s.frames.length];
+        
+        const fullGif = document.createElement("canvas");
+        fullGif.width = s.domW;
+        fullGif.height = s.domH;
+        const fullCtx = fullGif.getContext("2d");
+        
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width;
+        pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        fullCtx.drawImage(pc, f.dims.left, f.dims.top);
+        
+        ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
+      }
+      ctx.restore();
+    }
+    
+    // Draw text elements
+    for (const t of validTextElements) {
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.translate(t.baseW / 2, t.baseH / 2);
+      ctx.rotate((t.angle || 0) * Math.PI / 180);
+      ctx.scale(t.scale || 1, t.scale || 1);
+      ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+      ctx.restore();
+    }
+    
+    // Draw snow
+    if (snowCanvasEl) {
+      ctx.drawImage(snowCanvasEl, 0, 0, W, H);
+    }
+    
+    enc.addFrame(ctx);
+    
+    if (progressCallback) {
+      progressCallback((i + 1) / TOTAL);
+    }
+    
+    await new Promise(r => setTimeout(r, FRAME_MS));
+  }
+  
+  enc.finish();
+  
+  // Restore UI scale
+  document.documentElement.style.setProperty('--ui-scale', originalScale);
+  
+  const binary = enc.stream().getData();
+  return "data:image/gif;base64," + btoa(binary);
+}
+
+function loadImageForExport(url) {
+  return new Promise((res, rej) => {
+    if (!url) return res(null);
+    const im = new Image();
+    im.crossOrigin = "anonymous";
+    im.onload = () => res(im);
+    im.onerror = rej;
+    im.src = url;
+  });
+}
+
 // ==== API INTEGRATION ====
-// Sends the banner to your PHP backend
-async function sendBannerToAPI(exportData) {
+// Saves the banner GIF to server
+async function saveBannerToServer(gifDataUrl, filename) {
   // Change this to your actual PHP endpoint path
-  const API_ENDPOINT = 'send-banner.php';
+  const API_ENDPOINT = 'save-banner.php';
   
   try {
     const response = await fetch(API_ENDPOINT, {
@@ -669,10 +889,9 @@ async function sendBannerToAPI(exportData) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: exportData.name,
-        email: exportData.email,
-        image: exportData.image,
-        timestamp: exportData.timestamp,
+        image: gifDataUrl,
+        filename: filename,
+        timestamp: new Date().toISOString(),
       })
     });
     
@@ -684,7 +903,7 @@ async function sendBannerToAPI(exportData) {
     
     return result;
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('Server save error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -3348,6 +3567,16 @@ document.addEventListener('fullscreenchange', () => {
   
   // re-run your scaler so the frame fits fullscreen viewport
   if (typeof updateUIScale === 'function') updateUIScale();
+  
+  // Resize UI snow canvas to match new viewport
+  if (uiSnowCanvas) {
+    setTimeout(() => {
+      uiSnowCanvas.width = window.innerWidth;
+      uiSnowCanvas.height = window.innerHeight;
+      regenerateUISnowPixels();
+      initAccumulation();
+    }, 100);
+  }
 });
 
 // initialize
@@ -3599,7 +3828,13 @@ function initUISnowCanvas() {
   uiSnowCanvas.width = window.innerWidth;
   uiSnowCanvas.height = window.innerHeight;
   
-  document.body.appendChild(uiSnowCanvas);
+  // Append to #root so it's visible in fullscreen mode
+  const root = document.getElementById('root');
+  if (root) {
+    root.appendChild(uiSnowCanvas);
+  } else {
+    document.body.appendChild(uiSnowCanvas);
+  }
   uiSnowCtx = uiSnowCanvas.getContext('2d');
   
   // Handle resize
@@ -3682,9 +3917,16 @@ function snowLoop(timestamp) {
   
   if (!snowLastTime) snowLastTime = timestamp;
   const frameInterval = 1000 / SNOW_SETTINGS.fps;
-  const delta = timestamp - snowLastTime;
+  let delta = timestamp - snowLastTime;
+  
+  // Cap delta to prevent teleporting after tab switch or long pause
+  if (delta > 500) {
+    snowLastTime = timestamp;
+    delta = frameInterval;
+  }
+  
   if (delta < frameInterval) return;
-  const dt = delta / (1000 / 60);
+  const dt = Math.min(delta / (1000 / 60), 3); // Cap dt to prevent huge jumps
   snowLastTime = timestamp;
   
   // === STAGE SNOW ===
@@ -3809,6 +4051,23 @@ setTimeout(() => {
     startSnow();
   }
 }, 100);
+
+// Handle page visibility changes to prevent animation weirdness
+// when switching tabs or minimizing the window
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Page is hidden - animations will pause automatically via requestAnimationFrame
+    // Nothing special needed here
+  } else {
+    // Page is visible again - reset timing to prevent teleporting
+    snowLastTime = 0; // Will be set to current timestamp on next frame
+    
+    // Also reset glitter timing if it exists
+    if (typeof glitterLastTime !== 'undefined') {
+      glitterLastTime = 0;
+    }
+  }
+});
 
 
 // enforce the same size on the DOM element too
@@ -4061,8 +4320,8 @@ function wireExportControls(){
       // Restore UI scaling
       document.documentElement.style.setProperty('--ui-scale', originalScale);
       
-      // Hide exporting screen
-      if (exportingScreen) exportingScreen.classList.add('hidden');
+      // Show completed state instead of hiding
+      showExportCompleted();
     }
   });
 
@@ -4415,18 +4674,17 @@ function wireExportControls(){
       const url = "data:image/gif;base64," + btoa(binary);
       const a = document.createElement("a");
       a.href = url; a.download = "banner.gif"; a.click();
-      progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
-      if (progressBar) progressBar.style.width = '100%';
+      
+      // Restore UI scale
+      document.documentElement.style.setProperty('--ui-scale', originalScale);
+      
+      // Show completed state
+      showExportCompleted();
     } else {
-      progEl.textContent = "Cancelled.";
+      // Cancelled - restore UI scale and hide exporting screen
+      document.documentElement.style.setProperty('--ui-scale', originalScale);
+      resetExportScreen();
     }
-
-    // Restore UI scale
-    document.documentElement.style.setProperty('--ui-scale', originalScale);
-    
-    // Hide exporting screen and progress bar
-    if (exportingScreen) exportingScreen.classList.add('hidden');
-    if (progressContainer) progressContainer.classList.add('hidden');
     
     btnPNG.disabled = false;
     btnGIF.disabled = false;
@@ -5270,7 +5528,15 @@ function glitterLoop(timestamp) {
   const perfStart = performance.now();
   
   if (!glitterLastTime) glitterLastTime = timestamp;
-  const dt = (timestamp - glitterLastTime) / (1000 / 60);
+  let glitterDelta = timestamp - glitterLastTime;
+  
+  // Cap delta to prevent weirdness after tab switch
+  if (glitterDelta > 500) {
+    glitterLastTime = timestamp;
+    glitterDelta = 16; // ~60fps frame
+  }
+  
+  const dt = Math.min(glitterDelta / (1000 / 60), 3); // Cap dt
   glitterLastTime = timestamp;
   
   // === STICKER GLITTER ===

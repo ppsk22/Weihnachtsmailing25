@@ -189,6 +189,28 @@
   display: none;
 }
 
+/* Completed state container */
+.completed-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.completed-container.hidden {
+  display: none;
+}
+
+/* Completed text - same style as loading text */
+.completed-text {
+  font-family: 'home_videoregular', sans-serif;
+  font-size: 18px;
+  color: #5a3fd9;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
 /* Export progress bar */
 .export-progress-container {
   width: 300px;
@@ -1548,6 +1570,15 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 .export-section {
   margin-bottom: 20px;
+}
+
+.export-congrats {
+  font-family: 'home_videoregular', sans-serif;
+  font-size: 20px;
+  color: #5a3fd9;
+  text-align: center;
+  margin: 0 0 20px 0;
+  letter-spacing: 2px;
 }
 
 .export-section-title {
