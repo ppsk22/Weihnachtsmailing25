@@ -894,6 +894,48 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const hasOutline = w.getAttribute('data-has-outline') === 'true';
     const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     
+    // Extract CTA's box-shadow for manual rendering (html2canvas doesn't render box-shadow well)
+    let ctaBoxShadow = null;
+    if (isCTA) {
+      const ctaBtn = w.querySelector('.cta-button');
+      if (ctaBtn) {
+        const boxShadowStyle = ctaBtn.style.boxShadow || getComputedStyle(ctaBtn).boxShadow;
+        if (boxShadowStyle && boxShadowStyle !== 'none') {
+          // Parse box-shadow to extract non-inset shadows
+          const shadows = boxShadowStyle.split(/,(?![^(]*\))/);
+          for (const shadow of shadows) {
+            const trimmed = shadow.trim();
+            if (!trimmed.startsWith('inset')) {
+              // Parse: Xpx Ypx [blur[px]] [spread[px]] color
+              // Extract numbers and color separately
+              const parts = trimmed.match(/^(-?\d+)px\s+(-?\d+)px\s*(.*)/);
+              if (parts) {
+                const offsetX = parseInt(parts[1]) || 0;
+                const offsetY = parseInt(parts[2]) || 0;
+                const rest = parts[3].trim();
+                
+                // Rest could be: "0 #0f0", "0px #0f0", "0 0 #0f0", "0px 0px #0f0", or just "#0f0"
+                let blur = 0;
+                let color = rest;
+                
+                // Try to extract blur (and optional spread) before color
+                const blurMatch = rest.match(/^(\d+)(?:px)?\s*(?:(\d+)(?:px)?\s*)?(.*)$/);
+                if (blurMatch && blurMatch[3]) {
+                  blur = parseInt(blurMatch[1]) || 0;
+                  color = blurMatch[3].trim();
+                }
+                
+                if (color) {
+                  ctaBoxShadow = { offsetX, offsetY, blur, color };
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
     try {
       const clone = w.cloneNode(true);
       clone.style.position = 'fixed';
@@ -910,7 +952,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         innerEl.classList.remove('bouncing');
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
-        // DON'T clear filter or boxShadow - let html2canvas try to render them
+        // Clear CTA box-shadow - we render it manually since html2canvas doesn't handle it
+        if (isCTA) {
+          innerEl.style.boxShadow = 'none';
+        }
       }
       
       const canvas = await html2canvas(clone, {
@@ -930,7 +975,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow };
+      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, ctaBoxShadow };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -1128,6 +1173,18 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
           ctx.shadowOffsetY = oy;
           ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
         }
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      // Apply CTA's built-in box-shadow (html2canvas doesn't render this)
+      if (t.ctaBoxShadow) {
+        ctx.shadowColor = t.ctaBoxShadow.color;
+        ctx.shadowBlur = t.ctaBoxShadow.blur;
+        ctx.shadowOffsetX = t.ctaBoxShadow.offsetX;
+        ctx.shadowOffsetY = t.ctaBoxShadow.offsetY;
+        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
         ctx.shadowColor = 'transparent';
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
