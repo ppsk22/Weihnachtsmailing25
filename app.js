@@ -867,6 +867,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const y = parseFloat(w.getAttribute("data-y")) || 0;
     const scale = w.scale || 1;
     const angle = w.angle || 0;
+    const isCTA = w.classList.contains('cta-layer');
     
     try {
       const clone = w.cloneNode(true);
@@ -878,15 +879,36 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       
       const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
       if (innerEl) {
+        // Remove bouncing class to capture clean state
+        innerEl.classList.remove('bouncing');
+        
         const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
         if (originalInner) {
           const computed = getComputedStyle(originalInner);
+          // Copy all relevant styles for accurate rendering
           innerEl.style.background = computed.background;
           innerEl.style.backgroundColor = computed.backgroundColor;
           innerEl.style.backgroundImage = computed.backgroundImage;
           innerEl.style.border = computed.border;
+          innerEl.style.borderWidth = computed.borderWidth;
+          innerEl.style.borderStyle = computed.borderStyle;
+          innerEl.style.borderColor = computed.borderColor;
           innerEl.style.borderRadius = computed.borderRadius;
           innerEl.style.boxShadow = computed.boxShadow;
+          innerEl.style.color = computed.color;
+          innerEl.style.textShadow = computed.textShadow;
+          innerEl.style.fontFamily = computed.fontFamily;
+          innerEl.style.fontSize = computed.fontSize;
+          innerEl.style.fontWeight = computed.fontWeight;
+          innerEl.style.fontStyle = computed.fontStyle;
+          innerEl.style.letterSpacing = computed.letterSpacing;
+          innerEl.style.textTransform = computed.textTransform;
+          innerEl.style.textDecoration = computed.textDecoration;
+          innerEl.style.webkitTextStroke = computed.webkitTextStroke;
+          innerEl.style.padding = computed.padding;
+          // Reset transform to avoid capturing mid-animation state
+          innerEl.style.transform = 'none';
+          innerEl.style.animation = 'none';
         }
       }
       
@@ -907,7 +929,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH };
+      return { canvas, x, y, scale, angle, baseW, baseH, isCTA };
     } catch (e) {
       return null;
     }
@@ -1003,13 +1025,35 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.restore();
     }
     
-    // Draw text elements
+    // Draw text elements with CTA bounce animation
+    // CTA bounce: pixelBounce animation - bounce at start, then rest
+    // For a 5-second export, we want one bounce at the beginning
+    // Bounce scales: 1 -> 1.10 -> 1.20 -> 1.10 -> 1 over 2 seconds (4 steps)
+    const BOUNCE_DURATION = 2000; // 2 second bounce
+    const bounceScales = [1, 1.10, 1.20, 1.10]; // 4 steps
+    const frameTime = i * FRAME_MS;
+    
+    let ctaBounceScale = 1;
+    // First bounce starts at 500ms (after a short delay) and lasts 2 seconds
+    const bounceStart = 500;
+    if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
+      const bounceProgress = (frameTime - bounceStart) / BOUNCE_DURATION;
+      const bounceStep = Math.floor(bounceProgress * 4) % 4;
+      ctaBounceScale = bounceScales[bounceStep];
+    }
+    
     for (const t of validTextElements) {
       ctx.save();
       ctx.translate(t.x, t.y);
       ctx.translate(t.baseW / 2, t.baseH / 2);
       ctx.rotate((t.angle || 0) * Math.PI / 180);
-      ctx.scale(t.scale || 1, t.scale || 1);
+      
+      // Apply bounce scale for CTA elements
+      let finalScale = t.scale || 1;
+      if (t.isCTA) {
+        finalScale *= ctaBounceScale;
+      }
+      ctx.scale(finalScale, finalScale);
       ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
       ctx.restore();
     }
@@ -4745,16 +4789,36 @@ function wireExportControls(){
         // Get the inner element and copy computed styles explicitly
         const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
         if (innerEl) {
+          // Remove bouncing class to capture clean state
+          innerEl.classList.remove('bouncing');
+          
           const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
           if (originalInner) {
             const computed = getComputedStyle(originalInner);
-            // Explicitly set background, border, and box-shadow
+            // Copy all relevant styles for accurate rendering
             innerEl.style.background = computed.background;
             innerEl.style.backgroundColor = computed.backgroundColor;
             innerEl.style.backgroundImage = computed.backgroundImage;
             innerEl.style.border = computed.border;
+            innerEl.style.borderWidth = computed.borderWidth;
+            innerEl.style.borderStyle = computed.borderStyle;
+            innerEl.style.borderColor = computed.borderColor;
             innerEl.style.borderRadius = computed.borderRadius;
             innerEl.style.boxShadow = computed.boxShadow;
+            innerEl.style.color = computed.color;
+            innerEl.style.textShadow = computed.textShadow;
+            innerEl.style.fontFamily = computed.fontFamily;
+            innerEl.style.fontSize = computed.fontSize;
+            innerEl.style.fontWeight = computed.fontWeight;
+            innerEl.style.fontStyle = computed.fontStyle;
+            innerEl.style.letterSpacing = computed.letterSpacing;
+            innerEl.style.textTransform = computed.textTransform;
+            innerEl.style.textDecoration = computed.textDecoration;
+            innerEl.style.webkitTextStroke = computed.webkitTextStroke;
+            innerEl.style.padding = computed.padding;
+            // Reset transform to avoid capturing mid-animation state
+            innerEl.style.transform = 'none';
+            innerEl.style.animation = 'none';
           }
         }
         
@@ -4900,13 +4964,19 @@ function wireExportControls(){
       }
 
       // Draw text elements (headline, company, CTA)
-      // CTA bounce: pixelBounce animation is 2s with scale 1 -> 1.10 -> 1.20 -> 1.10 -> 1
-      const BOUNCE_DURATION = 2000; // 2 seconds
+      // CTA bounce: pixelBounce animation - bounce at start, then rest
+      const BOUNCE_DURATION = 2000; // 2 second bounce
       const bounceScales = [1, 1.10, 1.20, 1.10]; // 4 steps
       const frameTime = i * FRAME_MS;
-      const bounceProgress = (frameTime % BOUNCE_DURATION) / BOUNCE_DURATION;
-      const bounceStep = Math.floor(bounceProgress * 4) % 4;
-      const ctaBounceScale = bounceScales[bounceStep];
+      
+      let ctaBounceScale = 1;
+      // First bounce starts at 500ms (after a short delay) and lasts 2 seconds
+      const bounceStart = 500;
+      if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
+        const bounceProgress = (frameTime - bounceStart) / BOUNCE_DURATION;
+        const bounceStep = Math.floor(bounceProgress * 4) % 4;
+        ctaBounceScale = bounceScales[bounceStep];
+      }
       
       for (const t of validTextElements) {
         ctx.save();
