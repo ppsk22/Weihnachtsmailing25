@@ -1111,8 +1111,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.scale(finalScale, finalScale);
       
       // Apply outline effect (draw multiple times with offset shadows)
-      // For CTA buttons, always apply outline to compensate for border rendering issues
-      if (t.hasOutline || t.isCTA) {
+      if (t.hasOutline) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
         const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
@@ -1127,8 +1126,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       
       // Apply drop shadow effect
-      // For CTA buttons, always apply a basic shadow to compensate for boxShadow rendering issues
-      if (t.hasShadow || t.isCTA) {
+      if (t.hasShadow) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 4;
