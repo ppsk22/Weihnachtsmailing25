@@ -901,7 +901,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       clone.style.left = '-9999px';
       clone.style.top = '-9999px';
       clone.style.transform = 'none';
-      document.body.appendChild(clone);
+      // Append to #root for better style inheritance
+      const root = document.getElementById('root') || document.body;
+      root.appendChild(clone);
       
       const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
       if (innerEl) {
@@ -911,16 +913,33 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
         if (originalInner) {
           const computed = getComputedStyle(originalInner);
-          // Copy all relevant styles for accurate rendering
-          innerEl.style.background = computed.background;
+          
+          // For CTA buttons, copy inline styles directly (they have complex gradients)
+          if (isCTA && originalInner.style.background) {
+            innerEl.style.background = originalInner.style.background;
+          } else {
+            innerEl.style.background = computed.background;
+          }
           innerEl.style.backgroundColor = computed.backgroundColor;
-          innerEl.style.backgroundImage = computed.backgroundImage;
-          innerEl.style.border = computed.border;
+          // Copy backgroundImage separately for gradients
+          if (originalInner.style.backgroundImage) {
+            innerEl.style.backgroundImage = originalInner.style.backgroundImage;
+          } else if (computed.backgroundImage && computed.backgroundImage !== 'none') {
+            innerEl.style.backgroundImage = computed.backgroundImage;
+          }
+          // For CTA, copy inline border/boxShadow directly
+          if (isCTA) {
+            innerEl.style.border = originalInner.style.border || computed.border;
+            innerEl.style.boxShadow = originalInner.style.boxShadow || computed.boxShadow;
+            innerEl.style.borderRadius = originalInner.style.borderRadius || computed.borderRadius;
+          } else {
+            innerEl.style.border = computed.border;
+            innerEl.style.boxShadow = computed.boxShadow;
+            innerEl.style.borderRadius = computed.borderRadius;
+          }
           innerEl.style.borderWidth = computed.borderWidth;
           innerEl.style.borderStyle = computed.borderStyle;
           innerEl.style.borderColor = computed.borderColor;
-          innerEl.style.borderRadius = computed.borderRadius;
-          innerEl.style.boxShadow = computed.boxShadow;
           innerEl.style.color = computed.color;
           innerEl.style.textShadow = computed.textShadow;
           innerEl.style.fontFamily = computed.fontFamily;
@@ -932,11 +951,18 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
           innerEl.style.textDecoration = computed.textDecoration;
           innerEl.style.webkitTextStroke = computed.webkitTextStroke;
           innerEl.style.padding = computed.padding;
+          // Copy filter for drop-shadow effects (outline/shadow)
+          innerEl.style.filter = computed.filter;
+          innerEl.style.webkitFilter = computed.webkitFilter;
           // Reset transform to avoid capturing mid-animation state
           innerEl.style.transform = 'none';
           innerEl.style.animation = 'none';
         }
       }
+      
+      // Store styles for onclone callback
+      const ctaStyles = isCTA ? originalInner.style.cssText : '';
+      const filterValue = computed.filter;
       
       const canvas = await html2canvas(clone, {
         scale: 2,
@@ -947,15 +973,33 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ignoreElements: (element) => {
           return element.classList.contains('scale-handle') || 
                  element.classList.contains('rot-handle');
+        },
+        onclone: (clonedDoc, element) => {
+          // Ensure styles are applied in the cloned document
+          const clonedInner = element.querySelector('.cta-button, .headline-text, .company-text');
+          if (clonedInner) {
+            // Re-apply inline styles in cloned document for CTA
+            if (ctaStyles) {
+              clonedInner.style.cssText = ctaStyles;
+            }
+            // Re-apply filter
+            if (filterValue && filterValue !== 'none') {
+              clonedInner.style.filter = filterValue;
+            }
+          }
         }
       });
       
-      document.body.removeChild(clone);
+      clone.parentNode.removeChild(clone);
       
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA };
+      // Get shadow/outline flags for manual rendering if needed
+      const hasOutline = w.getAttribute('data-has-outline') === 'true';
+      const hasShadow = w.getAttribute('data-has-shadow') === 'true';
+      
+      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow };
     } catch (e) {
       return null;
     }
@@ -1080,6 +1124,40 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         finalScale *= ctaBounceScale;
       }
       ctx.scale(finalScale, finalScale);
+      
+      // Apply manual shadow/outline if element has those effects
+      // (html2canvas may not capture CSS filter: drop-shadow properly)
+      if (t.hasOutline) {
+        // Draw outline by drawing the image multiple times with offset
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 0;
+        // Draw outline in 4 directions
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 0;
+        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        ctx.shadowOffsetX = -2;
+        ctx.shadowOffsetY = 0;
+        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 2;
+        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = -2;
+        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        // Reset shadow
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      if (t.hasShadow) {
+        // Apply drop shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+      }
+      
       ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
       ctx.restore();
     }
@@ -4808,7 +4886,9 @@ function wireExportControls(){
         clone.style.left = '-9999px';
         clone.style.top = '-9999px';
         clone.style.transform = 'none'; // Remove transform to get accurate size
-        document.body.appendChild(clone);
+        // Append to #root for better style inheritance
+        const root = document.getElementById('root') || document.body;
+        root.appendChild(clone);
         
         // Get the inner element and copy computed styles explicitly
         const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
@@ -4819,16 +4899,33 @@ function wireExportControls(){
           const originalInner = w.querySelector('.cta-button, .headline-text, .company-text');
           if (originalInner) {
             const computed = getComputedStyle(originalInner);
-            // Copy all relevant styles for accurate rendering
-            innerEl.style.background = computed.background;
+            
+            // For CTA buttons, copy inline styles directly (they have complex gradients)
+            if (isCTA && originalInner.style.background) {
+              innerEl.style.background = originalInner.style.background;
+            } else {
+              innerEl.style.background = computed.background;
+            }
             innerEl.style.backgroundColor = computed.backgroundColor;
-            innerEl.style.backgroundImage = computed.backgroundImage;
-            innerEl.style.border = computed.border;
+            // Copy backgroundImage separately for gradients
+            if (originalInner.style.backgroundImage) {
+              innerEl.style.backgroundImage = originalInner.style.backgroundImage;
+            } else if (computed.backgroundImage && computed.backgroundImage !== 'none') {
+              innerEl.style.backgroundImage = computed.backgroundImage;
+            }
+            // For CTA, copy inline border/boxShadow directly
+            if (isCTA) {
+              innerEl.style.border = originalInner.style.border || computed.border;
+              innerEl.style.boxShadow = originalInner.style.boxShadow || computed.boxShadow;
+              innerEl.style.borderRadius = originalInner.style.borderRadius || computed.borderRadius;
+            } else {
+              innerEl.style.border = computed.border;
+              innerEl.style.boxShadow = computed.boxShadow;
+              innerEl.style.borderRadius = computed.borderRadius;
+            }
             innerEl.style.borderWidth = computed.borderWidth;
             innerEl.style.borderStyle = computed.borderStyle;
             innerEl.style.borderColor = computed.borderColor;
-            innerEl.style.borderRadius = computed.borderRadius;
-            innerEl.style.boxShadow = computed.boxShadow;
             innerEl.style.color = computed.color;
             innerEl.style.textShadow = computed.textShadow;
             innerEl.style.fontFamily = computed.fontFamily;
@@ -4840,11 +4937,18 @@ function wireExportControls(){
             innerEl.style.textDecoration = computed.textDecoration;
             innerEl.style.webkitTextStroke = computed.webkitTextStroke;
             innerEl.style.padding = computed.padding;
+            // Copy filter for drop-shadow effects (outline/shadow)
+            innerEl.style.filter = computed.filter;
+            innerEl.style.webkitFilter = computed.webkitFilter;
             // Reset transform to avoid capturing mid-animation state
             innerEl.style.transform = 'none';
             innerEl.style.animation = 'none';
           }
         }
+        
+        // Store styles for onclone callback
+        const ctaStyles = isCTA && originalInner ? originalInner.style.cssText : '';
+        const filterValue = originalInner ? getComputedStyle(originalInner).filter : '';
         
         const canvas = await html2canvas(clone, {
           scale: 2,  // Higher scale for better CSS capture
@@ -4855,16 +4959,35 @@ function wireExportControls(){
           ignoreElements: (element) => {
             return element.classList.contains('scale-handle') || 
                    element.classList.contains('rot-handle');
+          },
+          onclone: (clonedDoc, element) => {
+            // Ensure styles are applied in the cloned document
+            const clonedInner = element.querySelector('.cta-button, .headline-text, .company-text');
+            if (clonedInner) {
+              // Re-apply inline styles in cloned document for CTA
+              if (ctaStyles) {
+                clonedInner.style.cssText = ctaStyles;
+              }
+              // Re-apply filter
+              if (filterValue && filterValue !== 'none') {
+                clonedInner.style.filter = filterValue;
+              }
+            }
           }
         });
         
         // Remove clone
-        document.body.removeChild(clone);
+        clone.parentNode.removeChild(clone);
         
         // Use canvas dimensions (what was actually rendered) - divide by scale
         const baseW = canvas.width / 2;
         const baseH = canvas.height / 2;
-        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH, isCTA, renderScale: 2 };
+        
+        // Get shadow/outline flags for manual rendering if needed
+        const hasOutline = w.getAttribute('data-has-outline') === 'true';
+        const hasShadow = w.getAttribute('data-has-shadow') === 'true';
+        
+        return { kind: "text", img: canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, renderScale: 2 };
       } catch (e) {
         console.warn("Failed to render text element:", e);
         // Clean up clone if it exists
@@ -5015,6 +5138,40 @@ function wireExportControls(){
           finalScale *= ctaBounceScale;
         }
         ctx.scale(finalScale, finalScale);
+        
+        // Apply manual shadow/outline if element has those effects
+        // (html2canvas may not capture CSS filter: drop-shadow properly)
+        if (t.hasOutline) {
+          // Draw outline by drawing the image multiple times with offset
+          ctx.shadowColor = '#000';
+          ctx.shadowBlur = 0;
+          // Draw outline in 4 directions
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 0;
+          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+          ctx.shadowOffsetX = -2;
+          ctx.shadowOffsetY = 0;
+          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 2;
+          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = -2;
+          ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+          // Reset shadow
+          ctx.shadowColor = 'transparent';
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+        }
+        
+        if (t.hasShadow) {
+          // Apply drop shadow
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 4;
+          ctx.shadowOffsetY = 4;
+        }
+        
         ctx.drawImage(t.img, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
         ctx.restore();
       }
