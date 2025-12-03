@@ -1111,7 +1111,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.scale(finalScale, finalScale);
       
       // Apply outline effect (draw multiple times with offset shadows)
-      if (t.hasOutline) {
+      // For CTA buttons, always apply outline to compensate for border rendering issues
+      if (t.hasOutline || t.isCTA) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
         const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
@@ -1126,7 +1127,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       
       // Apply drop shadow effect
-      if (t.hasShadow) {
+      // For CTA buttons, always apply a basic shadow to compensate for boxShadow rendering issues
+      if (t.hasShadow || t.isCTA) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 4;
@@ -4784,8 +4786,14 @@ function updateStickerEffects() {
   const filterValue = filterParts.length > 0 ? filterParts.join(' ') : 'none';
   
   // Apply to all stickers (not heroes, headlines, etc.)
-  document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer) img').forEach(img => {
-    img.style.filter = filterValue;
+  document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').forEach(wrapper => {
+    const img = wrapper.querySelector('img');
+    if (img) {
+      img.style.filter = filterValue;
+    }
+    // Set data attributes for export
+    wrapper.setAttribute('data-has-outline', outlineChecked ? 'true' : 'false');
+    wrapper.setAttribute('data-has-shadow', shadowChecked ? 'true' : 'false');
   });
 }
 
