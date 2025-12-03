@@ -167,6 +167,12 @@
   .export-progress-container {
     width: 200px !important;
   }
+  
+  /* Move export screen content up on mobile for better spacing from bottom */
+  #exporting-screen {
+    padding-bottom: 20vh;
+    box-sizing: border-box;
+  }
 }
 
 .loading-text {
