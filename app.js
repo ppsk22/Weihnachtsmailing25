@@ -804,21 +804,33 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   // Set exporting flag to prevent animation pausing
   isExporting = true;
   
-  // Temporarily reset UI scale
+  // Temporarily reset UI scale (same as PNG export)
   const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
   document.documentElement.style.setProperty('--ui-scale', '1');
   
   const stage = document.getElementById("stage");
+  stage.offsetHeight; // Force reflow
+  
   const W = STAGE_W;
   const H = STAGE_H;
   
-  // Store original background
+  // Store originals for restoration
   const originalBgImage = stage.style.backgroundImage;
+  const ctaWrapper = stage.querySelector('.cta-layer');
+  const ctaButton = ctaWrapper ? ctaWrapper.querySelector('.cta-button') : null;
+  const originalCtaTransform = ctaButton ? ctaButton.style.transform : '';
   
-  // Load background GIF frames if needed
+  // Stop CTA bounce animation (we control it manually)
+  if (ctaButton) {
+    ctaButton.classList.remove('bouncing');
+    ctaButton.style.animation = 'none';
+  }
+  
+  // Load background GIF frames if animated
   const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL = bgMatch ? bgMatch[1] : null;
   let bgData = null;
+  let bgFullCanvas = null;
   
   if (bgURL && /\.gif(?:[?#].*)?$/i.test(bgURL)) {
     const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
@@ -827,30 +839,16 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
     const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
     bgData = { frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
+    bgFullCanvas = document.createElement('canvas');
+    bgFullCanvas.width = bgData.width;
+    bgFullCanvas.height = bgData.height;
   }
   
-  // Find CTA button for bounce animation
-  const ctaWrapper = stage.querySelector('.cta-layer');
-  const ctaButton = ctaWrapper ? ctaWrapper.querySelector('.cta-button') : null;
-  const originalCtaTransform = ctaButton ? ctaButton.style.transform : '';
-  
-  // Remove bouncing class during export (we'll control it manually)
-  if (ctaButton) {
-    ctaButton.classList.remove('bouncing');
-    ctaButton.style.animation = 'none';
-  }
-  
-  // Create canvas for background GIF frames
-  let bgCanvas = null;
-  if (bgData) {
-    bgCanvas = document.createElement('canvas');
-    bgCanvas.width = W;
-    bgCanvas.height = H;
-    bgCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;';
-    stage.insertBefore(bgCanvas, stage.firstChild);
-    // Hide original CSS background
-    stage.style.backgroundImage = 'none';
-  }
+  // Create output buffer
+  const buf = document.createElement("canvas");
+  buf.width = W;
+  buf.height = H;
+  const bufCtx = buf.getContext("2d", { willReadFrequently: true });
   
   // Encode GIF
   const enc = new GIFEncoder();
@@ -868,45 +866,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     for (let i = 0; i < TOTAL; i++) {
       const frameTime = i * FRAME_MS;
       
-      // Update background GIF frame
-      if (bgData && bgCanvas) {
-        const bgCtx = bgCanvas.getContext('2d');
-        const elapsed = frameTime;
-        const mod = elapsed % bgData.totalDur;
-        let acc = 0, idx = 0;
-        for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
-        idx = idx % bgData.frames.length;
-        
-        // Build full frame
-        const fullGif = document.createElement("canvas");
-        fullGif.width = bgData.width;
-        fullGif.height = bgData.height;
-        const fullCtx = fullGif.getContext("2d");
-        
-        for (let fi = 0; fi <= idx; fi++) {
-          const f = bgData.frames[fi];
-          if (fi > 0) {
-            const prevF = bgData.frames[fi - 1];
-            if (prevF.disposalType === 2) {
-              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
-            }
-          }
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width;
-          pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        }
-        
-        // Draw to background canvas with cover sizing
-        bgCtx.clearRect(0, 0, W, H);
-        const drawH = H * 1.15;
-        const drawY = (H - drawH) / 2;
-        bgCtx.drawImage(fullGif, 0, drawY, W, drawH);
-      }
-      
-      // Update CTA bounce
+      // Update CTA bounce transform
       if (ctaButton) {
         let bounceScale = 1;
         if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
@@ -918,39 +878,73 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       
       // Update snow and glitter
-      if (typeof updateSnowFrame === 'function') {
-        updateSnowFrame(1);
-      }
-      if (typeof updateGlitterFrame === 'function') {
-        updateGlitterFrame(1);
+      if (typeof updateSnowFrame === 'function') updateSnowFrame(1);
+      if (typeof updateGlitterFrame === 'function') updateGlitterFrame(1);
+      
+      bufCtx.clearRect(0, 0, W, H);
+      
+      // For animated backgrounds: draw the correct frame first, then capture stage without CSS background
+      if (bgData) {
+        const elapsed = frameTime;
+        const mod = elapsed % bgData.totalDur;
+        let acc = 0, idx = 0;
+        for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
+        idx = idx % bgData.frames.length;
+        
+        // Build the background frame
+        const bgCtx = bgFullCanvas.getContext('2d');
+        bgCtx.clearRect(0, 0, bgData.width, bgData.height);
+        for (let fi = 0; fi <= idx; fi++) {
+          const f = bgData.frames[fi];
+          if (fi > 0) {
+            const prevF = bgData.frames[fi - 1];
+            if (prevF.disposalType === 2) {
+              bgCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+            }
+          }
+          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+          const pc = document.createElement("canvas");
+          pc.width = f.dims.width;
+          pc.height = f.dims.height;
+          pc.getContext("2d").putImageData(patch, 0, 0);
+          bgCtx.drawImage(pc, f.dims.left, f.dims.top);
+        }
+        
+        // Draw background with cover sizing
+        const drawH = H * 1.15;
+        const drawY = (H - drawH) / 2;
+        bufCtx.drawImage(bgFullCanvas, 0, drawY, W, drawH);
+        
+        // Hide CSS background temporarily
+        stage.style.backgroundImage = 'none';
+        stage.offsetHeight; // Force reflow
       }
       
-      // Force reflow to ensure all changes are rendered
-      stage.offsetHeight;
-      
-      // Capture the whole stage with html2canvas
+      // Capture the stage using EXACT same settings as PNG export
       const frameCanvas = await html2canvas(stage, {
-        scale: 1,
-        backgroundColor: null,
-        logging: false,
-        allowTaint: true,
-        useCORS: true,
         width: W,
         height: H,
+        scale: 1,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        foreignObjectRendering: false,
         ignoreElements: (element) => {
-          return element.classList.contains('scale-handle') || 
+          return element.id === 'overlay' || 
+                 element.classList.contains('scale-handle') || 
                  element.classList.contains('rot-handle');
         }
       });
       
-      // Draw to encoder buffer
-      const buf = document.createElement("canvas");
-      buf.width = W;
-      buf.height = H;
-      const ctx = buf.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(frameCanvas, 0, 0, W, H);
+      // Restore CSS background if we hid it
+      if (bgData) {
+        stage.style.backgroundImage = originalBgImage;
+      }
       
-      enc.addFrame(ctx);
+      // Draw the captured frame (elements) on top of background
+      bufCtx.drawImage(frameCanvas, 0, 0, W, H);
+      
+      enc.addFrame(bufCtx);
       
       if (progressCallback) {
         progressCallback((i + 1) / TOTAL);
@@ -960,10 +954,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     enc.finish();
     
     // Cleanup
-    if (bgCanvas) {
-      bgCanvas.remove();
-      stage.style.backgroundImage = originalBgImage;
-    }
     if (ctaButton) {
       ctaButton.style.transform = originalCtaTransform;
       ctaButton.classList.add('bouncing');
@@ -978,10 +968,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
   } catch (error) {
     // Cleanup on error
-    if (bgCanvas) {
-      bgCanvas.remove();
-      stage.style.backgroundImage = originalBgImage;
-    }
     if (ctaButton) {
       ctaButton.style.transform = originalCtaTransform;
       ctaButton.classList.add('bouncing');
