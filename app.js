@@ -894,6 +894,37 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const hasOutline = w.getAttribute('data-has-outline') === 'true';
     const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     
+    // Extract CTA's built-in box-shadow for manual rendering
+    let ctaBoxShadow = null;
+    if (isCTA) {
+      const ctaBtn = w.querySelector('.cta-button');
+      if (ctaBtn) {
+        const boxShadowStyle = ctaBtn.style.boxShadow || getComputedStyle(ctaBtn).boxShadow;
+        if (boxShadowStyle && boxShadowStyle !== 'none') {
+          // Parse box-shadow to extract non-inset shadows
+          // Format: [inset] x y blur spread color, ...
+          const shadows = boxShadowStyle.split(/,(?![^(]*\))/); // Split by comma, not inside ()
+          for (const shadow of shadows) {
+            const trimmed = shadow.trim();
+            if (!trimmed.startsWith('inset')) {
+              // This is a drop shadow - parse it
+              // Match: Xpx Ypx [blur] [spread] color
+              const match = trimmed.match(/^(-?\d+)px\s+(-?\d+)px\s+(\d+)?(?:px)?\s*(\d+)?(?:px)?\s*(.+)$/);
+              if (match) {
+                ctaBoxShadow = {
+                  offsetX: parseInt(match[1]) || 0,
+                  offsetY: parseInt(match[2]) || 0,
+                  blur: parseInt(match[3]) || 0,
+                  color: match[5] || 'rgba(0,0,0,0.5)'
+                };
+                break; // Use first non-inset shadow
+              }
+            }
+          }
+        }
+      }
+    }
+    
     try {
       const clone = w.cloneNode(true);
       clone.style.position = 'fixed';
@@ -913,6 +944,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         // Clear CSS filter as html2canvas doesn't render drop-shadow correctly
         innerEl.style.filter = 'none';
         innerEl.style.webkitFilter = 'none';
+        // Clear box-shadow for CTA - we'll render it manually
+        if (isCTA) {
+          innerEl.style.boxShadow = 'none';
+        }
       }
       
       const canvas = await html2canvas(clone, {
@@ -932,7 +967,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow };
+      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, ctaBoxShadow };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -1008,15 +1043,21 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.translate(s.x, s.y);
       ctx.translate(s.baseW / 2, s.baseH / 2);
       ctx.rotate((s.angle || 0) * Math.PI / 180);
-      ctx.scale(s.scale || 1, s.scale || 1);
+      const stickerScale = s.scale || 1;
+      ctx.scale(stickerScale, stickerScale);
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
       
+      // Scale factor for effects (outline/shadow should scale with element)
+      const effectScale = stickerScale;
+      
       // Apply outline effect (draw multiple times with offset shadows)
+      // Scale the outline thickness with the element
       if (s.hasOutline) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
-        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+        const outlineSize = 2 * effectScale;
+        const offsets = [[outlineSize, 0], [-outlineSize, 0], [0, outlineSize], [0, -outlineSize]];
         for (const [ox, oy] of offsets) {
           ctx.shadowOffsetX = ox;
           ctx.shadowOffsetY = oy;
@@ -1046,12 +1087,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.shadowOffsetY = 0;
       }
       
-      // Apply drop shadow effect
+      // Apply drop shadow effect (scaled with element)
       if (s.hasShadow) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowOffsetX = 4 * effectScale;
+        ctx.shadowOffsetY = 4 * effectScale;
       }
       
       if (s.kind === "static") {
@@ -1110,11 +1151,16 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       ctx.scale(finalScale, finalScale);
       
+      // Scale factor for effects (outline/shadow should scale with element)
+      const effectScale = finalScale;
+      
       // Apply outline effect (draw multiple times with offset shadows)
+      // Scale the outline thickness with the element
       if (t.hasOutline) {
         ctx.shadowColor = '#000';
         ctx.shadowBlur = 0;
-        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+        const outlineSize = 2 * effectScale;
+        const offsets = [[outlineSize, 0], [-outlineSize, 0], [0, outlineSize], [0, -outlineSize]];
         for (const [ox, oy] of offsets) {
           ctx.shadowOffsetX = ox;
           ctx.shadowOffsetY = oy;
@@ -1125,12 +1171,24 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.shadowOffsetY = 0;
       }
       
-      // Apply drop shadow effect
+      // Apply CTA's built-in box-shadow first (if present)
+      if (t.ctaBoxShadow) {
+        ctx.shadowColor = t.ctaBoxShadow.color;
+        ctx.shadowBlur = t.ctaBoxShadow.blur * effectScale;
+        ctx.shadowOffsetX = t.ctaBoxShadow.offsetX * effectScale;
+        ctx.shadowOffsetY = t.ctaBoxShadow.offsetY * effectScale;
+        ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      // Apply user's drop shadow effect (draws on top, both shadows visible)
       if (t.hasShadow) {
         ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
         ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowOffsetX = 4 * effectScale;
+        ctx.shadowOffsetY = 4 * effectScale;
       }
       
       ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
