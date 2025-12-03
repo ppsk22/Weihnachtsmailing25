@@ -804,149 +804,53 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   // Set exporting flag to prevent animation pausing
   isExporting = true;
   
-  // Start animation keep-alive interval (runs even when tab is hidden)
-  const animationKeepAlive = setInterval(() => {
-    // Manually update snow
-    if (typeof updateSnowFrame === 'function') {
-      updateSnowFrame(1); // dt of 1 for normal speed
-    }
-    // Manually update glitter
-    if (typeof updateGlitterFrame === 'function') {
-      updateGlitterFrame(1);
-    }
-  }, FRAME_MS);
-  
   // Temporarily reset UI scale
   const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
   document.documentElement.style.setProperty('--ui-scale', '1');
   
-  try {
-    const stage = document.getElementById("stage");
-    stage.offsetHeight; // Force reflow
-  
+  const stage = document.getElementById("stage");
   const W = STAGE_W;
   const H = STAGE_H;
   
-  const buf = document.createElement("canvas");
-  buf.width = W; buf.height = H;
-  const ctx = buf.getContext("2d", { willReadFrequently: true });
+  // Store original background
+  const originalBgImage = stage.style.backgroundImage;
   
-  // Load background
+  // Load background GIF frames if needed
   const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL = bgMatch ? bgMatch[1] : null;
-  
   let bgData = null;
-  if (bgURL) {
-    if (/\.gif(?:[?#].*)?$/i.test(bgURL)) {
-      const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-      const gif = window.__gif_parseGIF(ab);
-      const frs = window.__gif_decompressFrames(gif, true);
-      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-      const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      const gifW = gif.lsd.width;
-      const gifH = gif.lsd.height;
-      bgData = { kind: "anim", frames: frs, delays, totalDur, width: gifW, height: gifH };
-    } else {
-      const img = await loadImageForExport(bgURL);
-      bgData = { kind: "static", img };
-    }
+  
+  if (bgURL && /\.gif(?:[?#].*)?$/i.test(bgURL)) {
+    const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+    const gif = window.__gif_parseGIF(ab);
+    const frs = window.__gif_decompressFrames(gif, true);
+    const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+    const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
+    bgData = { frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
   }
   
-  // Load stickers (simplified - using same logic as main export)
-  const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
-  const imageWrappers = wrappers.filter(w => w.querySelector("img") !== null);
+  // Find CTA button for bounce animation
+  const ctaWrapper = stage.querySelector('.cta-layer');
+  const ctaButton = ctaWrapper ? ctaWrapper.querySelector('.cta-button') : null;
+  const originalCtaTransform = ctaButton ? ctaButton.style.transform : '';
   
-  const stickers = await Promise.all(imageWrappers.map(async (w) => {
-    const domImg = w.querySelector("img");
-    const src = domImg.getAttribute("src");
-    const x = parseFloat(w.getAttribute("data-x")) || 0;
-    const y = parseFloat(w.getAttribute("data-y")) || 0;
-    const scale = w.scale || 1;
-    const angle = w.angle || 0;
-    const domW = domImg.naturalWidth || domImg.width || 150;
-    const domH = domImg.naturalHeight || domImg.height || 150;
-    const baseW = parseFloat(domImg.style.width) || 150;
-    const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
-    const hasOutline = w.getAttribute('data-has-outline') === 'true';
-    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
-    const zIndex = parseInt(w.style.zIndex) || 0;
-    
-    if (/\.gif(?:[?#].*)?$/i.test(src)) {
-      const ab = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-      const gif = window.__gif_parseGIF(ab);
-      const frs = window.__gif_decompressFrames(gif, true);
-      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-      const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow, zIndex };
-    } else {
-      const bmp = await loadImageForExport(src);
-      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow, zIndex };
-    }
-  }));
+  // Remove bouncing class during export (we'll control it manually)
+  if (ctaButton) {
+    ctaButton.classList.remove('bouncing');
+    ctaButton.style.animation = 'none';
+  }
   
-  // Sort stickers by z-index (lowest first, drawn first = bottom)
-  stickers.sort((a, b) => a.zIndex - b.zIndex);
-  
-  // Pre-render text elements
-  const textWrappers = wrappers.filter(w => w.querySelector("img") === null);
-  const textElements = await Promise.all(textWrappers.map(async (w) => {
-    const x = parseFloat(w.getAttribute("data-x")) || 0;
-    const y = parseFloat(w.getAttribute("data-y")) || 0;
-    const scale = w.scale || 1;
-    const angle = w.angle || 0;
-    const isCTA = w.classList.contains('cta-layer');
-    const hasOutline = w.getAttribute('data-has-outline') === 'true';
-    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
-    const zIndex = parseInt(w.style.zIndex) || 0;
-    
-    try {
-      const clone = w.cloneNode(true);
-      clone.style.position = 'fixed';
-      clone.style.left = '0';
-      clone.style.top = '0';
-      clone.style.transform = 'none';
-      clone.style.zIndex = '-9999';
-      clone.style.pointerEvents = 'none';
-      document.body.appendChild(clone);
-      
-      // Remove bouncing class and animation from inner elements
-      const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
-      if (innerEl) {
-        innerEl.classList.remove('bouncing');
-        innerEl.style.transform = 'none';
-        innerEl.style.animation = 'none';
-        // Don't clear boxShadow - let html2canvas try to render it
-        // We'll add the shadow manually anyway if it doesn't work
-      }
-      
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        backgroundColor: null,
-        logging: false,
-        allowTaint: true,
-        useCORS: true,
-        ignoreElements: (element) => {
-          return element.classList.contains('scale-handle') || 
-                 element.classList.contains('rot-handle');
-        }
-      });
-      
-      document.body.removeChild(clone);
-      
-      const baseW = canvas.width / 2;
-      const baseH = canvas.height / 2;
-      
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, zIndex };
-    } catch (e) {
-      console.error('Text element capture error:', e);
-      return null;
-    }
-  }));
-  
-  const validTextElements = textElements.filter(t => t !== null);
-  
-  // Sort text elements by z-index (lowest first, drawn first = bottom)
-  validTextElements.sort((a, b) => a.zIndex - b.zIndex);
+  // Create canvas for background GIF frames
+  let bgCanvas = null;
+  if (bgData) {
+    bgCanvas = document.createElement('canvas');
+    bgCanvas.width = W;
+    bgCanvas.height = H;
+    bgCanvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:-1;pointer-events:none;';
+    stage.insertBefore(bgCanvas, stage.firstChild);
+    // Hide original CSS background
+    stage.style.backgroundImage = 'none';
+  }
   
   // Encode GIF
   const enc = new GIFEncoder();
@@ -955,35 +859,25 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   enc.setQuality(10);
   enc.start();
   
-  const snowCanvasEl = document.getElementById('snow-canvas');
-  const glitterCanvasEl = document.getElementById('glitter-canvas');
+  // Bounce animation parameters
+  const BOUNCE_DURATION = 2000;
+  const bounceScales = [1, 1.10, 1.20, 1.10];
+  const bounceStart = 500;
   
-  for (let i = 0; i < TOTAL; i++) {
-    // Manually update snow and glitter animations before capturing frame
-    // This ensures animations continue even when tab is unfocused
-    if (typeof updateSnowFrame === 'function') {
-      updateSnowFrame(1);
-    }
-    if (typeof updateGlitterFrame === 'function') {
-      updateGlitterFrame(1);
-    }
-    
-    ctx.clearRect(0, 0, W, H);
-    
-    // Draw background
-    if (bgData) {
-      const drawH = H * 1.15;
-      const drawY = (H - drawH) / 2;
+  try {
+    for (let i = 0; i < TOTAL; i++) {
+      const frameTime = i * FRAME_MS;
       
-      if (bgData.kind === "static") {
-        ctx.drawImage(bgData.img, 0, drawY, W, drawH);
-      } else {
-        const elapsed = i * FRAME_MS;
+      // Update background GIF frame
+      if (bgData && bgCanvas) {
+        const bgCtx = bgCanvas.getContext('2d');
+        const elapsed = frameTime;
         const mod = elapsed % bgData.totalDur;
         let acc = 0, idx = 0;
         for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
         idx = idx % bgData.frames.length;
         
+        // Build full frame
         const fullGif = document.createElement("canvas");
         fullGif.width = bgData.width;
         fullGif.height = bgData.height;
@@ -1005,156 +899,97 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
           fullCtx.drawImage(pc, f.dims.left, f.dims.top);
         }
         
-        ctx.drawImage(fullGif, 0, drawY, W, drawH);
+        // Draw to background canvas with cover sizing
+        bgCtx.clearRect(0, 0, W, H);
+        const drawH = H * 1.15;
+        const drawY = (H - drawH) / 2;
+        bgCtx.drawImage(fullGif, 0, drawY, W, drawH);
       }
-    }
-    
-    // Draw stickers
-    for (const s of stickers) {
-      ctx.save();
-      ctx.translate(s.x, s.y);
-      ctx.translate(s.baseW / 2, s.baseH / 2);
-      ctx.rotate((s.angle || 0) * Math.PI / 180);
-      const stickerScale = s.scale || 1;
-      ctx.scale(stickerScale, stickerScale);
-      const offsetX = -s.baseW / 2;
-      const offsetY = -s.baseH / 2;
       
-      // Apply outline effect (draw multiple times with offset shadows)
-      // Note: ctx.scale already applied, shadow offsets scale with it
-      if (s.hasOutline) {
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 0;
-        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
-        for (const [ox, oy] of offsets) {
-          ctx.shadowOffsetX = ox;
-          ctx.shadowOffsetY = oy;
-          if (s.kind === "static") {
-            ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-          } else {
-            const elapsed = i * FRAME_MS;
-            const mod = elapsed % s.totalDur;
-            let acc = 0, idx = 0;
-            for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-            const f = s.frames[idx % s.frames.length];
-            const fullGif = document.createElement("canvas");
-            fullGif.width = s.domW;
-            fullGif.height = s.domH;
-            const fullCtx = fullGif.getContext("2d");
-            const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-            const pc = document.createElement("canvas");
-            pc.width = f.dims.width;
-            pc.height = f.dims.height;
-            pc.getContext("2d").putImageData(patch, 0, 0);
-            fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-            ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
-          }
+      // Update CTA bounce
+      if (ctaButton) {
+        let bounceScale = 1;
+        if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
+          const bounceProgress = (frameTime - bounceStart) / BOUNCE_DURATION;
+          const bounceStep = Math.floor(bounceProgress * 4) % 4;
+          bounceScale = bounceScales[bounceStep];
         }
-        ctx.shadowColor = 'transparent';
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
+        ctaButton.style.transform = `scale(${bounceScale})`;
       }
       
-      // Apply drop shadow effect
-      if (s.hasShadow) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
+      // Update snow and glitter
+      if (typeof updateSnowFrame === 'function') {
+        updateSnowFrame(1);
+      }
+      if (typeof updateGlitterFrame === 'function') {
+        updateGlitterFrame(1);
       }
       
-      if (s.kind === "static") {
-        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-      } else {
-        const elapsed = i * FRAME_MS;
-        const mod = elapsed % s.totalDur;
-        let acc = 0, idx = 0;
-        for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-        const f = s.frames[idx % s.frames.length];
-        
-        const fullGif = document.createElement("canvas");
-        fullGif.width = s.domW;
-        fullGif.height = s.domH;
-        const fullCtx = fullGif.getContext("2d");
-        
-        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-        const pc = document.createElement("canvas");
-        pc.width = f.dims.width;
-        pc.height = f.dims.height;
-        pc.getContext("2d").putImageData(patch, 0, 0);
-        fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        
-        ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
-      }
-      ctx.restore();
-    }
-    
-    // Draw text elements with CTA bounce animation
-    // CTA bounce: pixelBounce animation - bounce at start, then rest
-    // For a 5-second export, we want one bounce at the beginning
-    // Bounce scales: 1 -> 1.10 -> 1.20 -> 1.10 -> 1 over 2 seconds (4 steps)
-    const BOUNCE_DURATION = 2000; // 2 second bounce
-    const bounceScales = [1, 1.10, 1.20, 1.10]; // 4 steps
-    const frameTime = i * FRAME_MS;
-    
-    let ctaBounceScale = 1;
-    // First bounce starts at 500ms (after a short delay) and lasts 2 seconds
-    const bounceStart = 500;
-    if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
-      const bounceProgress = (frameTime - bounceStart) / BOUNCE_DURATION;
-      const bounceStep = Math.floor(bounceProgress * 4) % 4;
-      ctaBounceScale = bounceScales[bounceStep];
-    }
-    
-    for (const t of validTextElements) {
-      ctx.save();
-      ctx.translate(t.x, t.y);
-      ctx.translate(t.baseW / 2, t.baseH / 2);
-      ctx.rotate((t.angle || 0) * Math.PI / 180);
+      // Force reflow to ensure all changes are rendered
+      stage.offsetHeight;
       
-      // Apply bounce scale for CTA elements
-      let finalScale = t.scale || 1;
-      if (t.isCTA) {
-        finalScale *= ctaBounceScale;
-      }
-      ctx.scale(finalScale, finalScale);
+      // Capture the whole stage with html2canvas
+      const frameCanvas = await html2canvas(stage, {
+        scale: 1,
+        backgroundColor: null,
+        logging: false,
+        allowTaint: true,
+        useCORS: true,
+        width: W,
+        height: H,
+        ignoreElements: (element) => {
+          return element.classList.contains('scale-handle') || 
+                 element.classList.contains('rot-handle');
+        }
+      });
       
-      // Just draw - html2canvas captures all CSS effects (filter, box-shadow, etc.)
-      ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
-      ctx.restore();
+      // Draw to encoder buffer
+      const buf = document.createElement("canvas");
+      buf.width = W;
+      buf.height = H;
+      const ctx = buf.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(frameCanvas, 0, 0, W, H);
+      
+      enc.addFrame(ctx);
+      
+      if (progressCallback) {
+        progressCallback((i + 1) / TOTAL);
+      }
     }
     
-    // Draw glitter
-    if (glitterCanvasEl) {
-      ctx.drawImage(glitterCanvasEl, 0, 0, W, H);
+    enc.finish();
+    
+    // Cleanup
+    if (bgCanvas) {
+      bgCanvas.remove();
+      stage.style.backgroundImage = originalBgImage;
     }
-    
-    // Draw snow
-    if (snowCanvasEl) {
-      ctx.drawImage(snowCanvasEl, 0, 0, W, H);
+    if (ctaButton) {
+      ctaButton.style.transform = originalCtaTransform;
+      ctaButton.classList.add('bouncing');
+      ctaButton.style.animation = '';
     }
-    
-    enc.addFrame(ctx);
-    
-    if (progressCallback) {
-      progressCallback((i + 1) / TOTAL);
-    }
-    
-    await new Promise(r => setTimeout(r, FRAME_MS));
-  }
-  
-  enc.finish();
-  
-  const binary = enc.stream().getData();
-  return "data:image/gif;base64," + btoa(binary);
-  
-  } finally {
-    // Clean up export state - always runs even on error
-    clearInterval(animationKeepAlive);
+    document.documentElement.style.setProperty('--ui-scale', originalScale);
     isExporting = false;
     
-    // Restore UI scale
+    const binary = enc.stream().getData();
+    const b64 = btoa(binary);
+    return "data:image/gif;base64," + b64;
+    
+  } catch (error) {
+    // Cleanup on error
+    if (bgCanvas) {
+      bgCanvas.remove();
+      stage.style.backgroundImage = originalBgImage;
+    }
+    if (ctaButton) {
+      ctaButton.style.transform = originalCtaTransform;
+      ctaButton.classList.add('bouncing');
+      ctaButton.style.animation = '';
+    }
     document.documentElement.style.setProperty('--ui-scale', originalScale);
+    isExporting = false;
+    throw error;
   }
 }
 
