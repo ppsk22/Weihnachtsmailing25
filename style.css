@@ -189,6 +189,41 @@
   display: none;
 }
 
+/* Export progress bar */
+.export-progress-container {
+  width: 300px;
+  max-width: 80vw;
+  height: 20px;
+  background: #1a1a2e;
+  border: 3px solid #3013a9;
+  margin: 0 auto 16px auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.export-progress-container.hidden {
+  display: none;
+}
+
+.export-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #5a3fd9;
+  transition: width 0.1s ease-out;
+  position: relative;
+}
+
+/* Pixel shine effect on progress bar */
+.export-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: rgba(255, 255, 255, 0.15);
+}
+
 
 /* ---- sizing tokens ---- */
 :root{

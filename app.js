@@ -4236,6 +4236,12 @@ function wireExportControls(){
     btnCancel.onclick = () => { CANCELLED = true; };
     progEl.textContent = `Preloading… 0/${TOTAL}`;
 
+    // Show and reset progress bar
+    const progressContainer = document.getElementById('export-progress-container');
+    const progressBar = document.getElementById('export-progress-bar');
+    if (progressContainer) progressContainer.classList.remove('hidden');
+    if (progressBar) progressBar.style.width = '0%';
+
     // Temporarily reset UI scale to 1 for accurate capture
     const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
     document.documentElement.style.setProperty('--ui-scale', '1');
@@ -4253,7 +4259,28 @@ function wireExportControls(){
 
     const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
     const bgURL   = bgMatch ? bgMatch[1] : null;
-    const bgImg   = bgURL ? await loadImage(bgURL) : null;
+    
+    // Load background - check if it's an animated GIF
+    let bgData = null;
+    if (bgURL) {
+      if (/\.gif(?:[?#].*)?$/i.test(bgURL)) {
+        // Animated GIF background
+        const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+        const gif = window.__gif_parseGIF(ab);
+        const frs = window.__gif_decompressFrames(gif, true);
+        const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+        const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
+        // Get dimensions from first frame
+        const firstFrame = frs[0];
+        const gifW = gif.lsd.width;
+        const gifH = gif.lsd.height;
+        bgData = { kind: "anim", frames: frs, delays, totalDur, width: gifW, height: gifH };
+      } else {
+        // Static image background
+        const img = await loadImage(bgURL);
+        bgData = { kind: "static", img };
+      }
+    }
 
     const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
 
@@ -4373,36 +4400,54 @@ function wireExportControls(){
       ctx.clearRect(0, 0, W, H);
       
       // Draw background - match CSS background-size setting
-      // Currently using partial squash mode (100% 85%)
-      if (bgImg) {
-        // === BACKGROUND SIZING OPTIONS (match CSS in style.css) ===
-        // OPTION 1: Cover (crop to fit)
-        /*
-        const imgRatio = bgImg.width / bgImg.height;
-        const canvasRatio = W / H;
-        let drawW, drawH, drawX, drawY;
-        if (imgRatio > canvasRatio) {
-          drawH = H;
-          drawW = H * imgRatio;
-          drawX = (W - drawW) / 2;
-          drawY = 0;
-        } else {
-          drawW = W;
-          drawH = W / imgRatio;
-          drawX = 0;
-          drawY = (H - drawH) / 2;
-        }
-        ctx.drawImage(bgImg, drawX, drawY, drawW, drawH);
-        */
-        
-        // OPTION 2: Full stretch (100% 100%)
-        // ctx.drawImage(bgImg, 0, 0, W, H);
-        
-        // OPTION 3: Partial squash (100% 115%) - currently active
+      // Currently using partial squash mode (100% 115%)
+      if (bgData) {
         const drawH = H * 1.15;
         const drawY = (H - drawH) / 2;
-        ctx.drawImage(bgImg, 0, drawY, W, drawH);
-        // === END BACKGROUND SIZING OPTIONS ===
+        
+        if (bgData.kind === "static") {
+          // Static image background
+          ctx.drawImage(bgData.img, 0, drawY, W, drawH);
+        } else {
+          // Animated GIF background
+          const elapsed = i * FRAME_MS;
+          const mod = elapsed % bgData.totalDur;
+          let acc = 0, idx = 0;
+          for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
+          idx = idx % bgData.frames.length;
+          
+          // Create a temporary canvas for the full GIF frame
+          const fullGif = document.createElement("canvas");
+          fullGif.width = bgData.width;
+          fullGif.height = bgData.height;
+          const fullCtx = fullGif.getContext("2d");
+          
+          // Render all frames up to current index to handle disposal properly
+          for (let fi = 0; fi <= idx; fi++) {
+            const f = bgData.frames[fi];
+            
+            // Handle disposal from previous frame
+            if (fi > 0) {
+              const prevF = bgData.frames[fi - 1];
+              if (prevF.disposalType === 2) {
+                // Restore to background (clear)
+                fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+              }
+              // disposalType 3 (restore to previous) is complex, treat as 1 (do nothing)
+            }
+            
+            // Draw the frame patch
+            const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+            const pc = document.createElement("canvas");
+            pc.width = f.dims.width;
+            pc.height = f.dims.height;
+            pc.getContext("2d").putImageData(patch, 0, 0);
+            fullCtx.drawImage(pc, f.dims.left, f.dims.top);
+          }
+          
+          // Draw the full frame scaled to canvas
+          ctx.drawImage(fullGif, 0, drawY, W, drawH);
+        }
       }
 
       for (const s of stickers) {
@@ -4493,6 +4538,8 @@ function wireExportControls(){
 
       enc.addFrame(ctx);
       progEl.textContent = `Encoding ${i + 1}/${TOTAL}`;
+      // Update progress bar
+      if (progressBar) progressBar.style.width = `${((i + 1) / TOTAL) * 100}%`;
       await sleep(FRAME_MS);
     }
 
@@ -4503,6 +4550,7 @@ function wireExportControls(){
       const a = document.createElement("a");
       a.href = url; a.download = "banner.gif"; a.click();
       progEl.textContent = `Done. ${TOTAL}/${TOTAL}`;
+      if (progressBar) progressBar.style.width = '100%';
     } else {
       progEl.textContent = "Cancelled.";
     }
@@ -4510,8 +4558,9 @@ function wireExportControls(){
     // Restore UI scale
     document.documentElement.style.setProperty('--ui-scale', originalScale);
     
-    // Hide exporting screen
+    // Hide exporting screen and progress bar
     if (exportingScreen) exportingScreen.classList.add('hidden');
+    if (progressContainer) progressContainer.classList.add('hidden');
     
     btnPNG.disabled = false;
     btnGIF.disabled = false;
