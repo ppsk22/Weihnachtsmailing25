@@ -1656,6 +1656,21 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   justify-content: center;
 }
 
+/* Banner name input group */
+.banner-name-group {
+  margin-bottom: 20px;
+}
+
+.banner-name-group .lbl {
+  text-align: center;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.banner-name-input {
+  text-align: center;
+}
+
 .send-status {
   text-align: center;
   font-family: 'home_videoregular', sans-serif;

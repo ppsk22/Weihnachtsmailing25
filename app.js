@@ -504,6 +504,10 @@ function buildExportUI(container){
   wrap.innerHTML = `
     <div class="export-section main-export-section">
       <p class="export-congrats">Your banner is ready!</p>
+      <div class="input-group banner-name-group">
+        <label class="lbl" for="banner-name">Name your banner (optional)</label>
+        <input id="banner-name" type="text" placeholder="My awesome banner" class="export-input banner-name-input" maxlength="50" />
+      </div>
       <div class="btn-row centered">
         <button id="export-main" class="export-btn confirm-btn">Export Banner</button>
       </div>
@@ -540,6 +544,29 @@ function buildExportUI(container){
   wireExportControls();
 }
 
+// Sanitize filename - remove invalid characters, replace spaces with underscores
+function sanitizeFilename(name) {
+  if (!name || name.trim().length === 0) return '';
+  
+  // Replace spaces with underscores
+  let sanitized = name.trim().replace(/\s+/g, '_');
+  
+  // Remove characters not allowed in filenames
+  // Keep: letters (any language), numbers, underscore, hyphen, dot
+  // Remove: / \ : * ? " < > | & % $ # @ ! ^ ( ) { } [ ] = + ` ~ ; ,
+  sanitized = sanitized.replace(/[\/\\:*?"<>|&%$#@!^(){}\[\]=+`~;,]/g, '');
+  
+  // Remove any leading/trailing underscores or dots
+  sanitized = sanitized.replace(/^[_.]+|[_.]+$/g, '');
+  
+  // Limit length
+  if (sanitized.length > 50) {
+    sanitized = sanitized.substring(0, 50);
+  }
+  
+  return sanitized;
+}
+
 // Main export button handler
 function wireMainExport() {
   const exportBtn = document.getElementById('export-main');
@@ -573,10 +600,16 @@ function wireMainExport() {
         if (progressBar) progressBar.style.width = `${progress * 100}%`;
       });
       
-      // Generate unique filename with timestamp
+      // Get and sanitize banner name
+      const bannerNameInput = document.getElementById('banner-name');
+      const bannerName = sanitizeFilename(bannerNameInput ? bannerNameInput.value : '');
+      
+      // Generate unique filename with timestamp and optional name
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(2, 8);
-      const filename = `banner_${timestamp}_${randomId}.gif`;
+      const filename = bannerName 
+        ? `${bannerName}_${timestamp}_${randomId}.gif`
+        : `banner_${timestamp}_${randomId}.gif`;
       
       // Save to server
       exportStatus.textContent = 'Saving to server...';

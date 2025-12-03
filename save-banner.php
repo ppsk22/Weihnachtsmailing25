@@ -65,8 +65,17 @@ if (empty($data['image']) || empty($data['filename'])) {
 
 // Validate filename (sanitize to prevent directory traversal)
 $filename = basename($data['filename']);
-if (!preg_match('/^banner_\d+_[a-z0-9]+\.gif$/i', $filename)) {
+
+// Allow: letters, numbers, underscores, hyphens, dots (but not at start/end)
+// Must end with .gif and contain timestamp pattern
+if (!preg_match('/^[a-zA-Z0-9_-]+_\d+_[a-z0-9]+\.gif$/i', $filename)) {
     // If filename doesn't match expected pattern, generate a new one
+    $filename = 'banner_' . time() . '_' . bin2hex(random_bytes(3)) . '.gif';
+}
+
+// Extra safety: remove any remaining problematic characters
+$filename = preg_replace('/[^a-zA-Z0-9_.-]/', '', $filename);
+if (empty($filename) || $filename === '.gif') {
     $filename = 'banner_' . time() . '_' . bin2hex(random_bytes(3)) . '.gif';
 }
 
