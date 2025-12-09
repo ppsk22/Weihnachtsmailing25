@@ -95,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function showExportCompleted() {
   const exportingText = document.getElementById('exporting-text');
   const completedText = document.getElementById('export-completed-text');
+  const congratsMessage = document.getElementById('export-congrats-message');
   const errorText = document.getElementById('export-error-text');
   const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
@@ -110,14 +111,16 @@ function showExportCompleted() {
   if (fallbackBtn) fallbackBtn.classList.add('hidden');
   if (errorRestartBtn) errorRestartBtn.classList.add('hidden');
   
-  // Show completed text and restart button
+  // Show completed text, congrats message, and restart button
   if (completedText) completedText.classList.remove('hidden');
+  if (congratsMessage) congratsMessage.classList.remove('hidden');
   if (restartBtn) restartBtn.classList.remove('hidden');
 }
 
 function showExportError(errorMsg) {
   const exportingText = document.getElementById('exporting-text');
   const completedText = document.getElementById('export-completed-text');
+  const congratsMessage = document.getElementById('export-congrats-message');
   const errorText = document.getElementById('export-error-text');
   const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
@@ -129,6 +132,7 @@ function showExportError(errorMsg) {
   if (exportingText) exportingText.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
   if (completedText) completedText.classList.add('hidden');
+  if (congratsMessage) congratsMessage.classList.add('hidden');
   if (restartBtn) restartBtn.classList.add('hidden');
   
   // Show error state
@@ -148,6 +152,7 @@ function showExportError(errorMsg) {
 function resetExportScreen() {
   const exportingText = document.getElementById('exporting-text');
   const completedText = document.getElementById('export-completed-text');
+  const congratsMessage = document.getElementById('export-congrats-message');
   const errorText = document.getElementById('export-error-text');
   const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
@@ -160,6 +165,7 @@ function resetExportScreen() {
   // Reset to initial state
   if (exportingText) exportingText.classList.remove('hidden');
   if (completedText) completedText.classList.add('hidden');
+  if (congratsMessage) congratsMessage.classList.add('hidden');
   if (errorText) errorText.classList.add('hidden');
   if (errorMessage) errorMessage.classList.add('hidden');
   if (restartBtn) restartBtn.classList.add('hidden');
@@ -888,20 +894,44 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     try {
       const clone = w.cloneNode(true);
       clone.style.position = 'fixed';
-      clone.style.left = '0';
-      clone.style.top = '0';
+      clone.style.left = '20px';  // Add padding for shadow overflow
+      clone.style.top = '20px';
       clone.style.transform = 'none';
       clone.style.zIndex = '-9999';
       clone.style.pointerEvents = 'none';
+      clone.style.overflow = 'visible';
       document.body.appendChild(clone);
       
-      // Remove animation from CTA
+      // Remove animation from CTA and ensure styles are applied
       const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
       if (innerEl) {
         innerEl.classList.remove('bouncing');
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
+        innerEl.style.overflow = 'visible';
+        
+        // Get computed box-shadow and convert to filter if it's a simple shadow
+        const computedStyle = window.getComputedStyle(w.querySelector('.cta-button, .headline-text, .company-text') || w);
+        const boxShadow = computedStyle.boxShadow;
+        
+        // If there's a simple box-shadow (not inset, not multiple), convert to filter
+        if (boxShadow && boxShadow !== 'none' && !boxShadow.includes('inset') && !boxShadow.includes(',')) {
+          // Parse simple box-shadow: "rgb(r,g,b) Xpx Ypx Zpx" or "Xpx Ypx Zpx rgb(r,g,b)"
+          // Convert to filter: drop-shadow(Xpx Ypx Zpx color)
+          const match = boxShadow.match(/rgba?\([^)]+\)|#[0-9a-fA-F]+|\d+px/g);
+          if (match && match.length >= 3) {
+            const color = match.find(m => m.startsWith('rgb') || m.startsWith('#')) || 'rgba(0,0,0,0.5)';
+            const values = match.filter(m => m.endsWith('px'));
+            if (values.length >= 2) {
+              const dropShadow = `drop-shadow(${values[0]} ${values[1]} ${values[2] || '0px'} ${color})`;
+              innerEl.style.filter = (innerEl.style.filter || '') + ' ' + dropShadow;
+            }
+          }
+        }
       }
+      
+      // Get the actual rendered size
+      const rect = clone.getBoundingClientRect();
       
       const canvas = await html2canvas(clone, {
         scale: 2,
@@ -909,6 +939,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         logging: false,
         allowTaint: true,
         useCORS: true,
+        width: rect.width + 40,  // Extra space for shadows
+        height: rect.height + 40,
+        x: -20,  // Offset to capture shadows
+        y: -20,
         ignoreElements: (element) => {
           return element.classList.contains('scale-handle') || 
                  element.classList.contains('rot-handle');
@@ -920,7 +954,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, zIndex };
+      // Adjust x/y to account for the padding we added
+      return { canvas, x: x - 20, y: y - 20, scale, angle, baseW, baseH, isCTA, zIndex };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -1079,6 +1114,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     if (progressCallback) {
       progressCallback((i + 1) / TOTAL);
+      // Yield to event loop every few frames to allow UI updates
+      if (i % 5 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
   }
   
@@ -2153,9 +2192,9 @@ const categoryCompanyParts = {
     suffixes: ['Beverages', 'Drinks', 'Brewing', 'Refresh', 'Beverage', 'Sodas', 'Brews', 'Coolers', 'Spirits', 'Liquids']
   },
   other: {
-    prefixes: [],
-    roots: [],
-    suffixes: []
+    prefixes: ['Meta', 'Ultra', 'Cyber', 'Turbo', 'Star', 'Glow', 'Future', 'Dream', 'Spark', 'Luxe', 'Icon', 'Bold', 'Chic', 'Pop', 'Social', 'Viral', 'Digital', 'Universe', 'Leaf', 'Sun', 'Moon', 'Ocean', 'Sky', 'Forest', 'Earth', 'Wave', 'Bloom', 'Seed', 'Feather', 'Wing', 'Furry', 'Crunch', 'Cozy', 'Party', 'Beat', 'Dance', 'Pulse', 'Flow', 'Joy', 'Light', 'Shine', 'Heart', 'Smile', 'Lucky', 'Chill', 'Fun', 'Play', 'Happy', 'Fresh', 'Bold', 'Calm', 'Wild', 'Epic', 'Sweet'],
+    roots: ['Flow', 'Wave', 'Pulse', 'Loop', 'Vibe', 'Mode', 'Trend', 'Core', 'Vision', 'Spark', 'Beat', 'Circuit', 'Style', 'Motion', 'Buzz', 'Pop', 'Nexus', 'Signal', 'Story', 'Rhythm', 'Fusion', 'Lab', 'Hack', 'Sync', 'Remix'],
+    suffixes: ['Works', 'Hub', 'Studio', 'Space', 'Zone', 'Sphere', 'Collective', 'Factory', 'Machine', 'Systems', 'Network', 'Crew', 'Hive', 'Lab', 'Dynamics', 'Mode', 'Cloud', 'Joke', 'Nation', 'Inc', 'Tech', 'Solutions', 'Bääm', 'Wow']
   }
 };
 
@@ -2566,8 +2605,8 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
 //------------------------------------------------------
 let currentCTAButton = null; // Track the current CTA button
 
-const ctaVerbs = ['Get', 'Learn', 'Start', 'Discover', 'Join', 'Try', 'Unlock', 'Explore', 'Claim', 'Grab'];
-const ctaActions = ['Started', 'More', 'Now', 'Today', 'Free', 'Yours', 'Here', 'It', 'This', 'Access'];
+const ctaVerbs = ['Get', 'Learn', 'Start', 'Discover', 'Join', 'Try', 'Unlock', 'Explore', 'Claim', 'Grab', 'Boost', 'Create', 'Build', 'Play', 'Design', 'Activate', 'Unleash', 'Reveal', 'Craft', 'Experience', 'Dive', 'Check', 'Hit', 'Go', 'Launch'];
+const ctaActions = ['Started', 'More', 'Now', 'Today', 'Free', 'Yours', 'Here', 'It', 'This', 'Access', 'Instantly', 'Your Way', 'Fast', 'Ahead', 'Online', 'Directly', 'Magic', 'Effect', 'Now!', 'Quick', 'Here & Now', 'Today Only', 'Live', 'Freebie', 'Fun'];
 
 function buildCTAButtonUI(container) {
   const genContainer = document.createElement('div');
