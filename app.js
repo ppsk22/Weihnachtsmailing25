@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v3.1 - PROGRESS FIX ====
+// ==== CHRISTMAS BANNER BUILDER v3.2 - GLITTER Z-ORDER FIX ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -1069,6 +1069,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   // dt=1 is 16.67ms (60fps), so for 10fps (100ms) we need dt≈6
   const exportDt = FRAME_MS / 16.67;
   
+  // Regenerate glitter pixels to ensure they're current for export
+  if (typeof regenerateGlitterPixels === 'function') regenerateGlitterPixels();
+  if (typeof regenerateElementGlitterPixels === 'function') regenerateElementGlitterPixels();
+  
   // Update status for encoding phase
   if (statusEl) {
     statusEl.textContent = 'Encoding frames...';
@@ -1083,9 +1087,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     const frameTime = i * FRAME_MS;
     
-    // Update snow and glitter with correct dt for export fps
+    // Update snow with correct dt for export fps
     if (typeof updateSnowFrame === 'function') updateSnowFrame(exportDt);
-    if (typeof updateGlitterFrame === 'function') updateGlitterFrame(exportDt);
+    // Note: Glitter is drawn directly in z-order (sticker glitter after stickers, element glitter after text)
     
     ctx.clearRect(0, 0, W, H);
     
@@ -1159,6 +1163,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.restore();
     }
     
+    // Draw sticker glitter AFTER stickers but BEFORE text elements
+    // This ensures sticker glitter stays behind CTA/headline/company
+    if (typeof drawStickerGlitterToContext === 'function') {
+      drawStickerGlitterToContext(ctx, exportDt);
+    }
+    
     // Calculate CTA bounce for this frame
     let ctaBounceScale = 1;
     if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
@@ -1220,9 +1230,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.restore();
     }
     
-    // Draw glitter
-    if (glitterCanvasEl) {
-      ctx.drawImage(glitterCanvasEl, 0, 0, W, H);
+    // Draw element glitter (for headline, company, CTA) AFTER text elements
+    if (typeof drawElementGlitterToContext === 'function') {
+      drawElementGlitterToContext(ctx, exportDt);
     }
     
     // Draw snow
@@ -5102,8 +5112,8 @@ const GLITTER_PRESETS = [
       glitterAmount: 1.1,
       glitterSpeed: 0.273,
       jitter: 17.2,
-      crossChance: 0.2,
-      starChance: 0.45,
+      crossChance: 0.7,
+      starChance: 0.6,
       fps: 4,
       blinkHardness: 1,
       brightness: 2.8
@@ -5776,6 +5786,146 @@ function updateGlitterFrame(dt) {
   }
   
   glitterCtx.globalAlpha = 1;
+}
+
+// Export-specific: Draw ONLY sticker glitter to a context
+function drawStickerGlitterToContext(ctx, dt) {
+  if (!glitterPixels || glitterPixels.length === 0) return;
+  
+  const globalTime = performance.now() * 0.001;
+  const brightness = GLITTER_SETTINGS.brightness;
+  
+  for (let i = 0; i < glitterPixels.length; i++) {
+    const p = glitterPixels[i];
+    if (!p) continue;
+    
+    const stickerSettings = p.stickerSettings || {};
+    p.phase += p.speed * dt;
+    
+    let pulse = (1 + Math.sin(p.phase)) * 0.5;
+    const hardness = Math.max(0, Math.min(1, 
+      GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+    ));
+    pulse = Math.pow(pulse, 1 - hardness * 0.8);
+    
+    if (Math.random() < 0.05) {
+      pulse = Math.random() < 0.5 ? 1 : 0;
+    }
+    
+    const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+    const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+    const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+    
+    if (alpha < 0.1) continue;
+    
+    const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+    const jx = (Math.random() - 0.5) * jitter;
+    const jy = (Math.random() - 0.5) * jitter;
+    
+    const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+    const colorPhase = stickerSettings.colorPhase || 0;
+    const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+    const currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+    const color = p.colors[currentColorIndex];
+    
+    const x = (p.x + jx) | 0;
+    const y = (p.y + jy) | 0;
+    const s = size | 0;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    
+    // Draw shape (matching drawGlitterShape logic)
+    if (p.shapeType === 'star' && s >= 3) {
+      const half = s >> 1;
+      const diagHalf = (s * 0.35) | 0;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+      for (let d = 1; d <= diagHalf; d++) {
+        ctx.fillRect(x + d, y + d, 1, 1);
+        ctx.fillRect(x - d, y - d, 1, 1);
+        ctx.fillRect(x + d, y - d, 1, 1);
+        ctx.fillRect(x - d, y + d, 1, 1);
+      }
+    } else if (p.shapeType === 'cross' && s >= 2) {
+      const half = s >> 1;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+    } else {
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Export-specific: Draw ONLY element glitter to a context
+function drawElementGlitterToContext(ctx, dt) {
+  if (!elementGlitterPixels || elementGlitterPixels.length === 0) return;
+  
+  const globalTime = performance.now() * 0.001;
+  const brightness = GLITTER_SETTINGS.brightness;
+  
+  for (let i = 0; i < elementGlitterPixels.length; i++) {
+    const p = elementGlitterPixels[i];
+    if (!p) continue;
+    
+    const stickerSettings = p.stickerSettings || {};
+    p.phase += p.speed * dt;
+    
+    let pulse = (1 + Math.sin(p.phase)) * 0.5;
+    const hardness = Math.max(0, Math.min(1, 
+      GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+    ));
+    pulse = Math.pow(pulse, 1 - hardness * 0.8);
+    
+    if (Math.random() < 0.05) {
+      pulse = Math.random() < 0.5 ? 1 : 0;
+    }
+    
+    const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+    const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+    const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+    
+    if (alpha < 0.1) continue;
+    
+    const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+    const jx = (Math.random() - 0.5) * jitter;
+    const jy = (Math.random() - 0.5) * jitter;
+    
+    const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+    const colorPhase = stickerSettings.colorPhase || 0;
+    const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+    const currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+    const color = p.colors[currentColorIndex];
+    
+    const x = (p.x + jx) | 0;
+    const y = (p.y + jy) | 0;
+    const s = size | 0;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    
+    // Draw shape (matching drawGlitterShape logic)
+    if (p.shapeType === 'star' && s >= 3) {
+      const half = s >> 1;
+      const diagHalf = (s * 0.35) | 0;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+      for (let d = 1; d <= diagHalf; d++) {
+        ctx.fillRect(x + d, y + d, 1, 1);
+        ctx.fillRect(x - d, y - d, 1, 1);
+        ctx.fillRect(x + d, y - d, 1, 1);
+        ctx.fillRect(x - d, y + d, 1, 1);
+      }
+    } else if (p.shapeType === 'cross' && s >= 2) {
+      const half = s >> 1;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+    } else {
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 function glitterLoop(timestamp) {
