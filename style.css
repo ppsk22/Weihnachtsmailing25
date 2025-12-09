@@ -336,6 +336,11 @@ body {
   background:#3013a9;
   color: #fff;
   cursor: url('assets/UI/cursor.ico'), auto;
+  /* Prevent text selection on UI */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 /* Hide scrollbars globally but allow scrolling where needed */
@@ -786,28 +791,6 @@ body.modal-open #sticker-bar * {
   letter-spacing: 1px;
 }
 
-#element-effect-tabs {
-  position: absolute;
-  left: 108px;
-  bottom: 0;
-  display: none;
-  align-items: stretch;
-  gap: 0;
-  z-index: 600;  /* Above UI snow (500) */
-  height: 38px;
-}
-
-#element-effect-tabs .effect-tab {
-  border-bottom: none;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-#element-effect-tabs .effect-tab:last-child {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
 /* ============================================
    STICKER BAR TITLE & EFFECTS
    ============================================ */
@@ -843,60 +826,6 @@ body.modal-open #sticker-bar * {
   font-weight: normal;
   font-family: 'home_videoregular', sans-serif;
   text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-/* Effect tabs container - positioned right after title */
-#sticker-effect-tabs {
-  grid-column: 2;
-  grid-row: 2;
-  position: absolute;
-  left: 108px;  /* Overlap title's right border by 2px */
-  top: 0;
-  display: none;  /* Hidden by default */
-  align-items: stretch;  /* Make all tabs same height */
-  gap: 0;
-  z-index: 150;
-  height: 38px;  /* Match title height */
-}
-
-/* Individual effect tab */
-.effect-tab {
-  padding: 0 12px;
-  background: rgba(15, 15, 15, 0.95);  /* Very dark */
-  border: 4px solid #3013a9;
-  border-left: none;  /* Connect tabs together */
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: url('assets/UI/hand.ico'), pointer;
-  transition: background 0.2s;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.effect-tab:last-child {
-  border-bottom-right-radius: 0;  /* Rounded corner on last tab */
-}
-
-.effect-tab:hover {
-  background: rgba(30, 30, 30, 0.95);
-}
-
-.effect-tab input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  cursor: url('assets/UI/hand.ico'), pointer;
-  accent-color: #4CAF50;
-  margin: 0;
-}
-
-.effect-tab span {
-  color: #fff;
-  font-size: 12px;
-  font-weight: normal;  /* Lighter weight than title */
-  font-family: 'home_videoregular', sans-serif;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
