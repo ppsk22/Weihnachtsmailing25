@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v2.8 - GLITTER SIZE FIX ====
+// ==== CHRISTMAS BANNER BUILDER v2.9 - EXPORT SNOW FIX ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -997,17 +997,21 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     });
   };
   
+  // Calculate dt for snow/glitter updates based on export fps
+  // dt=1 is 16.67ms (60fps), so for 10fps (100ms) we need dt≈6
+  const exportDt = FRAME_MS / 16.67;
+  
   for (let i = 0; i < TOTAL; i++) {
-    // Pause export if tab is hidden
-    if (document.hidden) {
+    // Pause export if tab is hidden (check only occasionally to reduce overhead)
+    if (i % 10 === 0 && document.hidden) {
       await waitForVisibility();
     }
     
     const frameTime = i * FRAME_MS;
     
-    // Update snow and glitter
-    if (typeof updateSnowFrame === 'function') updateSnowFrame(1);
-    if (typeof updateGlitterFrame === 'function') updateGlitterFrame(1);
+    // Update snow and glitter with correct dt for export fps
+    if (typeof updateSnowFrame === 'function') updateSnowFrame(exportDt);
+    if (typeof updateGlitterFrame === 'function') updateGlitterFrame(exportDt);
     
     ctx.clearRect(0, 0, W, H);
     
@@ -1196,8 +1200,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     if (progressCallback) {
       progressCallback((i + 1) / TOTAL);
-      // Yield to event loop every few frames to allow UI updates
-      if (i % 5 === 0) {
+      // Yield to event loop less frequently for better performance
+      if (i % 10 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
       }
     }
