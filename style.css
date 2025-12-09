@@ -926,8 +926,7 @@ body.modal-open #sticker-bar * {
   position:relative;
   z-index:1;
   cursor: move; /* 4-way move icon */
-  /* Always apply drop shadow to stickers and heroes */
-  filter: drop-shadow(3px 3px 0 rgba(0,0,0,0.5));
+  /* Shadows applied inline via JS for random outline effect */
 }
 
 /* --- DEFAULT: HIDE HANDLES --- */
@@ -1569,50 +1568,6 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
    EXPORT UI STYLES
    ============================================ */
 
-.export-ui-wrapper {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 0 10px;
-}
-
-.export-section {
-  margin-bottom: 20px;
-}
-
-/* Export section layout - centered content */
-.main-export-section {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-}
-
-.export-congrats {
-  font-family: 'home_videoregular', sans-serif;
-  font-size: 18px;
-  color: #ff69b4;
-  text-align: center;
-  margin: 0;
-  letter-spacing: 1px;
-  line-height: 1.5;
-  text-shadow: 2px 2px 0 #3013a9;
-  max-width: 100%;
-}
-
-.banner-name-group {
-  width: 100%;
-  text-align: center;
-}
-
-.btn-row.centered {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
 .export-section-title {
   font-family: 'home_videoregular', sans-serif;
   font-size: 18px;
@@ -1715,9 +1670,55 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 .popup-body:has(.export-ui-wrapper) {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 200px);
-  max-height: 400px;
-  min-height: 280px;
+  overflow: hidden;
+}
+
+.export-ui-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+  min-height: 0;
+}
+
+.export-section {
+  margin-bottom: 20px;
+}
+
+/* Export section layout - centered content */
+.export-section.main-export-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 25px;
+  margin-bottom: 0;
+  padding: 20px 0;
+}
+
+.export-congrats {
+  font-family: 'home_videoregular', sans-serif;
+  font-size: 18px;
+  color: #ff69b4;
+  text-align: center;
+  margin: 0;
+  letter-spacing: 1px;
+  line-height: 1.5;
+  text-shadow: 2px 2px 0 #3013a9;
+  max-width: 100%;
+}
+
+.banner-name-group {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.btn-row.centered {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 /* Pixel-art style scrollbar */
