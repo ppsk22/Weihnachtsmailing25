@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v3.0 - EXPORT OPTIMIZATION ====
+// ==== CHRISTMAS BANNER BUILDER v3.1 - PROGRESS FIX ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -1234,9 +1234,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     if (progressCallback) {
       progressCallback((i + 1) / TOTAL);
-      // Yield to event loop less frequently for better performance
-      if (i % 10 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
+      // Yield every 2 frames with 4ms delay (browser minimum) for reliable UI updates
+      if (i % 2 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 4));
       }
     }
   }
