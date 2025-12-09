@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v2.3 - EXPORT FIXES ====
+// ==== CHRISTMAS BANNER BUILDER v2.4 - CTA FILTER FIX ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -5979,6 +5979,7 @@ function updateElementEffects(wrapper) {
   
   const hasShadow = wrapper.getAttribute('data-has-shadow') === 'true';
   const hasOutline = wrapper.getAttribute('data-has-outline') === 'true';
+  const isCTA = wrapper.classList.contains('cta-layer');
   
   let filterParts = [];
   
@@ -5997,7 +5998,20 @@ function updateElementEffects(wrapper) {
     filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
   }
   
-  inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+  // For CTA buttons, always preserve the button's own drop-shadow filter
+  // CTA buttons have their drop-shadow set by spawnCTAButton, don't overwrite it
+  if (isCTA) {
+    // Only update if there are additional effects (outline/shadow checkbox)
+    // Otherwise leave the filter alone
+    if (filterParts.length > 0) {
+      // Add the CTA's own shadow to the end
+      filterParts.push('drop-shadow(4px 4px 0 #000)');
+      inner.style.filter = filterParts.join(' ');
+    }
+    // If no effects, don't touch the filter - it already has the CTA shadow
+  } else {
+    inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+  }
 }
 
 // Element effect: Shadow
