@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v2.4 - CTA FILTER FIX ====
+// ==== CHRISTMAS BANNER BUILDER v2.8 - GLITTER SIZE FIX ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -1723,24 +1723,24 @@ function updateGlitterPreview(previewEl, hasGlitter) {
   const offsetX = previewRect.left - parentRect.left;
   const offsetY = previewRect.top - parentRect.top;
   
-  // Generate glitter data using same functions as main system
-  glitterPreviewData = {
-    colors: typeof getRandomGlitterColors === 'function' ? getRandomGlitterColors() : 
-      ['#ff69b4', '#00ffff', '#ffd700', '#ff00ff', '#ffffff'],
-    settings: typeof getRandomStickerSettings === 'function' ? getRandomStickerSettings() : {
-      densityMult: 1,
-      sizeMinOffset: 0,
-      sizeMaxOffset: 0,
-      speedMult: 1,
-      jitterMult: 1,
-      starChanceOffset: 0,
-      blinkHardnessOffset: 0,
-      colorShiftSpeed: 0.002,
-      colorPhase: Math.random() * Math.PI * 2,
-      fps: 3,
-      lastFrameTime: 0
-    }
-  };
+  // Generate glitter data - use matched function to get consistent colors+settings
+  glitterPreviewData = typeof getMatchedGlitterData === 'function' 
+    ? getMatchedGlitterData() 
+    : {
+        colors: ['#ff69b4', '#00ffff', '#ffd700', '#ff00ff', '#ffffff'],
+        settings: {
+          usePreset: false,
+          densityMult: 1,
+          sizeMinOffset: 0,
+          sizeMaxOffset: 0,
+          speedMult: 1,
+          jitterMult: 1,
+          starChanceOffset: 0,
+          blinkHardnessOffset: 0,
+          fps: 3,
+          lastFrameTime: 0
+        }
+      };
   
   // Create bounds for the PREVIEW ELEMENT only (not full parent)
   const bounds = {
@@ -1758,16 +1758,19 @@ function updateGlitterPreview(previewEl, hasGlitter) {
     jitter: 2.3, crossChance: 1, starChance: 0.75, fps: 3, blinkHardness: 1, brightness: 3
   };
   
-  const elementDensity = settings.density * (bounds.settings?.densityMult || 1);
+  const stickerSettings = bounds.settings || {};
+  const usePreset = stickerSettings.usePreset === true;
+  
+  const elementDensity = usePreset 
+    ? stickerSettings.density 
+    : settings.density * (stickerSettings.densityMult || 1);
   const area = bounds.w * bounds.h;
   const count = Math.max(15, Math.min(80, Math.floor(area * elementDensity / 100)));
   
   // Create particles using same logic as main system
   for (let j = 0; j < count; j++) {
-    const stickerSettings = bounds.settings || {};
-    
-    const sizeMin = Math.max(1, settings.sizeMin + (stickerSettings.sizeMinOffset || 0));
-    const sizeMax = Math.max(sizeMin + 1, settings.sizeMax + (stickerSettings.sizeMaxOffset || 0));
+    const sizeMin = usePreset ? stickerSettings.sizeMin : Math.max(1, settings.sizeMin + (stickerSettings.sizeMinOffset || 0));
+    const sizeMax = usePreset ? stickerSettings.sizeMax : Math.max(sizeMin + 1, settings.sizeMax + (stickerSettings.sizeMaxOffset || 0));
     const size = (sizeMin + Math.random() * (sizeMax - sizeMin)) | 0;
     
     // Local position within the preview element bounds
@@ -1779,16 +1782,17 @@ function updateGlitterPreview(previewEl, hasGlitter) {
     const distSq = dx * dx + dy * dy;
     const fadeMult = Math.max(0, 1 - distSq * 0.5);
     
-    const effectiveStarChance = Math.max(0, Math.min(1, 
+    const starChance = usePreset ? stickerSettings.starChance : Math.max(0, Math.min(1, 
       settings.starChance + (stickerSettings.starChanceOffset || 0)
     ));
+    const crossChance = usePreset ? stickerSettings.crossChance : settings.crossChance;
     
     let shapeType = 'square';
-    if (Math.random() < settings.crossChance) {
-      shapeType = Math.random() < effectiveStarChance ? 'star' : 'cross';
+    if (Math.random() < crossChance) {
+      shapeType = Math.random() < starChance ? 'star' : 'cross';
     }
     
-    const baseSpeed = settings.glitterSpeed * (stickerSettings.speedMult || 1);
+    const baseSpeed = usePreset ? stickerSettings.glitterSpeed : settings.glitterSpeed * (stickerSettings.speedMult || 1);
     
     glitterPreviewPixels.push({
       // Store position relative to canvas (includes offset)
@@ -2070,6 +2074,15 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     // Handle glitter preview
     updateGlitterPreview(preview, hasGlitter);
     
+    // Store glitter data for spawning (so spawned element matches preview)
+    if (hasGlitter && glitterPreviewData) {
+      preview.dataset.glitterColors = JSON.stringify(glitterPreviewData.colors);
+      preview.dataset.glitterSettings = JSON.stringify(glitterPreviewData.settings);
+    } else {
+      preview.dataset.glitterColors = '';
+      preview.dataset.glitterSettings = '';
+    }
+    
     // Store the text for spawning
     preview.dataset.headlineText = text;
     preview.dataset.headlineColor = preview.style.color;
@@ -2096,6 +2109,19 @@ function showHeadlineGenerator(container, selectedVibeWords) {
   regenBtn.addEventListener('click', generateHeadline);
   
   confirmBtn.addEventListener('click', () => {
+    // Parse glitter data if present
+    let glitterData = null;
+    if (preview.dataset.glitterColors && preview.dataset.glitterSettings) {
+      try {
+        glitterData = {
+          colors: JSON.parse(preview.dataset.glitterColors),
+          settings: JSON.parse(preview.dataset.glitterSettings)
+        };
+      } catch (e) {
+        console.error('Error parsing glitter data:', e);
+      }
+    }
+    
     spawnHeadline(
       preview.dataset.headlineText,
       preview.dataset.headlineColor,
@@ -2115,7 +2141,8 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       preview.dataset.headlineBoxShadow,
       preview.dataset.hasGlitter,
       preview.dataset.hasEffectShadow,
-      preview.dataset.hasOutline
+      preview.dataset.hasOutline,
+      glitterData
     );
     completeStep('3'); // Complete step 3
     closePopup();
@@ -2134,7 +2161,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
   generateHeadline();
 }
 
-function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius, border, boxShadow, hasGlitter, hasEffectShadow, hasOutline) {
+function spawnHeadline(text, color, shadow, weight, style, decoration, transform, letterSpacing, fontFamily, extraTransform, background, stroke, padding, borderRadius, border, boxShadow, hasGlitter, hasEffectShadow, hasOutline, glitterData) {
   const stage = document.getElementById('stage');
   
   // Remove existing headline if any
@@ -2204,10 +2231,12 @@ function spawnHeadline(text, color, shadow, weight, style, decoration, transform
   // Start glitter if enabled
   if (hasGlitter === 'true') {
     if (!elementGlitterData.has(wrapper)) {
-      elementGlitterData.set(wrapper, {
-        colors: getRandomGlitterColors(),
-        settings: getRandomStickerSettings()
-      });
+      // Use passed glitter data from preview, or generate new
+      if (glitterData && glitterData.colors && glitterData.settings) {
+        elementGlitterData.set(wrapper, glitterData);
+      } else {
+        elementGlitterData.set(wrapper, getMatchedGlitterData());
+      }
     }
     addElementGlitterPixels(wrapper);
     if (typeof startGlitter === 'function' && !glitterAnimationId) {
@@ -2513,6 +2542,15 @@ function buildCompanyNameUI(container) {
     // Handle glitter preview
     updateGlitterPreview(preview, hasGlitter);
     
+    // Store glitter data for spawning (so spawned element matches preview)
+    if (hasGlitter && glitterPreviewData) {
+      preview.dataset.glitterColors = JSON.stringify(glitterPreviewData.colors);
+      preview.dataset.glitterSettings = JSON.stringify(glitterPreviewData.settings);
+    } else {
+      preview.dataset.glitterColors = '';
+      preview.dataset.glitterSettings = '';
+    }
+    
     preview.dataset.companyColor = preview.style.color;
     preview.dataset.companyShadow = preview.style.textShadow;
     preview.dataset.companyWeight = preview.style.fontWeight;
@@ -2544,6 +2582,19 @@ function buildCompanyNameUI(container) {
   regenStyleBtn.addEventListener('click', generateStyle);
   
   confirmBtn.addEventListener('click', () => {
+    // Parse glitter data if present
+    let glitterData = null;
+    if (preview.dataset.glitterColors && preview.dataset.glitterSettings) {
+      try {
+        glitterData = {
+          colors: JSON.parse(preview.dataset.glitterColors),
+          settings: JSON.parse(preview.dataset.glitterSettings)
+        };
+      } catch (e) {
+        console.error('Error parsing glitter data:', e);
+      }
+    }
+    
     spawnCompanyName(
       preview.dataset.companyName,
       preview.dataset.companyColor,
@@ -2563,7 +2614,8 @@ function buildCompanyNameUI(container) {
       preview.dataset.companyBoxShadow,
       preview.dataset.hasGlitter,
       preview.dataset.hasEffectShadow,
-      preview.dataset.hasOutline
+      preview.dataset.hasOutline,
+      glitterData
     );
     completeStep('5'); // Complete step 5
     closePopup();
@@ -2589,7 +2641,7 @@ function buildCompanyNameUI(container) {
   regenerateAll();
 }
 
-function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius, border, boxShadow, hasGlitter, hasEffectShadow, hasOutline) {
+function spawnCompanyName(text, color, shadow, weight, style, transform, spacing, fontFamily, extraTransform, stroke, decoration, background, padding, borderRadius, border, boxShadow, hasGlitter, hasEffectShadow, hasOutline, glitterData) {
   const stage = document.getElementById('stage');
   
   // Remove existing company name if any
@@ -2667,10 +2719,12 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
   // Start glitter if enabled
   if (hasGlitter === 'true') {
     if (!elementGlitterData.has(wrapper)) {
-      elementGlitterData.set(wrapper, {
-        colors: getRandomGlitterColors(),
-        settings: getRandomStickerSettings()
-      });
+      // Use passed glitter data from preview, or generate new
+      if (glitterData && glitterData.colors && glitterData.settings) {
+        elementGlitterData.set(wrapper, glitterData);
+      } else {
+        elementGlitterData.set(wrapper, getMatchedGlitterData());
+      }
     }
     addElementGlitterPixels(wrapper);
     if (typeof startGlitter === 'function' && !glitterAnimationId) {
@@ -3095,10 +3149,7 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   // Start glitter if enabled
   if (hasGlitter === 'true') {
     if (!elementGlitterData.has(wrapper)) {
-      elementGlitterData.set(wrapper, {
-        colors: getRandomGlitterColors(),
-        settings: getRandomStickerSettings()
-      });
+      elementGlitterData.set(wrapper, getMatchedGlitterData());
     }
     addElementGlitterPixels(wrapper);
     if (typeof startGlitter === 'function' && !glitterAnimationId) {
@@ -3368,10 +3419,7 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
       // Add glitter data for the new sticker
       const stickerIndex = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length - 1;
       if (typeof stickerGlitterData !== 'undefined') {
-        stickerGlitterData.set(stickerIndex, {
-          colors: getRandomGlitterColors(),
-          settings: getRandomStickerSettings()
-        });
+        stickerGlitterData.set(stickerIndex, getMatchedGlitterData());
       }
       if (typeof regenerateGlitterPixels === 'function') {
         regenerateGlitterPixels();
@@ -5005,66 +5053,170 @@ function createGlitterControls() {
 // createGlitterControls(); // COMMENTED OUT - uncomment to enable glitter tuning UI
 // ===== END TEMPORARY CONTROLS =====
 
+// ==== GLITTER PRESETS ====
+const GLITTER_PRESETS = [
+  {
+    name: "Martin Glitzer",
+    settings: {
+      density: 0.21,
+      sizeMin: 5,
+      sizeMax: 12,
+      glitterAmount: 1.1,
+      glitterSpeed: 0.273,
+      jitter: 17.2,
+      crossChance: 0.2,
+      starChance: 0.45,
+      fps: 4,
+      blinkHardness: 1,
+      brightness: 2.8
+    },
+    colors: ["#ffffff"]
+  },
+  {
+    name: "Frost Bite",
+    settings: {
+      density: 0.21,
+      sizeMin: 6,
+      sizeMax: 14,
+      glitterAmount: 1.1,
+      glitterSpeed: 0.273,
+      jitter: 17.2,
+      crossChance: 1,
+      starChance: 1,
+      fps: 4,
+      blinkHardness: 1,
+      brightness: 2.8
+    },
+    colors: ["#ffffff", "#b3f0ff"]
+  },
+  {
+    name: "Golden Stars",
+    settings: {
+      density: 0.21,
+      sizeMin: 6,
+      sizeMax: 14,
+      glitterAmount: 1.1,
+      glitterSpeed: 0.273,
+      jitter: 17.2,
+      crossChance: 1,
+      starChance: 1,
+      fps: 4,
+      blinkHardness: 1,
+      brightness: 2.8
+    },
+    colors: ["#fff480"]
+  },
+  {
+    name: "TV Static",
+    settings: {
+      density: 1.44,
+      sizeMin: 2,
+      sizeMax: 3,
+      glitterAmount: 2,
+      glitterSpeed: 0.37,
+      jitter: 17.2,
+      crossChance: 0,
+      starChance: 0,
+      fps: 4,
+      blinkHardness: 1,
+      brightness: 2.8
+    },
+    colors: ["#ffffff", "#000000"]
+  }
+];
+
+// Random color themes (legacy)
+const GLITTER_COLOR_THEMES = [
+  ['#ff69b4', '#ff1493', '#ff00ff', '#ffc0cb'],
+  ['#00ffff', '#87ceeb', '#b0e0e6', '#7fffd4'],
+  ['#ffd700', '#fff44f', '#ffe4e1', '#ffffff'],
+  ['#39ff14', '#ff073a', '#ff6ec7', '#00ffff'],
+  ['#ffb6c1', '#e6e6fa', '#98fb98', '#b0e0e6'],
+  ['#ff1493', '#dda0dd', '#ff69b4', '#e6e6fa'],
+  ['#ffffff', '#f0f0f0', '#e6e6fa', '#b0e0e6'],
+  ['#ffd700', '#ff69b4', '#ff6ec7', '#ffe4e1'],
+  ['#00ffff', '#7fffd4', '#87ceeb', '#98fb98'],
+  ['#ff69b4', '#ffd700', '#00ffff', '#39ff14'],
+];
+
 function getRandomGlitterColors() {
-  // Color themes for more distinct looks between stickers
-  const colorThemes = [
-    // Pink/Magenta theme
-    ['#ff69b4', '#ff1493', '#ff00ff', '#ffc0cb'],
-    // Cyan/Blue theme  
-    ['#00ffff', '#87ceeb', '#b0e0e6', '#7fffd4'],
-    // Gold/Yellow theme
-    ['#ffd700', '#fff44f', '#ffe4e1', '#ffffff'],
-    // Neon theme
-    ['#39ff14', '#ff073a', '#ff6ec7', '#00ffff'],
-    // Pastel theme
-    ['#ffb6c1', '#e6e6fa', '#98fb98', '#b0e0e6'],
-    // Hot pink/Purple theme
-    ['#ff1493', '#dda0dd', '#ff69b4', '#e6e6fa'],
-    // White/Silver theme
-    ['#ffffff', '#f0f0f0', '#e6e6fa', '#b0e0e6'],
-    // Warm theme
-    ['#ffd700', '#ff69b4', '#ff6ec7', '#ffe4e1'],
-    // Cool theme
-    ['#00ffff', '#7fffd4', '#87ceeb', '#98fb98'],
-    // Rainbow mix
-    ['#ff69b4', '#ffd700', '#00ffff', '#39ff14'],
-  ];
-  
-  // Pick a random theme
-  const theme = colorThemes[Math.floor(Math.random() * colorThemes.length)];
-  
-  // Optionally add 1-2 extra random colors for more variety
-  const extraColors = Math.random() < 0.5 ? 1 : 0;
-  const shuffledAll = [...ALL_GLITTER_COLORS].sort(() => Math.random() - 0.5);
-  
-  return [...theme, ...shuffledAll.slice(0, extraColors)];
+  // 50% chance to use a preset, 50% chance to use random theme
+  if (Math.random() < 0.5) {
+    const preset = GLITTER_PRESETS[Math.floor(Math.random() * GLITTER_PRESETS.length)];
+    return [...preset.colors];
+  } else {
+    const theme = GLITTER_COLOR_THEMES[Math.floor(Math.random() * GLITTER_COLOR_THEMES.length)];
+    return [...theme];
+  }
 }
 
 function getRandomStickerSettings() {
-  // Generate per-sticker variations of certain settings - MORE DRAMATIC differences
-  return {
-    densityMult: 0.3 + Math.random() * 1.4,          // 0.3 - 1.7x (much bigger range)
-    sizeMinOffset: Math.floor(Math.random() * 8) - 3,  // -3 to +4
-    sizeMaxOffset: Math.floor(Math.random() * 12) - 4, // -4 to +7
-    speedMult: 0.2 + Math.random() * 1.8,            // 0.2 - 2.0x (some very slow, some fast)
-    jitterMult: 0.3 + Math.random() * 1.4,           // 0.3 - 1.7x
-    starChanceOffset: (Math.random() - 0.5) * 0.6,   // -0.3 to +0.3 (more variety in shapes)
-    blinkHardnessOffset: (Math.random() - 0.5) * 0.8, // -0.4 to +0.4 (some smooth, some hard)
-    colorShiftSpeed: 0.0005 + Math.random() * 0.008,  // Very different cycling speeds
-    colorPhase: Math.random() * Math.PI * 2,          // Starting phase for color cycling
-    fps: 1 + Math.floor(Math.random() * 6),           // 1-6 FPS per sticker
-    lastFrameTime: 0                                   // Track last render time for this sticker
-  };
+  // 50% chance to use a preset, 50% chance to use random settings
+  if (Math.random() < 0.5) {
+    const preset = GLITTER_PRESETS[Math.floor(Math.random() * GLITTER_PRESETS.length)];
+    return {
+      ...preset.settings,
+      usePreset: true,
+      lastFrameTime: 0,
+      presetName: preset.name
+    };
+  } else {
+    // Random settings (legacy behavior)
+    return {
+      usePreset: false,
+      densityMult: 0.3 + Math.random() * 1.4,
+      sizeMinOffset: Math.floor(Math.random() * 8) - 3,
+      sizeMaxOffset: Math.floor(Math.random() * 12) - 4,
+      speedMult: 0.2 + Math.random() * 1.8,
+      jitterMult: 0.3 + Math.random() * 1.4,
+      starChanceOffset: (Math.random() - 0.5) * 0.6,
+      blinkHardnessOffset: (Math.random() - 0.5) * 0.8,
+      fps: 1 + Math.floor(Math.random() * 6),
+      lastFrameTime: 0
+    };
+  }
+}
+
+// Get matched colors and settings (both from same preset OR both random)
+function getMatchedGlitterData() {
+  const usePreset = Math.random() < 0.5;
+  
+  if (usePreset) {
+    const preset = GLITTER_PRESETS[Math.floor(Math.random() * GLITTER_PRESETS.length)];
+    return {
+      colors: [...preset.colors],
+      settings: {
+        ...preset.settings,
+        usePreset: true,
+        lastFrameTime: 0,
+        presetName: preset.name
+      }
+    };
+  } else {
+    const theme = GLITTER_COLOR_THEMES[Math.floor(Math.random() * GLITTER_COLOR_THEMES.length)];
+    return {
+      colors: [...theme],
+      settings: {
+        usePreset: false,
+        densityMult: 0.3 + Math.random() * 1.4,
+        sizeMinOffset: Math.floor(Math.random() * 8) - 3,
+        sizeMaxOffset: Math.floor(Math.random() * 12) - 4,
+        speedMult: 0.2 + Math.random() * 1.8,
+        jitterMult: 0.3 + Math.random() * 1.4,
+        starChanceOffset: (Math.random() - 0.5) * 0.6,
+        blinkHardnessOffset: (Math.random() - 0.5) * 0.8,
+        fps: 1 + Math.floor(Math.random() * 6),
+        lastFrameTime: 0
+      }
+    };
+  }
 }
 
 function randomizeStickerColors() {
   stickerGlitterData.clear();
   const stickers = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)');
   stickers.forEach((sticker, index) => {
-    stickerGlitterData.set(index, {
-      colors: getRandomGlitterColors(),
-      settings: getRandomStickerSettings()
-    });
+    stickerGlitterData.set(index, getMatchedGlitterData());
   });
 }
 
@@ -5104,10 +5256,7 @@ function getElementBounds() {
     
     // Get or create glitter data for this element
     if (!elementGlitterData.has(wrapper)) {
-      elementGlitterData.set(wrapper, {
-        colors: getRandomGlitterColors(),
-        settings: getRandomStickerSettings()
-      });
+      elementGlitterData.set(wrapper, getMatchedGlitterData());
     }
     
     const glitterData = elementGlitterData.get(wrapper);
@@ -5136,7 +5285,10 @@ function regenerateElementGlitterPixels() {
   
   // Calculate particles for each element
   bounds.forEach(b => {
-    const elementDensity = GLITTER_SETTINGS.density * (b.settings?.densityMult || 1);
+    const usePreset = b.settings?.usePreset === true;
+    const elementDensity = usePreset 
+      ? b.settings.density 
+      : GLITTER_SETTINGS.density * (b.settings?.densityMult || 1);
     const area = b.w * b.h;
     const count = Math.max(15, Math.min(80, Math.floor(area * elementDensity / 100)));
     
@@ -5179,7 +5331,10 @@ function addElementGlitterPixels(element) {
     element: element
   };
   
-  const elementDensity = GLITTER_SETTINGS.density * (bounds.settings?.densityMult || 1);
+  const usePreset = bounds.settings?.usePreset === true;
+  const elementDensity = usePreset 
+    ? bounds.settings.density 
+    : GLITTER_SETTINGS.density * (bounds.settings?.densityMult || 1);
   const area = bounds.w * bounds.h;
   const count = Math.max(15, Math.min(80, Math.floor(area * elementDensity / 100)));
   
@@ -5196,8 +5351,11 @@ function removeElementGlitterPixels(element) {
 function makeElementGlitterPixel(bounds) {
   const stickerSettings = bounds.settings || {};
   
-  const sizeMin = Math.max(1, GLITTER_SETTINGS.sizeMin + (stickerSettings.sizeMinOffset || 0));
-  const sizeMax = Math.max(sizeMin + 1, GLITTER_SETTINGS.sizeMax + (stickerSettings.sizeMaxOffset || 0));
+  // Check if using preset settings directly or random multipliers
+  const usePreset = stickerSettings.usePreset === true;
+  
+  const sizeMin = usePreset ? stickerSettings.sizeMin : Math.max(1, GLITTER_SETTINGS.sizeMin + (stickerSettings.sizeMinOffset || 0));
+  const sizeMax = usePreset ? stickerSettings.sizeMax : Math.max(sizeMin + 1, GLITTER_SETTINGS.sizeMax + (stickerSettings.sizeMaxOffset || 0));
   const size = (sizeMin + Math.random() * (sizeMax - sizeMin)) | 0;
   
   const localX = Math.random() * bounds.w;
@@ -5208,16 +5366,20 @@ function makeElementGlitterPixel(bounds) {
   const distSq = dx * dx + dy * dy;
   const fadeMult = Math.max(0, 1 - distSq * 0.5);
   
-  const effectiveStarChance = Math.max(0, Math.min(1, 
+  const starChance = usePreset ? stickerSettings.starChance : Math.max(0, Math.min(1, 
     GLITTER_SETTINGS.starChance + (stickerSettings.starChanceOffset || 0)
   ));
+  const crossChance = usePreset ? stickerSettings.crossChance : GLITTER_SETTINGS.crossChance;
   
   let shapeType = 'square';
-  if (Math.random() < GLITTER_SETTINGS.crossChance) {
-    shapeType = Math.random() < effectiveStarChance ? 'star' : 'cross';
+  if (Math.random() < crossChance) {
+    shapeType = Math.random() < starChance ? 'star' : 'cross';
   }
   
-  const baseSpeed = GLITTER_SETTINGS.glitterSpeed * (stickerSettings.speedMult || 1);
+  const baseSpeed = usePreset ? stickerSettings.glitterSpeed : GLITTER_SETTINGS.glitterSpeed * (stickerSettings.speedMult || 1);
+  const fps = usePreset ? stickerSettings.fps : (stickerSettings.fps || GLITTER_SETTINGS.fps);
+  const blinkHardness = usePreset ? stickerSettings.blinkHardness : GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0);
+  const brightness = usePreset ? stickerSettings.brightness : GLITTER_SETTINGS.brightness;
   
   return {
     x: bounds.x + localX,
@@ -5318,10 +5480,7 @@ function getStickerBounds() {
     
     // Get or create glitter data for this sticker
     if (!stickerGlitterData.has(index)) {
-      stickerGlitterData.set(index, {
-        colors: getRandomGlitterColors(),
-        settings: getRandomStickerSettings()
-      });
+      stickerGlitterData.set(index, getMatchedGlitterData());
     }
     
     const glitterData = stickerGlitterData.get(index);
@@ -5353,7 +5512,10 @@ function regenerateGlitterPixels() {
   const particlesPerSticker = [];
   
   bounds.forEach(b => {
-    const stickerDensity = GLITTER_SETTINGS.density * (b.settings?.densityMult || 1);
+    const usePreset = b.settings?.usePreset === true;
+    const stickerDensity = usePreset 
+      ? b.settings.density 
+      : GLITTER_SETTINGS.density * (b.settings?.densityMult || 1);
     const area = b.w * b.h;
     const count = Math.max(10, Math.floor(area * stickerDensity / 100));
     particlesPerSticker.push(count);
@@ -5374,9 +5536,11 @@ function regenerateGlitterPixels() {
 function makeGlitterPixel(bounds) {
   const stickerSettings = bounds.settings || {};
   
-  // Apply per-sticker size variations
-  const sizeMin = Math.max(1, GLITTER_SETTINGS.sizeMin + (stickerSettings.sizeMinOffset || 0));
-  const sizeMax = Math.max(sizeMin + 1, GLITTER_SETTINGS.sizeMax + (stickerSettings.sizeMaxOffset || 0));
+  // Check if using preset settings directly or random multipliers
+  const usePreset = stickerSettings.usePreset === true;
+  
+  const sizeMin = usePreset ? stickerSettings.sizeMin : Math.max(1, GLITTER_SETTINGS.sizeMin + (stickerSettings.sizeMinOffset || 0));
+  const sizeMax = usePreset ? stickerSettings.sizeMax : Math.max(sizeMin + 1, GLITTER_SETTINGS.sizeMax + (stickerSettings.sizeMaxOffset || 0));
   const size = (sizeMin + Math.random() * (sizeMax - sizeMin)) | 0; // Integer
   
   // Random position within bounds
@@ -5389,19 +5553,20 @@ function makeGlitterPixel(bounds) {
   const distSq = dx * dx + dy * dy; // 0 to 2
   const fadeMult = Math.max(0, 1 - distSq * 0.5);
   
-  // Per-sticker star chance variation
-  const effectiveStarChance = Math.max(0, Math.min(1, 
+  // Per-sticker star/cross chance
+  const starChance = usePreset ? stickerSettings.starChance : Math.max(0, Math.min(1, 
     GLITTER_SETTINGS.starChance + (stickerSettings.starChanceOffset || 0)
   ));
+  const crossChance = usePreset ? stickerSettings.crossChance : GLITTER_SETTINGS.crossChance;
   
   // Determine shape type
   let shapeType = 'square';
-  if (Math.random() < GLITTER_SETTINGS.crossChance) {
-    shapeType = Math.random() < effectiveStarChance ? 'star' : 'cross';
+  if (Math.random() < crossChance) {
+    shapeType = Math.random() < starChance ? 'star' : 'cross';
   }
   
   // Per-sticker speed variation
-  const baseSpeed = GLITTER_SETTINGS.glitterSpeed * (stickerSettings.speedMult || 1);
+  const baseSpeed = usePreset ? stickerSettings.glitterSpeed : GLITTER_SETTINGS.glitterSpeed * (stickerSettings.speedMult || 1);
   
   return {
     x: bounds.x + localX,
@@ -5940,10 +6105,7 @@ if (elementGlitterCheckbox) {
       selected.classList.add('has-glitter');
       
       // Initialize glitter data for this specific element (only on enable)
-      elementGlitterData.set(selected, {
-        colors: getRandomGlitterColors(),
-        settings: getRandomStickerSettings()
-      });
+      elementGlitterData.set(selected, getMatchedGlitterData());
       
       // Start glitter loop if not running
       initGlitterCanvas();
