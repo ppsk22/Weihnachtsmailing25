@@ -1,3 +1,4 @@
+// ==== CHRISTMAS BANNER BUILDER v2.4 - CTA FILTER FIX ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -672,7 +673,7 @@ function buildExportUI(container){
   wrap.className = 'export-ui-wrapper';
   wrap.innerHTML = `
     <div class="export-section main-export-section">
-      <p class="export-congrats">Your banner is ready!</p>
+      <p class="export-congrats">Congrats! This is the most eye-catching banner<br>since the Year-2-K Flash Pixel Party!</p>
       <div class="input-group banner-name-group">
         <label class="lbl" for="banner-name">Name your banner (optional)</label>
         <input id="banner-name" type="text" placeholder="My awesome banner" class="export-input banner-name-input" maxlength="50" />
@@ -725,7 +726,7 @@ function wireMainExport() {
     exportStatus.className = 'send-status pending';
     exportBtn.disabled = true;
     
-    // Show exporting screen
+    // Show exporting screen IMMEDIATELY (before any UI changes)
     const exportingScreen = document.getElementById('exporting-screen');
     const exportingVideo = document.getElementById('exporting-video');
     const progressContainer = document.getElementById('export-progress-container');
@@ -738,6 +739,9 @@ function wireMainExport() {
     }
     if (progressContainer) progressContainer.classList.remove('hidden');
     if (progressBar) progressBar.style.width = '0%';
+    
+    // Small delay to ensure export screen is visible before UI rescaling
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     try {
       // Generate GIF with fixed settings (10 fps, 5 seconds)
@@ -804,18 +808,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   // Set exporting flag to prevent animation pausing
   isExporting = true;
   
-  // Start animation keep-alive interval (runs even when tab is hidden)
-  const animationKeepAlive = setInterval(() => {
-    // Manually update snow
-    if (typeof updateSnowFrame === 'function') {
-      updateSnowFrame(1); // dt of 1 for normal speed
-    }
-    // Manually update glitter
-    if (typeof updateGlitterFrame === 'function') {
-      updateGlitterFrame(1);
-    }
-  }, FRAME_MS);
-  
   // Temporarily reset UI scale
   const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
   document.documentElement.style.setProperty('--ui-scale', '1');
@@ -843,16 +835,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      const gifW = gif.lsd.width;
-      const gifH = gif.lsd.height;
-      bgData = { kind: "anim", frames: frs, delays, totalDur, width: gifW, height: gifH };
+      bgData = { kind: "anim", frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
     } else {
       const img = await loadImageForExport(bgURL);
       bgData = { kind: "static", img };
     }
   }
   
-  // Load stickers (simplified - using same logic as main export)
+  // Load all sticker wrappers (images only - not text elements)
   const wrappers = Array.from(stage.querySelectorAll(".sticker-wrapper"));
   const imageWrappers = wrappers.filter(w => w.querySelector("img") !== null);
   
@@ -867,9 +857,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const domH = domImg.naturalHeight || domImg.height || 150;
     const baseW = parseFloat(domImg.style.width) || 150;
     const baseH = domW > 0 ? (baseW * domH / domW) : baseW;
-    const hasOutline = w.getAttribute('data-has-outline') === 'true';
-    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     const zIndex = parseInt(w.style.zIndex) || 0;
+    const isHero = w.hasAttribute('data-is-hero') || w.classList.contains('hero-layer');
+    const hasOutline = w.getAttribute('data-has-outline') === 'true';
     
     if (/\.gif(?:[?#].*)?$/i.test(src)) {
       const ab = await fetch(src, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
@@ -877,17 +867,17 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow, zIndex };
+      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
     } else {
       const bmp = await loadImageForExport(src);
-      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, hasOutline, hasShadow, zIndex };
+      return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
     }
   }));
   
-  // Sort stickers by z-index (lowest first, drawn first = bottom)
+  // Sort stickers by z-index
   stickers.sort((a, b) => a.zIndex - b.zIndex);
   
-  // Pre-render text elements
+  // Pre-render text elements (headline, company, CTA) using html2canvas
   const textWrappers = wrappers.filter(w => w.querySelector("img") === null);
   const textElements = await Promise.all(textWrappers.map(async (w) => {
     const x = parseFloat(w.getAttribute("data-x")) || 0;
@@ -895,29 +885,42 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const scale = w.scale || 1;
     const angle = w.angle || 0;
     const isCTA = w.classList.contains('cta-layer');
-    const hasOutline = w.getAttribute('data-has-outline') === 'true';
-    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
     const zIndex = parseInt(w.style.zIndex) || 0;
+    const hasOutline = w.getAttribute('data-has-outline') === 'true';
+    const hasEffectShadow = w.getAttribute('data-has-shadow') === 'true';
     
     try {
       const clone = w.cloneNode(true);
       clone.style.position = 'fixed';
-      clone.style.left = '0';
-      clone.style.top = '0';
+      clone.style.left = '40px';  // More padding for shadow/outline overflow
+      clone.style.top = '40px';
       clone.style.transform = 'none';
       clone.style.zIndex = '-9999';
       clone.style.pointerEvents = 'none';
+      clone.style.overflow = 'visible';
       document.body.appendChild(clone);
       
-      // Remove bouncing class and animation from inner elements
+      // Get the original inner element to copy its computed filter
+      const origInnerEl = w.querySelector('.cta-button, .headline-text, .company-text');
       const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
+      
       if (innerEl) {
         innerEl.classList.remove('bouncing');
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
-        // Don't clear boxShadow - let html2canvas try to render it
-        // We'll add the shadow manually anyway if it doesn't work
+        innerEl.style.overflow = 'visible';
+        
+        // Remove ALL shadow/filter effects - we'll apply shadows via canvas instead
+        innerEl.style.filter = 'none';
+        innerEl.style.boxShadow = 'none';
+        innerEl.style.webkitBoxShadow = 'none';
       }
+      
+      // Force a reflow to ensure styles are applied before capture
+      clone.offsetHeight;
+      
+      // Get the actual rendered size
+      const rect = clone.getBoundingClientRect();
       
       const canvas = await html2canvas(clone, {
         scale: 2,
@@ -925,6 +928,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         logging: false,
         allowTaint: true,
         useCORS: true,
+        width: rect.width + 80,  // Extra space for shadows/outlines
+        height: rect.height + 80,
+        x: -40,  // Offset to capture element
+        y: -40,
         ignoreElements: (element) => {
           return element.classList.contains('scale-handle') || 
                  element.classList.contains('rot-handle');
@@ -936,7 +943,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseW = canvas.width / 2;
       const baseH = canvas.height / 2;
       
-      return { canvas, x, y, scale, angle, baseW, baseH, isCTA, hasOutline, hasShadow, zIndex };
+      // Adjust x/y to account for the padding we added
+      return { canvas, x: x - 40, y: y - 40, scale, angle, baseW, baseH, isCTA, zIndex, hasOutline, hasEffectShadow };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -944,8 +952,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   }));
   
   const validTextElements = textElements.filter(t => t !== null);
-  
-  // Sort text elements by z-index (lowest first, drawn first = bottom)
   validTextElements.sort((a, b) => a.zIndex - b.zIndex);
   
   // Encode GIF
@@ -958,15 +964,50 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const snowCanvasEl = document.getElementById('snow-canvas');
   const glitterCanvasEl = document.getElementById('glitter-canvas');
   
+  // Bounce animation parameters
+  const BOUNCE_DURATION = 2000;
+  const bounceScales = [1, 1.10, 1.20, 1.10];
+  const bounceStart = 500;
+  
+  // Helper to wait for visibility if tab is hidden
+  const waitForVisibility = () => {
+    return new Promise(resolve => {
+      if (!document.hidden) {
+        resolve();
+        return;
+      }
+      // Show paused message
+      const statusEl = document.getElementById('export-main-status');
+      if (statusEl) {
+        statusEl.textContent = 'Export paused - return to this tab to continue...';
+        statusEl.style.color = '#ff69b4';
+      }
+      const handler = () => {
+        if (!document.hidden) {
+          document.removeEventListener('visibilitychange', handler);
+          if (statusEl) {
+            statusEl.textContent = 'Resuming export...';
+            statusEl.style.color = '#5a3fd9';
+          }
+          // Small delay to let animations catch up
+          setTimeout(resolve, 150);
+        }
+      };
+      document.addEventListener('visibilitychange', handler);
+    });
+  };
+  
   for (let i = 0; i < TOTAL; i++) {
-    // Manually update snow and glitter animations before capturing frame
-    // This ensures animations continue even when tab is unfocused
-    if (typeof updateSnowFrame === 'function') {
-      updateSnowFrame(1);
+    // Pause export if tab is hidden
+    if (document.hidden) {
+      await waitForVisibility();
     }
-    if (typeof updateGlitterFrame === 'function') {
-      updateGlitterFrame(1);
-    }
+    
+    const frameTime = i * FRAME_MS;
+    
+    // Update snow and glitter
+    if (typeof updateSnowFrame === 'function') updateSnowFrame(1);
+    if (typeof updateGlitterFrame === 'function') updateGlitterFrame(1);
     
     ctx.clearRect(0, 0, W, H);
     
@@ -978,7 +1019,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       if (bgData.kind === "static") {
         ctx.drawImage(bgData.img, 0, drawY, W, drawH);
       } else {
-        const elapsed = i * FRAME_MS;
+        const elapsed = frameTime;
         const mod = elapsed % bgData.totalDur;
         let acc = 0, idx = 0;
         for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
@@ -1009,118 +1050,135 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
     }
     
-    // Draw stickers
+    // Draw stickers (including heroes with their GIF animations)
     for (const s of stickers) {
       ctx.save();
       ctx.translate(s.x, s.y);
       ctx.translate(s.baseW / 2, s.baseH / 2);
       ctx.rotate((s.angle || 0) * Math.PI / 180);
-      const stickerScale = s.scale || 1;
-      ctx.scale(stickerScale, stickerScale);
+      ctx.scale(s.scale || 1, s.scale || 1);
+      
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
       
-      // Apply outline effect (draw multiple times with offset shadows)
-      // Note: ctx.scale already applied, shadow offsets scale with it
-      if (s.hasOutline) {
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 0;
-        const offsets = [[2, 0], [-2, 0], [0, 2], [0, -2]];
-        for (const [ox, oy] of offsets) {
-          ctx.shadowOffsetX = ox;
-          ctx.shadowOffsetY = oy;
-          if (s.kind === "static") {
-            ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-          } else {
-            const elapsed = i * FRAME_MS;
-            const mod = elapsed % s.totalDur;
-            let acc = 0, idx = 0;
-            for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-            const f = s.frames[idx % s.frames.length];
-            const fullGif = document.createElement("canvas");
-            fullGif.width = s.domW;
-            fullGif.height = s.domH;
-            const fullCtx = fullGif.getContext("2d");
-            const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-            const pc = document.createElement("canvas");
-            pc.width = f.dims.width;
-            pc.height = f.dims.height;
-            pc.getContext("2d").putImageData(patch, 0, 0);
-            fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-            ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
-          }
-        }
-        ctx.shadowColor = 'transparent';
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-      }
-      
-      // Apply drop shadow effect
-      if (s.hasShadow) {
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
-      }
-      
+      // Prepare the image to draw (either static or current GIF frame)
+      let imgToDraw;
       if (s.kind === "static") {
-        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+        imgToDraw = s.img;
       } else {
-        const elapsed = i * FRAME_MS;
+        // Animated GIF sticker/hero
+        const elapsed = frameTime;
         const mod = elapsed % s.totalDur;
         let acc = 0, idx = 0;
         for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-        const f = s.frames[idx % s.frames.length];
+        idx = idx % s.frames.length;
         
         const fullGif = document.createElement("canvas");
         fullGif.width = s.domW;
         fullGif.height = s.domH;
         const fullCtx = fullGif.getContext("2d");
         
-        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-        const pc = document.createElement("canvas");
-        pc.width = f.dims.width;
-        pc.height = f.dims.height;
-        pc.getContext("2d").putImageData(patch, 0, 0);
-        fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        
-        ctx.drawImage(fullGif, offsetX, offsetY, s.baseW, s.baseH);
+        for (let fi = 0; fi <= idx; fi++) {
+          const f = s.frames[fi];
+          if (fi > 0) {
+            const prevF = s.frames[fi - 1];
+            if (prevF.disposalType === 2) {
+              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+            }
+          }
+          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+          const pc = document.createElement("canvas");
+          pc.width = f.dims.width;
+          pc.height = f.dims.height;
+          pc.getContext("2d").putImageData(patch, 0, 0);
+          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
+        }
+        imgToDraw = fullGif;
       }
+      
+      // Draw outline if sticker has one (4 directional shadows)
+      if (s.hasOutline && !s.isHero) {
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = '#000';
+        // Draw 4 times with offsets for outline effect
+        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
+        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
+      }
+      
+      // Draw with drop shadow (all stickers AND heroes)
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowOffsetX = 3;
+      ctx.shadowOffsetY = 3;
+      ctx.shadowBlur = 0;
+      ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
+      
       ctx.restore();
     }
     
-    // Draw text elements with CTA bounce animation
-    // CTA bounce: pixelBounce animation - bounce at start, then rest
-    // For a 5-second export, we want one bounce at the beginning
-    // Bounce scales: 1 -> 1.10 -> 1.20 -> 1.10 -> 1 over 2 seconds (4 steps)
-    const BOUNCE_DURATION = 2000; // 2 second bounce
-    const bounceScales = [1, 1.10, 1.20, 1.10]; // 4 steps
-    const frameTime = i * FRAME_MS;
-    
+    // Calculate CTA bounce for this frame
     let ctaBounceScale = 1;
-    // First bounce starts at 500ms (after a short delay) and lasts 2 seconds
-    const bounceStart = 500;
     if (frameTime >= bounceStart && frameTime < bounceStart + BOUNCE_DURATION) {
       const bounceProgress = (frameTime - bounceStart) / BOUNCE_DURATION;
       const bounceStep = Math.floor(bounceProgress * 4) % 4;
       ctaBounceScale = bounceScales[bounceStep];
     }
     
+    // Draw text elements (headline, company, CTA)
     for (const t of validTextElements) {
       ctx.save();
+      
+      // Reset shadow state completely
+      ctx.shadowColor = 'transparent';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.shadowBlur = 0;
+      
       ctx.translate(t.x, t.y);
       ctx.translate(t.baseW / 2, t.baseH / 2);
       ctx.rotate((t.angle || 0) * Math.PI / 180);
       
-      // Apply bounce scale for CTA elements
       let finalScale = t.scale || 1;
       if (t.isCTA) {
         finalScale *= ctaBounceScale;
       }
       ctx.scale(finalScale, finalScale);
       
-      // Just draw - html2canvas captures all CSS effects (filter, box-shadow, etc.)
-      ctx.drawImage(t.canvas, -t.baseW / 2, -t.baseH / 2, t.baseW, t.baseH);
+      const drawX = -t.baseW / 2;
+      const drawY = -t.baseH / 2;
+      
+      // Draw outline if element has one (4 directional shadows)
+      if (t.hasOutline) {
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = '#000';
+        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        // Reset after outline
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      // Draw with drop shadow (for CTA always, for others if hasEffectShadow)
+      if (t.isCTA || t.hasEffectShadow) {
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+        ctx.shadowBlur = 0;
+      }
+      
+      ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
       ctx.restore();
     }
     
@@ -1138,22 +1196,21 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     if (progressCallback) {
       progressCallback((i + 1) / TOTAL);
+      // Yield to event loop every few frames to allow UI updates
+      if (i % 5 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
-    
-    await new Promise(r => setTimeout(r, FRAME_MS));
   }
   
   enc.finish();
-  
   const binary = enc.stream().getData();
-  return "data:image/gif;base64," + btoa(binary);
+  const b64 = btoa(binary);
+  return "data:image/gif;base64," + b64;
   
   } finally {
-    // Clean up export state - always runs even on error
-    clearInterval(animationKeepAlive);
+    // Clean up export state
     isExporting = false;
-    
-    // Restore UI scale
     document.documentElement.style.setProperty('--ui-scale', originalScale);
   }
 }
@@ -1893,8 +1950,9 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     preview.textContent = text;
     
     // PIXEL ART STYLE TEXT - high contrast, hard shadows, blocky fonts
+    // Note: No black (#000000) - invisible on dark backgrounds
     const colors = [
-      '#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', 
+      '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
       '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ff1493', 
       '#00ff7f', '#ffa500', '#ff69b4', '#39ff14', '#fe019a'
     ];
@@ -1986,13 +2044,13 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       }
       preview.style.padding = '8px 16px';
       preview.style.border = Math.random() > 0.5 ? '3px solid #000' : '3px solid #fff';
-      preview.style.boxShadow = '4px 4px 0 #000';
     }
     
     // RANDOMIZE EFFECTS (glitter, shadow, outline)
     const hasGlitter = Math.random() > 0.5;
     const hasEffectShadow = Math.random() > 0.5;
     const hasOutline = Math.random() > 0.5;
+    const hasBackground = preview.style.background && preview.style.background !== 'none';
     
     // Apply visual preview of effects
     let filterParts = [];
@@ -2004,7 +2062,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
         'drop-shadow(0 -2px 0 #000)'
       );
     }
-    if (hasEffectShadow) {
+    if (hasEffectShadow || hasBackground) {
       filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
     }
     preview.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
@@ -2217,9 +2275,9 @@ const categoryCompanyParts = {
     suffixes: ['Beverages', 'Drinks', 'Brewing', 'Refresh', 'Beverage', 'Sodas', 'Brews', 'Coolers', 'Spirits', 'Liquids']
   },
   other: {
-    prefixes: [],
-    roots: [],
-    suffixes: []
+    prefixes: ['Meta', 'Ultra', 'Cyber', 'Turbo', 'Star', 'Glow', 'Future', 'Dream', 'Spark', 'Luxe', 'Icon', 'Bold', 'Chic', 'Pop', 'Social', 'Viral', 'Digital', 'Universe', 'Leaf', 'Sun', 'Moon', 'Ocean', 'Sky', 'Forest', 'Earth', 'Wave', 'Bloom', 'Seed', 'Feather', 'Wing', 'Furry', 'Crunch', 'Cozy', 'Party', 'Beat', 'Dance', 'Pulse', 'Flow', 'Joy', 'Light', 'Shine', 'Heart', 'Smile', 'Lucky', 'Chill', 'Fun', 'Play', 'Happy', 'Fresh', 'Bold', 'Calm', 'Wild', 'Epic', 'Sweet'],
+    roots: ['Flow', 'Wave', 'Pulse', 'Loop', 'Vibe', 'Mode', 'Trend', 'Core', 'Vision', 'Spark', 'Beat', 'Circuit', 'Style', 'Motion', 'Buzz', 'Pop', 'Nexus', 'Signal', 'Story', 'Rhythm', 'Fusion', 'Lab', 'Hack', 'Sync', 'Remix'],
+    suffixes: ['Works', 'Hub', 'Studio', 'Space', 'Zone', 'Sphere', 'Collective', 'Factory', 'Machine', 'Systems', 'Network', 'Crew', 'Hive', 'Lab', 'Dynamics', 'Mode', 'Cloud', 'Joke', 'Nation', 'Inc', 'Tech', 'Solutions', 'Bääm', 'Wow']
   }
 };
 
@@ -2341,8 +2399,9 @@ function buildCompanyNameUI(container) {
     preview.textContent = preview.dataset.companyName; // Restore text
     
     // PIXEL ART STYLE TEXT - high contrast, hard shadows, blocky fonts
+    // Note: No black (#000000) - invisible on dark backgrounds
     const colors = [
-      '#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', 
+      '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
       '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ff1493', 
       '#00ff7f', '#ffa500', '#ff69b4', '#39ff14', '#8800ff'
     ];
@@ -2428,13 +2487,13 @@ function buildCompanyNameUI(container) {
       }
       preview.style.padding = '6px 14px';
       preview.style.border = Math.random() > 0.5 ? '3px solid #000' : '3px solid #fff';
-      preview.style.boxShadow = '3px 3px 0 #000';
     }
     
     // RANDOMIZE EFFECTS (glitter, shadow, outline)
     const hasGlitter = Math.random() > 0.5;
     const hasEffectShadow = Math.random() > 0.5;
     const hasOutline = Math.random() > 0.5;
+    const hasBackground = preview.style.background && preview.style.background !== 'none';
     
     // Apply visual preview of effects
     let filterParts = [];
@@ -2446,8 +2505,8 @@ function buildCompanyNameUI(container) {
         'drop-shadow(0 -2px 0 #000)'
       );
     }
-    if (hasEffectShadow) {
-      filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
+    if (hasEffectShadow || hasBackground) {
+      filterParts.push('drop-shadow(3px 3px 0 rgba(0,0,0,0.6))');
     }
     preview.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
     
@@ -2630,8 +2689,8 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
 //------------------------------------------------------
 let currentCTAButton = null; // Track the current CTA button
 
-const ctaVerbs = ['Get', 'Learn', 'Start', 'Discover', 'Join', 'Try', 'Unlock', 'Explore', 'Claim', 'Grab'];
-const ctaActions = ['Started', 'More', 'Now', 'Today', 'Free', 'Yours', 'Here', 'It', 'This', 'Access'];
+const ctaVerbs = ['Get', 'Learn', 'Start', 'Discover', 'Join', 'Try', 'Unlock', 'Explore', 'Claim', 'Grab', 'Boost', 'Create', 'Build', 'Play', 'Design', 'Activate', 'Unleash', 'Reveal', 'Craft', 'Experience', 'Dive', 'Check', 'Hit', 'Go', 'Launch'];
+const ctaActions = ['Started', 'More', 'Now', 'Today', 'Free', 'Yours', 'Here', 'It', 'This', 'Access', 'Instantly', 'Your Way', 'Fast', 'Ahead', 'Online', 'Directly', 'Magic', 'Effect', 'Now!', 'Quick', 'Here & Now', 'Today Only', 'Live', 'Freebie', 'Fun'];
 
 function buildCTAButtonUI(container) {
   const genContainer = document.createElement('div');
@@ -2679,23 +2738,27 @@ function buildCTAButtonUI(container) {
     const currentBg = preview.style.background;
     const currentBorderRadius = preview.style.borderRadius;
     const currentBorder = preview.style.border;
-    const currentBoxShadow = preview.style.boxShadow;
+    const currentFilter = preview.style.filter;
     const currentButtonTransform = preview.style.transform;
     const currentText = preview.textContent;
     
+    // Completely reset all inline styles
     preview.style.cssText = '';
     preview.className = 'cta-preview';
     preview.textContent = currentText;
     
-    // Restore button styles
-    preview.style.background = currentBg;
-    preview.style.borderRadius = currentBorderRadius;
-    preview.style.border = currentBorder;
-    preview.style.boxShadow = currentBoxShadow;
-    preview.style.transform = currentButtonTransform;
+    // Restore button styles (only if they exist)
+    if (currentBg) preview.style.background = currentBg;
+    if (currentBorderRadius) preview.style.borderRadius = currentBorderRadius;
+    if (currentBorder) preview.style.border = currentBorder;
+    if (currentFilter) preview.style.filter = currentFilter;
+    if (currentButtonTransform && currentButtonTransform !== 'none') preview.style.transform = currentButtonTransform;
     
-    // PIXEL ART: High contrast colors
-    const textColors = ['#ffffff', '#000000', '#ffff00', '#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ff8800'];
+    // Explicitly ensure no box-shadow
+    preview.style.boxShadow = 'none';
+    
+    // PIXEL ART: High contrast colors - no black (invisible on dark buttons)
+    const textColors = ['#ffffff', '#ffff00', '#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ff8800'];
     
     // PIXEL ART: Hard shadows only, no blur - offset by whole pixels!
     const shadows = [
@@ -2762,237 +2825,129 @@ function buildCTAButtonUI(container) {
     const currentTextDecoration = preview.style.textDecoration;
     const currentText = preview.textContent;
     
+    // Completely reset all inline styles
     preview.style.cssText = '';
     preview.className = 'cta-preview';
     preview.textContent = currentText;
     
     // Restore text styles
-    preview.style.color = currentColor;
-    preview.style.textShadow = currentTextShadow;
-    preview.style.fontWeight = currentFontWeight;
-    preview.style.fontStyle = currentFontStyle;
-    preview.style.textTransform = currentTextTransform;
-    preview.style.fontFamily = currentFontFamily;
-    preview.style.letterSpacing = currentLetterSpacing;
-    preview.style.webkitTextStroke = currentTextStroke;
-    preview.style.textDecoration = currentTextDecoration;
+    if (currentColor) preview.style.color = currentColor;
+    if (currentTextShadow) preview.style.textShadow = currentTextShadow;
+    if (currentFontWeight) preview.style.fontWeight = currentFontWeight;
+    if (currentFontStyle) preview.style.fontStyle = currentFontStyle;
+    if (currentTextTransform) preview.style.textTransform = currentTextTransform;
+    if (currentFontFamily) preview.style.fontFamily = currentFontFamily;
+    if (currentLetterSpacing) preview.style.letterSpacing = currentLetterSpacing;
+    if (currentTextStroke) preview.style.webkitTextStroke = currentTextStroke;
+    if (currentTextDecoration) preview.style.textDecoration = currentTextDecoration;
     
-    // PIXEL ART STYLE BUTTONS - Y2K / Web 1.0 / Retro Game aesthetic
+    // Simple export-safe button styles (only solid borders, filter drop-shadow)
     const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493', '#ffa500', '#00ff7f', '#ffff00', '#ff69b4', '#39ff14', '#ff073a'];
     
-    // Pick main color for this button
     const mainColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     const secondColor = bgColors[Math.floor(Math.random() * bgColors.length)];
-    const thirdColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
-    // Button style types (for consistent pixel looks)
-    const styleType = Math.floor(Math.random() * 24);
+    // Export-safe button styles (solid borders, filter drop-shadow, gradients OK)
+    const styleType = Math.floor(Math.random() * 10);
     
-    let bg, borderRadius, border, boxShadow;
+    let bg, borderRadius, border, filterShadow;
     
     switch(styleType) {
-      case 0: // Classic Windows 95/98 3D button
-        bg = '#c0c0c0';
-        borderRadius = '0px';
-        border = '3px outset #fff';
-        boxShadow = 'inset -2px -2px 0 #808080, inset 2px 2px 0 #fff';
-        break;
-        
-      case 1: // Flat pixel button with hard shadow
+      case 0: // Flat with black border
         bg = mainColor;
         borderRadius = '0px';
         border = '3px solid #000';
-        boxShadow = '4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 2: // Neon glow pixel (Y2K style)
-        bg = '#000';
-        borderRadius = '0px';
-        border = `3px solid ${mainColor}`;
-        boxShadow = `0 0 0 2px #000, 4px 4px 0 ${mainColor}`;
-        break;
-        
-      case 3: // Double border retro
+      case 1: // Flat with white border
         bg = mainColor;
         borderRadius = '0px';
-        border = '4px double #fff';
-        boxShadow = '3px 3px 0 #000';
+        border = '4px solid #fff';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 4: // Beveled 3D colored
-        bg = `linear-gradient(180deg, ${mainColor} 0%, ${mainColor} 45%, rgba(0,0,0,0.3) 100%)`;
-        borderRadius = '0px';
-        border = '2px solid #000';
-        boxShadow = 'inset -2px -2px 0 rgba(0,0,0,0.5), inset 2px 2px 0 rgba(255,255,255,0.5), 3px 3px 0 #000';
-        break;
-        
-      case 5: // Chunky white border (arcade style)
+      case 2: // Pill with black border
         bg = mainColor;
-        borderRadius = '0px';
-        border = '5px solid #fff';
-        boxShadow = '0 0 0 3px #000, 5px 5px 0 #000';
-        break;
-        
-      case 6: // Two-tone split (old web button)
-        bg = `linear-gradient(180deg, ${mainColor} 50%, ${secondColor} 50%)`;
-        borderRadius = '0px';
+        borderRadius = '25px';
         border = '3px solid #000';
-        boxShadow = '4px 4px 0 rgba(0,0,0,0.6)';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 7: // Inset pixel button (pressed look)
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '3px inset #000';
-        boxShadow = 'inset 3px 3px 0 rgba(0,0,0,0.4)';
-        break;
-        
-      case 8: // Pixel pill/oval - stepped radius
-        bg = mainColor;
-        borderRadius = '20px'; // Pill shape
-        border = '3px solid #000';
-        boxShadow = '4px 4px 0 #000';
-        break;
-        
-      case 9: // Pixel capsule with white border
+      case 3: // Pill with white border
         bg = mainColor;
         borderRadius = '25px';
         border = '4px solid #fff';
-        boxShadow = '0 0 0 2px #000, 4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 10: // Neon pill (Y2K capsule)
-        bg = '#000';
-        borderRadius = '30px';
-        border = `3px solid ${mainColor}`;
-        boxShadow = `4px 4px 0 ${mainColor}`;
-        break;
-        
-      case 11: // Rainbow gradient bar
-        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${thirdColor})`;
+      case 4: // Horizontal gradient
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor})`;
         borderRadius = '0px';
         border = '3px solid #000';
-        boxShadow = '4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 12: // Dotted border retro
-        bg = mainColor;
+      case 5: // Vertical gradient
+        bg = `linear-gradient(180deg, ${mainColor}, ${secondColor})`;
         borderRadius = '0px';
-        border = '4px dotted #000';
-        boxShadow = '3px 3px 0 rgba(0,0,0,0.5)';
-        break;
-        
-      case 13: // Dashed border web 1.0
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '3px dashed #fff';
-        boxShadow = '0 0 0 2px #000, 4px 4px 0 #000';
-        break;
-        
-      case 14: // Stacked shadows (3D depth)
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '2px solid #000';
-        boxShadow = '2px 2px 0 #fff, 4px 4px 0 #000, 6px 6px 0 rgba(0,0,0,0.3)';
-        break;
-        
-      case 15: // Oval with inset bevel
-        bg = `linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.3) 100%), ${mainColor}`;
-        borderRadius = '50px';
         border = '3px solid #000';
-        boxShadow = 'inset -2px -2px 0 rgba(0,0,0,0.4), inset 2px 2px 0 rgba(255,255,255,0.4), 4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 16: // Thick cartoon shadow
+      case 6: // Gradient pill
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor})`;
+        borderRadius = '25px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
+        break;
+        
+      case 7: // Rounded corners
+        bg = mainColor;
+        borderRadius = '12px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
+        break;
+        
+      case 8: // Thick shadow
         bg = mainColor;
         borderRadius = '0px';
         border = '4px solid #000';
-        boxShadow = '6px 6px 0 #000';
+        filterShadow = 'drop-shadow(6px 6px 0 #000)';
         break;
         
-      case 17: // DOS terminal style
-        bg = '#000';
+      case 9: // Three-color gradient
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`;
         borderRadius = '0px';
-        border = '2px solid #0f0';
-        boxShadow = 'inset 0 0 0 1px #0f0, 3px 3px 0 #0f0';
-        break;
-        
-      case 18: // Pill with colored shadow
-        bg = mainColor;
-        borderRadius = '50px';
         border = '3px solid #000';
-        boxShadow = `5px 5px 0 ${secondColor}`;
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 19: // Double pill border
-        bg = mainColor;
-        borderRadius = '50px';
-        border = '4px double #fff';
-        boxShadow = '0 0 0 3px #000, 4px 4px 0 #000';
-        break;
-        
-      case 20: // Stamped/embossed
-        bg = mainColor;
-        borderRadius = '4px';
-        border = '3px solid #000';
-        boxShadow = 'inset -3px -3px 0 rgba(0,0,0,0.3), inset 3px 3px 0 rgba(255,255,255,0.3), 4px 4px 0 #000';
-        break;
-        
-      case 21: // Chunky rounded Mac style
-        bg = `linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(0,0,0,0.2) 100%), ${mainColor}`;
-        borderRadius = '12px';
-        border = '3px solid #000';
-        boxShadow = '3px 3px 0 #000, inset 0 2px 0 rgba(255,255,255,0.5)';
-        break;
-        
-      case 22: // Glossy gel button (2000s web)
-        bg = `linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 50%, transparent 51%, rgba(0,0,0,0.1) 100%), ${mainColor}`;
-        borderRadius = '8px';
-        border = '2px solid rgba(0,0,0,0.5)';
-        boxShadow = '3px 3px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.8)';
-        break;
-        
-      case 23: // Oval neon double glow
-        bg = '#111';
-        borderRadius = '40px';
-        border = `4px solid ${mainColor}`;
-        boxShadow = `0 0 0 2px ${secondColor}, 5px 5px 0 ${mainColor}`;
-        break;
-        
-      default: // Fallback: simple flat pixel
+      default:
         bg = mainColor;
         borderRadius = '0px';
-        border = '2px solid #000';
-        boxShadow = '3px 3px 0 #000';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
     }
     
+    // Apply all styles explicitly
     preview.style.background = bg;
     preview.style.borderRadius = borderRadius;
     preview.style.border = border;
-    preview.style.boxShadow = boxShadow;
-    
-    // Pixel art: Almost no rotation - keep it blocky!
-    let transform = 'none';
-    if (Math.random() > 0.95) transform = `rotate(${Math.floor(Math.random() * 4 - 2)}deg)`; // Very rare, very subtle
-    preview.style.transform = transform;
-    
-    // NO effects for CTA buttons by default (no glitter, shadow, outline)
-    const hasGlitter = false;
-    const hasEffectShadow = false;
-    const hasOutline = false;
-    
-    // Clear any filters
-    preview.style.filter = '';
+    preview.style.boxShadow = 'none';
+    preview.style.filter = filterShadow;
+    preview.style.outline = 'none';
+    preview.style.transform = 'none';
     
     // Clear glitter preview
     updateGlitterPreview(preview, false);
     
+    // Store for spawning
     preview.dataset.ctaBg = bg;
     preview.dataset.ctaBorderRadius = borderRadius;
     preview.dataset.ctaBorder = border;
-    preview.dataset.ctaBoxShadow = boxShadow;
-    preview.dataset.ctaTransform = transform;
-    // Store effects (all false for CTA)
+    preview.dataset.ctaFilter = filterShadow;
+    preview.dataset.ctaTransform = 'none';
     preview.dataset.hasGlitter = 'false';
     preview.dataset.hasEffectShadow = 'false';
     preview.dataset.hasOutline = 'false';
@@ -3000,8 +2955,8 @@ function buildCTAButtonUI(container) {
   
   function regenerateAll() {
     generateText();
-    generateTextStyle();
-    generateButtonStyle();
+    generateButtonStyle();  // Button styles first
+    generateTextStyle();    // Text styles second (preserves button styles)
   }
   
   regenBtn.addEventListener('click', regenerateAll);
@@ -3024,7 +2979,7 @@ function buildCTAButtonUI(container) {
       preview.dataset.ctaBg,
       preview.dataset.ctaBorderRadius,
       preview.dataset.ctaBorder,
-      preview.dataset.ctaBoxShadow,
+      preview.dataset.ctaFilter,
       preview.dataset.ctaTransform,
       preview.dataset.hasGlitter,
       preview.dataset.hasEffectShadow,
@@ -3054,7 +3009,7 @@ function buildCTAButtonUI(container) {
   regenerateAll();
 }
 
-function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, boxShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline) {
+function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, filterShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline) {
   const stage = document.getElementById('stage');
   
   // Remove existing CTA button if any
@@ -3096,7 +3051,9 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   buttonEl.style.background = bg;
   buttonEl.style.borderRadius = borderRadius;
   buttonEl.style.border = border;
-  buttonEl.style.boxShadow = boxShadow;
+  buttonEl.style.boxShadow = 'none';
+  // Always apply drop shadow to CTA
+  buttonEl.style.filter = filterShadow || 'drop-shadow(4px 4px 0 #000)';
   if (buttonTransform !== 'none') buttonEl.style.transform = buttonTransform;
   
   const scaleHandle = document.createElement('div');
@@ -3311,12 +3268,10 @@ function deselectAll() {
 }
 
 document.addEventListener("pointerdown", e => {
-    // Don't deselect if clicking on delete button, effect tabs, or sticker bar sources
+    // Don't deselect if clicking on delete button, element bar, or sticker bar sources
     if (!e.target.closest(".sticker-wrapper") && 
         !e.target.closest("#sticker-bar-delete-area") &&
-        !e.target.closest("#sticker-effect-tabs") &&
         !e.target.closest("#element-bar-title-area") &&
-        !e.target.closest("#element-effect-tabs") &&
         !e.target.closest(".sticker-src") &&
         !e.target.closest("#sticker-bar")) {
         deselectAll();
@@ -3334,6 +3289,10 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
     if (isHero) {
         wrapper.classList.add("hero-layer");
         wrapper.setAttribute("data-is-hero", "true");
+        // Heroes have no effects
+        wrapper.setAttribute('data-has-glitter', 'false');
+        wrapper.setAttribute('data-has-shadow', 'false');
+        wrapper.setAttribute('data-has-outline', 'false');
     }
     wrapper.scale = 1;
     wrapper.angle = 0;
@@ -3344,6 +3303,11 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
     const img = document.createElement("img");
     img.src = srcUrl;
     img.style.width = isHero ? "300px" : "150px";  // Heroes spawn bigger!
+    
+    // Apply drop shadow to heroes as well (no outline)
+    if (isHero) {
+        img.style.filter = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
+    }
 
     const scaleHandle = document.createElement("div");
     scaleHandle.classList.add("scale-handle");
@@ -3388,14 +3352,19 @@ function createStickerAt(srcUrl, x, y, isHero = false) {
     deselectAll();
     wrapper.classList.add("selected");
     
-    // Apply current effects to new sticker (if not hero)
-    if (!isHero && typeof updateStickerEffects === 'function') {
-      updateStickerEffects();
-    }
-    
-    // Regenerate glitter if glitter is enabled
-    const glitterCheckbox = document.getElementById('effect-glitter');
-    if (!isHero && glitterCheckbox?.checked) {
+    // Stickers always have glitter (not heroes)
+    if (!isHero) {
+      // Random outline (50% chance)
+      const hasOutline = Math.random() > 0.5;
+      wrapper.setAttribute('data-has-outline', hasOutline ? 'true' : 'false');
+      
+      // Apply outline filter to the image
+      if (hasOutline) {
+        img.style.filter = 'drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000) drop-shadow(0 -2px 0 #000) drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
+      } else {
+        img.style.filter = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
+      }
+      
       // Add glitter data for the new sticker
       const stickerIndex = document.querySelectorAll('.sticker-wrapper:not([data-is-hero]):not([data-is-headline]):not(.headline-layer):not(.company-layer):not(.cta-layer)').length - 1;
       if (typeof stickerGlitterData !== 'undefined') {
@@ -3560,12 +3529,10 @@ document.querySelectorAll('.sticker-src').forEach(stickerSrc => {
 function updateDeleteButtonVisibility() {
   // Sticker bar elements
   const stickerDeleteArea = document.getElementById('sticker-bar-delete-area');
-  const stickerEffectTabs = document.getElementById('sticker-effect-tabs');
   const stickerTitleArea = document.getElementById('sticker-bar-title-area');
   
   // Element bar elements (for hero/headline/company/cta) - NO delete button
   const elementTitleArea = document.getElementById('element-bar-title-area');
-  const elementEffectTabs = document.getElementById('element-effect-tabs');
   const elementTitle = document.getElementById('element-bar-title');
   
   if (!stickerDeleteArea) return; // Not loaded yet
@@ -3583,16 +3550,14 @@ function updateDeleteButtonVisibility() {
   // Handle sticker bar (only for regular stickers)
   if (isRegularSticker) {
     stickerDeleteArea.style.display = 'flex';
-    if (stickerEffectTabs) stickerEffectTabs.style.display = 'flex';
     if (stickerTitleArea) stickerTitleArea.classList.add('tabs-visible');
   } else {
     stickerDeleteArea.style.display = 'none';
-    if (stickerEffectTabs) stickerEffectTabs.style.display = 'none';
     if (stickerTitleArea) stickerTitleArea.classList.remove('tabs-visible');
   }
   
-  // Handle element bar (for hero/headline/company/cta) - NO delete button
-  if (isSpecialElement && elementTitleArea && elementEffectTabs) {
+  // Handle element bar (for hero/headline/company/cta) - show title only, no effects
+  if (isSpecialElement && elementTitleArea) {
     // Set the title based on element type
     if (elementTitle) {
       if (isHero) elementTitle.textContent = 'Hero';
@@ -3601,16 +3566,11 @@ function updateDeleteButtonVisibility() {
       else if (isCTA) elementTitle.textContent = 'CTA';
     }
     
-    // Show element bar
+    // Show element bar title
     elementTitleArea.style.display = 'flex';
-    elementEffectTabs.style.display = 'flex';
-    
-    // Update checkbox states based on current element effects
-    updateElementEffectCheckboxes(selectedWrapper);
-  } else if (elementTitleArea && elementEffectTabs) {
+  } else if (elementTitleArea) {
     // Hide element bar
     elementTitleArea.style.display = 'none';
-    elementEffectTabs.style.display = 'none';
   }
 }
 
@@ -5504,7 +5464,8 @@ const MAX_GLITTER_PARTICLES = 250;
 function updateGlitterFrame(dt) {
   if (!glitterCanvas || !glitterCtx) return;
   
-  const hasStickerGlitter = effectGlitter?.checked;
+  // Sticker glitter is always on, element glitter is per-element
+  const hasStickerGlitter = true;
   const hasElementGlitter = hasAnyElementGlitter();
   
   if (!hasStickerGlitter && !hasElementGlitter) return;
@@ -5615,8 +5576,8 @@ function updateGlitterFrame(dt) {
 }
 
 function glitterLoop(timestamp) {
-  // Check if EITHER sticker glitter OR element glitter is active
-  const hasStickerGlitter = effectGlitter?.checked;
+  // Sticker glitter is always on, element glitter is per-element
+  const hasStickerGlitter = true;
   const hasElementGlitter = hasAnyElementGlitter();
   
   if (!hasStickerGlitter && !hasElementGlitter) {
@@ -5924,31 +5885,9 @@ function startGlitter() {
 }
 
 function stopGlitter() {
-  // Only fully stop if no element glitter is active either
-  if (hasAnyElementGlitter()) {
-    // Don't stop the loop, just clear sticker glitter data
-    // The loop will continue for element glitter
-    return;
-  }
-  
-  if (glitterAnimationId) {
-    cancelAnimationFrame(glitterAnimationId);
-    glitterAnimationId = null;
-  }
-  if (glitterCtx && glitterCanvas) {
-    glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
-  }
-}
-
-if (effectGlitter) {
-  effectGlitter.addEventListener('change', () => {
-    SoundManager.play('click');
-    if (effectGlitter.checked) {
-      startGlitter();
-    } else {
-      stopGlitter();
-    }
-  });
+  // Sticker glitter is always on now, so never fully stop
+  // This function is kept for backwards compatibility but does nothing
+  return;
 }
 
 // Update delete button visibility when selection changes
@@ -6026,16 +5965,7 @@ if (elementGlitterCheckbox) {
       // Only remove pixels for THIS element (doesn't affect others)
       removeElementGlitterPixels(selected);
       
-      // Only stop if NO glitter is active (sticker or element)
-      if (!effectGlitter?.checked && !hasAnyElementGlitter()) {
-        if (glitterAnimationId) {
-          cancelAnimationFrame(glitterAnimationId);
-          glitterAnimationId = null;
-        }
-        if (glitterCtx && glitterCanvas) {
-          glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
-        }
-      }
+      // Don't stop the loop - sticker glitter is always on
     }
   });
 }
@@ -6049,6 +5979,7 @@ function updateElementEffects(wrapper) {
   
   const hasShadow = wrapper.getAttribute('data-has-shadow') === 'true';
   const hasOutline = wrapper.getAttribute('data-has-outline') === 'true';
+  const isCTA = wrapper.classList.contains('cta-layer');
   
   let filterParts = [];
   
@@ -6067,7 +5998,20 @@ function updateElementEffects(wrapper) {
     filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
   }
   
-  inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+  // For CTA buttons, always preserve the button's own drop-shadow filter
+  // CTA buttons have their drop-shadow set by spawnCTAButton, don't overwrite it
+  if (isCTA) {
+    // Only update if there are additional effects (outline/shadow checkbox)
+    // Otherwise leave the filter alone
+    if (filterParts.length > 0) {
+      // Add the CTA's own shadow to the end
+      filterParts.push('drop-shadow(4px 4px 0 #000)');
+      inner.style.filter = filterParts.join(' ');
+    }
+    // If no effects, don't touch the filter - it already has the CTA shadow
+  } else {
+    inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
+  }
 }
 
 // Element effect: Shadow

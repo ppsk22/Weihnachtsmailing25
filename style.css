@@ -336,6 +336,11 @@ body {
   background:#3013a9;
   color: #fff;
   cursor: url('assets/UI/cursor.ico'), auto;
+  /* Prevent text selection on UI */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 /* Hide scrollbars globally but allow scrolling where needed */
@@ -786,28 +791,6 @@ body.modal-open #sticker-bar * {
   letter-spacing: 1px;
 }
 
-#element-effect-tabs {
-  position: absolute;
-  left: 108px;
-  bottom: 0;
-  display: none;
-  align-items: stretch;
-  gap: 0;
-  z-index: 600;  /* Above UI snow (500) */
-  height: 38px;
-}
-
-#element-effect-tabs .effect-tab {
-  border-bottom: none;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-#element-effect-tabs .effect-tab:last-child {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
 /* ============================================
    STICKER BAR TITLE & EFFECTS
    ============================================ */
@@ -843,60 +826,6 @@ body.modal-open #sticker-bar * {
   font-weight: normal;
   font-family: 'home_videoregular', sans-serif;
   text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-/* Effect tabs container - positioned right after title */
-#sticker-effect-tabs {
-  grid-column: 2;
-  grid-row: 2;
-  position: absolute;
-  left: 108px;  /* Overlap title's right border by 2px */
-  top: 0;
-  display: none;  /* Hidden by default */
-  align-items: stretch;  /* Make all tabs same height */
-  gap: 0;
-  z-index: 150;
-  height: 38px;  /* Match title height */
-}
-
-/* Individual effect tab */
-.effect-tab {
-  padding: 0 12px;
-  background: rgba(15, 15, 15, 0.95);  /* Very dark */
-  border: 4px solid #3013a9;
-  border-left: none;  /* Connect tabs together */
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: url('assets/UI/hand.ico'), pointer;
-  transition: background 0.2s;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-.effect-tab:last-child {
-  border-bottom-right-radius: 0;  /* Rounded corner on last tab */
-}
-
-.effect-tab:hover {
-  background: rgba(30, 30, 30, 0.95);
-}
-
-.effect-tab input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  cursor: url('assets/UI/hand.ico'), pointer;
-  accent-color: #4CAF50;
-  margin: 0;
-}
-
-.effect-tab span {
-  color: #fff;
-  font-size: 12px;
-  font-weight: normal;  /* Lighter weight than title */
-  font-family: 'home_videoregular', sans-serif;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -997,6 +926,7 @@ body.modal-open #sticker-bar * {
   position:relative;
   z-index:1;
   cursor: move; /* 4-way move icon */
+  /* Shadows applied inline via JS for random outline effect */
 }
 
 /* --- DEFAULT: HIDE HANDLES --- */
@@ -1573,16 +1503,15 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 .cta-generator .cta-preview {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: bold;
   text-align: center;
-  padding: 12px 28px;
-  min-width: 180px;
+  white-space: nowrap;
   cursor: url('assets/UI/hand.ico'), pointer;
   user-select: none;
-  max-width: 90%;
-  image-rendering: pixelated;  /* Keep pixel edges sharp */
-  -webkit-font-smoothing: none; /* Crisper text on some browsers */
+  padding: 12px 24px;
+  display: inline-block;
+  image-rendering: pixelated;
 }
 
 .cta-generator .button-container {
@@ -1637,25 +1566,6 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 /* ============================================
    EXPORT UI STYLES
    ============================================ */
-
-.export-ui-wrapper {
-  max-height: 100%;
-  overflow-y: auto;
-  padding-right: 10px;
-}
-
-.export-section {
-  margin-bottom: 20px;
-}
-
-.export-congrats {
-  font-family: 'home_videoregular', sans-serif;
-  font-size: 20px;
-  color: #5a3fd9;
-  text-align: center;
-  margin: 0 0 20px 0;
-  letter-spacing: 2px;
-}
 
 .export-section-title {
   font-family: 'home_videoregular', sans-serif;
@@ -1757,8 +1667,57 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* Make popup body scrollable for export UI */
 .popup-body:has(.export-ui-wrapper) {
-  overflow-y: auto;
-  max-height: calc(100% - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.export-ui-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+  min-height: 0;
+}
+
+.export-section {
+  margin-bottom: 20px;
+}
+
+/* Export section layout - centered content */
+.export-section.main-export-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 25px;
+  margin-bottom: 0;
+  padding: 20px 0;
+}
+
+.export-congrats {
+  font-family: 'home_videoregular', sans-serif;
+  font-size: 18px;
+  color: #ff69b4;
+  text-align: center;
+  margin: 0;
+  letter-spacing: 1px;
+  line-height: 1.5;
+  text-shadow: 2px 2px 0 #3013a9;
+  max-width: 100%;
+}
+
+.banner-name-group {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.btn-row.centered {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 /* Pixel-art style scrollbar */
