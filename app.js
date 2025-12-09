@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v2.1 - CTA STYLES FIXED ====
+// ==== CHRISTMAS BANNER BUILDER v2.3 - EXPORT FIXES ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -910,9 +910,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         innerEl.style.animation = 'none';
         innerEl.style.overflow = 'visible';
         
-        // Remove filter - we'll apply shadows via canvas instead
+        // Remove ALL shadow/filter effects - we'll apply shadows via canvas instead
         innerEl.style.filter = 'none';
+        innerEl.style.boxShadow = 'none';
+        innerEl.style.webkitBoxShadow = 'none';
       }
+      
+      // Force a reflow to ensure styles are applied before capture
+      clone.offsetHeight;
       
       // Get the actual rendered size
       const rect = clone.getBoundingClientRect();
@@ -964,7 +969,40 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const bounceScales = [1, 1.10, 1.20, 1.10];
   const bounceStart = 500;
   
+  // Helper to wait for visibility if tab is hidden
+  const waitForVisibility = () => {
+    return new Promise(resolve => {
+      if (!document.hidden) {
+        resolve();
+        return;
+      }
+      // Show paused message
+      const statusEl = document.getElementById('export-main-status');
+      if (statusEl) {
+        statusEl.textContent = 'Export paused - return to this tab to continue...';
+        statusEl.style.color = '#ff69b4';
+      }
+      const handler = () => {
+        if (!document.hidden) {
+          document.removeEventListener('visibilitychange', handler);
+          if (statusEl) {
+            statusEl.textContent = 'Resuming export...';
+            statusEl.style.color = '#5a3fd9';
+          }
+          // Small delay to let animations catch up
+          setTimeout(resolve, 150);
+        }
+      };
+      document.addEventListener('visibilitychange', handler);
+    });
+  };
+  
   for (let i = 0; i < TOTAL; i++) {
+    // Pause export if tab is hidden
+    if (document.hidden) {
+      await waitForVisibility();
+    }
+    
     const frameTime = i * FRAME_MS;
     
     // Update snow and glitter
@@ -1094,6 +1132,13 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     // Draw text elements (headline, company, CTA)
     for (const t of validTextElements) {
       ctx.save();
+      
+      // Reset shadow state completely
+      ctx.shadowColor = 'transparent';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.shadowBlur = 0;
+      
       ctx.translate(t.x, t.y);
       ctx.translate(t.baseW / 2, t.baseH / 2);
       ctx.rotate((t.angle || 0) * Math.PI / 180);
@@ -1119,6 +1164,10 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
         ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        // Reset after outline
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
       }
       
       // Draw with drop shadow (for CTA always, for others if hasEffectShadow)
@@ -1127,8 +1176,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.shadowOffsetX = 4;
         ctx.shadowOffsetY = 4;
         ctx.shadowBlur = 0;
-      } else {
-        ctx.shadowColor = 'transparent';
       }
       
       ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
@@ -2800,8 +2847,8 @@ function buildCTAButtonUI(container) {
     const mainColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     const secondColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
-    // Only 6 simple, export-safe styles (all with black shadows only)
-    const styleType = Math.floor(Math.random() * 6);
+    // Export-safe button styles (solid borders, filter drop-shadow, gradients OK)
+    const styleType = Math.floor(Math.random() * 10);
     
     let bg, borderRadius, border, filterShadow;
     
@@ -2834,18 +2881,46 @@ function buildCTAButtonUI(container) {
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 4: // Rounded corners
+      case 4: // Horizontal gradient
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor})`;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
+        break;
+        
+      case 5: // Vertical gradient
+        bg = `linear-gradient(180deg, ${mainColor}, ${secondColor})`;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
+        break;
+        
+      case 6: // Gradient pill
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor})`;
+        borderRadius = '25px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
+        break;
+        
+      case 7: // Rounded corners
         bg = mainColor;
         borderRadius = '12px';
         border = '3px solid #000';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 5: // Thick shadow
+      case 8: // Thick shadow
         bg = mainColor;
         borderRadius = '0px';
         border = '4px solid #000';
         filterShadow = 'drop-shadow(6px 6px 0 #000)';
+        break;
+        
+      case 9: // Three-color gradient
+        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
       default:
