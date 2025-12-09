@@ -826,22 +826,29 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     ctaButton.style.animation = 'none';
   }
   
-  // Load background GIF frames if animated
+  // Load background - both animated GIF and static images
   const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL = bgMatch ? bgMatch[1] : null;
   let bgData = null;
   let bgFullCanvas = null;
+  let staticBgImg = null;
   
-  if (bgURL && /\.gif(?:[?#].*)?$/i.test(bgURL)) {
-    const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
-    const gif = window.__gif_parseGIF(ab);
-    const frs = window.__gif_decompressFrames(gif, true);
-    const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
-    const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-    bgData = { frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
-    bgFullCanvas = document.createElement('canvas');
-    bgFullCanvas.width = bgData.width;
-    bgFullCanvas.height = bgData.height;
+  if (bgURL) {
+    if (/\.gif(?:[?#].*)?$/i.test(bgURL)) {
+      // Animated GIF background
+      const ab = await fetch(bgURL, { cache: "force-cache", mode: "cors" }).then(r => r.arrayBuffer());
+      const gif = window.__gif_parseGIF(ab);
+      const frs = window.__gif_decompressFrames(gif, true);
+      const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
+      const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
+      bgData = { frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
+      bgFullCanvas = document.createElement('canvas');
+      bgFullCanvas.width = bgData.width;
+      bgFullCanvas.height = bgData.height;
+    } else {
+      // Static image background
+      staticBgImg = await loadImageForExport(bgURL);
+    }
   }
   
   // Create output buffer
@@ -883,8 +890,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       
       bufCtx.clearRect(0, 0, W, H);
       
-      // For animated backgrounds: draw the correct frame first, then capture stage without CSS background
+      // Draw background manually (both animated GIF and static images)
+      const drawH = H * 1.15;
+      const drawY = (H - drawH) / 2;
+      
       if (bgData) {
+        // Animated GIF background - draw the correct frame
         const elapsed = frameTime;
         const mod = elapsed % bgData.totalDur;
         let acc = 0, idx = 0;
@@ -910,15 +921,15 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
           bgCtx.drawImage(pc, f.dims.left, f.dims.top);
         }
         
-        // Draw background with cover sizing
-        const drawH = H * 1.15;
-        const drawY = (H - drawH) / 2;
         bufCtx.drawImage(bgFullCanvas, 0, drawY, W, drawH);
-        
-        // Hide CSS background temporarily
-        stage.style.backgroundImage = 'none';
-        stage.offsetHeight; // Force reflow
+      } else if (staticBgImg) {
+        // Static image background
+        bufCtx.drawImage(staticBgImg, 0, drawY, W, drawH);
       }
+      
+      // Hide CSS background temporarily so we don't double-draw it
+      stage.style.backgroundImage = 'none';
+      stage.offsetHeight; // Force reflow
       
       // Capture the stage using EXACT same settings as PNG export
       const frameCanvas = await html2canvas(stage, {
@@ -936,10 +947,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         }
       });
       
-      // Restore CSS background if we hid it
-      if (bgData) {
-        stage.style.backgroundImage = originalBgImage;
-      }
+      // Restore CSS background
+      stage.style.backgroundImage = originalBgImage;
       
       // Draw the captured frame (elements) on top of background
       bufCtx.drawImage(frameCanvas, 0, 0, W, H);
