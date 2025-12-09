@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v2.9 - EXPORT SNOW FIX ====
+// ==== CHRISTMAS BANNER BUILDER v3.0 - EXPORT OPTIMIZATION ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -823,6 +823,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   buf.width = W; buf.height = H;
   const ctx = buf.getContext("2d", { willReadFrequently: true });
   
+  // Show status for preparation phase
+  const statusEl = document.getElementById('export-main-status');
+  if (statusEl) {
+    statusEl.textContent = 'Preparing assets...';
+  }
+  
   // Load background
   const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL = bgMatch ? bgMatch[1] : null;
@@ -835,7 +841,38 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      bgData = { kind: "anim", frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
+      
+      // PRE-CACHE: Render all GIF frames to canvases upfront
+      const cachedFrames = [];
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = gif.lsd.width;
+      tempCanvas.height = gif.lsd.height;
+      const tempCtx = tempCanvas.getContext("2d");
+      
+      for (let fi = 0; fi < frs.length; fi++) {
+        const f = frs[fi];
+        if (fi > 0) {
+          const prevF = frs[fi - 1];
+          if (prevF.disposalType === 2) {
+            tempCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+          }
+        }
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width;
+        pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        tempCtx.drawImage(pc, f.dims.left, f.dims.top);
+        
+        // Save a copy of the current composite frame
+        const frameCanvas = document.createElement("canvas");
+        frameCanvas.width = gif.lsd.width;
+        frameCanvas.height = gif.lsd.height;
+        frameCanvas.getContext("2d").drawImage(tempCanvas, 0, 0);
+        cachedFrames.push(frameCanvas);
+      }
+      
+      bgData = { kind: "anim", cachedFrames, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
     } else {
       const img = await loadImageForExport(bgURL);
       bgData = { kind: "static", img };
@@ -867,7 +904,38 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
+      
+      // PRE-CACHE: Render all GIF frames to canvases upfront
+      const cachedFrames = [];
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = domW;
+      tempCanvas.height = domH;
+      const tempCtx = tempCanvas.getContext("2d");
+      
+      for (let fi = 0; fi < frs.length; fi++) {
+        const f = frs[fi];
+        if (fi > 0) {
+          const prevF = frs[fi - 1];
+          if (prevF.disposalType === 2) {
+            tempCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+          }
+        }
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width;
+        pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        tempCtx.drawImage(pc, f.dims.left, f.dims.top);
+        
+        // Save a copy of the current composite frame
+        const frameCanvas = document.createElement("canvas");
+        frameCanvas.width = domW;
+        frameCanvas.height = domH;
+        frameCanvas.getContext("2d").drawImage(tempCanvas, 0, 0);
+        cachedFrames.push(frameCanvas);
+      }
+      
+      return { kind: "anim", cachedFrames, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
     } else {
       const bmp = await loadImageForExport(src);
       return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
@@ -1001,6 +1069,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   // dt=1 is 16.67ms (60fps), so for 10fps (100ms) we need dt≈6
   const exportDt = FRAME_MS / 16.67;
   
+  // Update status for encoding phase
+  if (statusEl) {
+    statusEl.textContent = 'Encoding frames...';
+    statusEl.style.color = '#5a3fd9';
+  }
+  
   for (let i = 0; i < TOTAL; i++) {
     // Pause export if tab is hidden (check only occasionally to reduce overhead)
     if (i % 10 === 0 && document.hidden) {
@@ -1023,34 +1097,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       if (bgData.kind === "static") {
         ctx.drawImage(bgData.img, 0, drawY, W, drawH);
       } else {
+        // Use pre-cached frames
         const elapsed = frameTime;
         const mod = elapsed % bgData.totalDur;
         let acc = 0, idx = 0;
         for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
-        idx = idx % bgData.frames.length;
+        idx = idx % bgData.cachedFrames.length;
         
-        const fullGif = document.createElement("canvas");
-        fullGif.width = bgData.width;
-        fullGif.height = bgData.height;
-        const fullCtx = fullGif.getContext("2d");
-        
-        for (let fi = 0; fi <= idx; fi++) {
-          const f = bgData.frames[fi];
-          if (fi > 0) {
-            const prevF = bgData.frames[fi - 1];
-            if (prevF.disposalType === 2) {
-              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
-            }
-          }
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width;
-          pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        }
-        
-        ctx.drawImage(fullGif, 0, drawY, W, drawH);
+        ctx.drawImage(bgData.cachedFrames[idx], 0, drawY, W, drawH);
       }
     }
     
@@ -1070,34 +1124,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       if (s.kind === "static") {
         imgToDraw = s.img;
       } else {
-        // Animated GIF sticker/hero
+        // Use pre-cached frames
         const elapsed = frameTime;
         const mod = elapsed % s.totalDur;
         let acc = 0, idx = 0;
         for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-        idx = idx % s.frames.length;
+        idx = idx % s.cachedFrames.length;
         
-        const fullGif = document.createElement("canvas");
-        fullGif.width = s.domW;
-        fullGif.height = s.domH;
-        const fullCtx = fullGif.getContext("2d");
-        
-        for (let fi = 0; fi <= idx; fi++) {
-          const f = s.frames[fi];
-          if (fi > 0) {
-            const prevF = s.frames[fi - 1];
-            if (prevF.disposalType === 2) {
-              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
-            }
-          }
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width;
-          pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        }
-        imgToDraw = fullGif;
+        imgToDraw = s.cachedFrames[idx];
       }
       
       // Draw outline if sticker has one (4 directional shadows)
