@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v2.9 - EXPORT SNOW FIX ====
+// ==== CHRISTMAS BANNER BUILDER v3.3 - EDITOR GLITTER Z-ORDER ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -823,6 +823,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   buf.width = W; buf.height = H;
   const ctx = buf.getContext("2d", { willReadFrequently: true });
   
+  // Show status for preparation phase
+  const statusEl = document.getElementById('export-main-status');
+  if (statusEl) {
+    statusEl.textContent = 'Preparing assets...';
+  }
+  
   // Load background
   const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
   const bgURL = bgMatch ? bgMatch[1] : null;
@@ -835,7 +841,38 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      bgData = { kind: "anim", frames: frs, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
+      
+      // PRE-CACHE: Render all GIF frames to canvases upfront
+      const cachedFrames = [];
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = gif.lsd.width;
+      tempCanvas.height = gif.lsd.height;
+      const tempCtx = tempCanvas.getContext("2d");
+      
+      for (let fi = 0; fi < frs.length; fi++) {
+        const f = frs[fi];
+        if (fi > 0) {
+          const prevF = frs[fi - 1];
+          if (prevF.disposalType === 2) {
+            tempCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+          }
+        }
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width;
+        pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        tempCtx.drawImage(pc, f.dims.left, f.dims.top);
+        
+        // Save a copy of the current composite frame
+        const frameCanvas = document.createElement("canvas");
+        frameCanvas.width = gif.lsd.width;
+        frameCanvas.height = gif.lsd.height;
+        frameCanvas.getContext("2d").drawImage(tempCanvas, 0, 0);
+        cachedFrames.push(frameCanvas);
+      }
+      
+      bgData = { kind: "anim", cachedFrames, delays, totalDur, width: gif.lsd.width, height: gif.lsd.height };
     } else {
       const img = await loadImageForExport(bgURL);
       bgData = { kind: "static", img };
@@ -867,7 +904,38 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const frs = window.__gif_decompressFrames(gif, true);
       const delays = frs.map(f => (f.delay && f.delay > 0 ? f.delay : 10));
       const totalDur = delays.reduce((a, b) => a + b, 0) || 1;
-      return { kind: "anim", frames: frs, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
+      
+      // PRE-CACHE: Render all GIF frames to canvases upfront
+      const cachedFrames = [];
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = domW;
+      tempCanvas.height = domH;
+      const tempCtx = tempCanvas.getContext("2d");
+      
+      for (let fi = 0; fi < frs.length; fi++) {
+        const f = frs[fi];
+        if (fi > 0) {
+          const prevF = frs[fi - 1];
+          if (prevF.disposalType === 2) {
+            tempCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
+          }
+        }
+        const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
+        const pc = document.createElement("canvas");
+        pc.width = f.dims.width;
+        pc.height = f.dims.height;
+        pc.getContext("2d").putImageData(patch, 0, 0);
+        tempCtx.drawImage(pc, f.dims.left, f.dims.top);
+        
+        // Save a copy of the current composite frame
+        const frameCanvas = document.createElement("canvas");
+        frameCanvas.width = domW;
+        frameCanvas.height = domH;
+        frameCanvas.getContext("2d").drawImage(tempCanvas, 0, 0);
+        cachedFrames.push(frameCanvas);
+      }
+      
+      return { kind: "anim", cachedFrames, delays, totalDur, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
     } else {
       const bmp = await loadImageForExport(src);
       return { kind: "static", img: bmp, x, y, scale, angle, domW, domH, baseW, baseH, zIndex, isHero, hasOutline };
@@ -962,7 +1030,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   enc.start();
   
   const snowCanvasEl = document.getElementById('snow-canvas');
-  const glitterCanvasEl = document.getElementById('glitter-canvas');
   
   // Bounce animation parameters
   const BOUNCE_DURATION = 2000;
@@ -1001,6 +1068,16 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   // dt=1 is 16.67ms (60fps), so for 10fps (100ms) we need dt≈6
   const exportDt = FRAME_MS / 16.67;
   
+  // Regenerate glitter pixels to ensure they're current for export
+  if (typeof regenerateGlitterPixels === 'function') regenerateGlitterPixels();
+  if (typeof regenerateElementGlitterPixels === 'function') regenerateElementGlitterPixels();
+  
+  // Update status for encoding phase
+  if (statusEl) {
+    statusEl.textContent = 'Encoding frames...';
+    statusEl.style.color = '#5a3fd9';
+  }
+  
   for (let i = 0; i < TOTAL; i++) {
     // Pause export if tab is hidden (check only occasionally to reduce overhead)
     if (i % 10 === 0 && document.hidden) {
@@ -1009,9 +1086,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     const frameTime = i * FRAME_MS;
     
-    // Update snow and glitter with correct dt for export fps
+    // Update snow with correct dt for export fps
     if (typeof updateSnowFrame === 'function') updateSnowFrame(exportDt);
-    if (typeof updateGlitterFrame === 'function') updateGlitterFrame(exportDt);
+    // Note: Glitter is drawn directly in z-order (sticker glitter after stickers, element glitter after text)
     
     ctx.clearRect(0, 0, W, H);
     
@@ -1023,34 +1100,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       if (bgData.kind === "static") {
         ctx.drawImage(bgData.img, 0, drawY, W, drawH);
       } else {
+        // Use pre-cached frames
         const elapsed = frameTime;
         const mod = elapsed % bgData.totalDur;
         let acc = 0, idx = 0;
         for (; idx < bgData.delays.length; idx++) { acc += bgData.delays[idx]; if (mod < acc) break; }
-        idx = idx % bgData.frames.length;
+        idx = idx % bgData.cachedFrames.length;
         
-        const fullGif = document.createElement("canvas");
-        fullGif.width = bgData.width;
-        fullGif.height = bgData.height;
-        const fullCtx = fullGif.getContext("2d");
-        
-        for (let fi = 0; fi <= idx; fi++) {
-          const f = bgData.frames[fi];
-          if (fi > 0) {
-            const prevF = bgData.frames[fi - 1];
-            if (prevF.disposalType === 2) {
-              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
-            }
-          }
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width;
-          pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        }
-        
-        ctx.drawImage(fullGif, 0, drawY, W, drawH);
+        ctx.drawImage(bgData.cachedFrames[idx], 0, drawY, W, drawH);
       }
     }
     
@@ -1070,34 +1127,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       if (s.kind === "static") {
         imgToDraw = s.img;
       } else {
-        // Animated GIF sticker/hero
+        // Use pre-cached frames
         const elapsed = frameTime;
         const mod = elapsed % s.totalDur;
         let acc = 0, idx = 0;
         for (; idx < s.delays.length; idx++) { acc += s.delays[idx]; if (mod < acc) break; }
-        idx = idx % s.frames.length;
+        idx = idx % s.cachedFrames.length;
         
-        const fullGif = document.createElement("canvas");
-        fullGif.width = s.domW;
-        fullGif.height = s.domH;
-        const fullCtx = fullGif.getContext("2d");
-        
-        for (let fi = 0; fi <= idx; fi++) {
-          const f = s.frames[fi];
-          if (fi > 0) {
-            const prevF = s.frames[fi - 1];
-            if (prevF.disposalType === 2) {
-              fullCtx.clearRect(prevF.dims.left, prevF.dims.top, prevF.dims.width, prevF.dims.height);
-            }
-          }
-          const patch = new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height);
-          const pc = document.createElement("canvas");
-          pc.width = f.dims.width;
-          pc.height = f.dims.height;
-          pc.getContext("2d").putImageData(patch, 0, 0);
-          fullCtx.drawImage(pc, f.dims.left, f.dims.top);
-        }
-        imgToDraw = fullGif;
+        imgToDraw = s.cachedFrames[idx];
       }
       
       // Draw outline if sticker has one (4 directional shadows)
@@ -1123,6 +1160,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
       
       ctx.restore();
+    }
+    
+    // Draw sticker glitter AFTER stickers but BEFORE text elements
+    // This ensures sticker glitter stays behind CTA/headline/company
+    if (typeof drawStickerGlitterToContext === 'function') {
+      drawStickerGlitterToContext(ctx, exportDt);
     }
     
     // Calculate CTA bounce for this frame
@@ -1186,9 +1229,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.restore();
     }
     
-    // Draw glitter
-    if (glitterCanvasEl) {
-      ctx.drawImage(glitterCanvasEl, 0, 0, W, H);
+    // Draw element glitter (for headline, company, CTA) AFTER text elements
+    if (typeof drawElementGlitterToContext === 'function') {
+      drawElementGlitterToContext(ctx, exportDt);
     }
     
     // Draw snow
@@ -1200,9 +1243,9 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     
     if (progressCallback) {
       progressCallback((i + 1) / TOTAL);
-      // Yield to event loop less frequently for better performance
-      if (i % 10 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
+      // Yield every 2 frames with 4ms delay (browser minimum) for reliable UI updates
+      if (i % 2 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 4));
       }
     }
   }
@@ -4833,8 +4876,12 @@ const ALL_GLITTER_COLORS = [
   '#98fb98', // pale green
 ];
 
-let glitterCanvas = null;
+let glitterCanvas = null;  // Legacy - used for export
 let glitterCtx = null;
+let stickerGlitterCanvas = null;  // For sticker glitter (behind text)
+let stickerGlitterCtx = null;
+let elementGlitterCanvas = null;  // For element glitter (above text)
+let elementGlitterCtx = null;
 let glitterPixels = [];
 let glitterAnimationId = null;
 let glitterLastTime = 0;
@@ -5068,8 +5115,8 @@ const GLITTER_PRESETS = [
       glitterAmount: 1.1,
       glitterSpeed: 0.273,
       jitter: 17.2,
-      crossChance: 0.2,
-      starChance: 0.45,
+      crossChance: 0.7,
+      starChance: 0.6,
       fps: 4,
       blinkHardness: 1,
       brightness: 2.8
@@ -5430,35 +5477,62 @@ function hasAnyElementGlitter() {
 }
 
 function initGlitterCanvas() {
-  if (glitterCanvas) return;
-  
   const stage = document.getElementById('stage');
-  glitterCanvas = document.createElement('canvas');
-  glitterCanvas.id = 'glitter-canvas';
-  glitterCanvas.style.position = 'absolute';
-  glitterCanvas.style.top = '0';
-  glitterCanvas.style.left = '0';
-  glitterCanvas.style.width = '100%';
-  glitterCanvas.style.height = '100%';
-  glitterCanvas.style.pointerEvents = 'none';
-  glitterCanvas.style.zIndex = '9998'; // Above stickers but below UI
-  
-  // Get stage dimensions
   const stageW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
   const stageH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
-  glitterCanvas.width = stageW;
-  glitterCanvas.height = stageH;
   
-  stage.appendChild(glitterCanvas);
-  glitterCtx = glitterCanvas.getContext('2d');
+  // Create sticker glitter canvas (behind text elements)
+  if (!stickerGlitterCanvas) {
+    stickerGlitterCanvas = document.createElement('canvas');
+    stickerGlitterCanvas.id = 'sticker-glitter-canvas';
+    stickerGlitterCanvas.style.position = 'absolute';
+    stickerGlitterCanvas.style.top = '0';
+    stickerGlitterCanvas.style.left = '0';
+    stickerGlitterCanvas.style.width = '100%';
+    stickerGlitterCanvas.style.height = '100%';
+    stickerGlitterCanvas.style.pointerEvents = 'none';
+    stickerGlitterCanvas.style.zIndex = '1500'; // Above stickers (100-999), below hero (2000)
+    stickerGlitterCanvas.width = stageW;
+    stickerGlitterCanvas.height = stageH;
+    stage.appendChild(stickerGlitterCanvas);
+    stickerGlitterCtx = stickerGlitterCanvas.getContext('2d');
+  }
+  
+  // Create element glitter canvas (above text elements)
+  if (!elementGlitterCanvas) {
+    elementGlitterCanvas = document.createElement('canvas');
+    elementGlitterCanvas.id = 'element-glitter-canvas';
+    elementGlitterCanvas.style.position = 'absolute';
+    elementGlitterCanvas.style.top = '0';
+    elementGlitterCanvas.style.left = '0';
+    elementGlitterCanvas.style.width = '100%';
+    elementGlitterCanvas.style.height = '100%';
+    elementGlitterCanvas.style.pointerEvents = 'none';
+    elementGlitterCanvas.style.zIndex = '9998'; // Above all elements
+    elementGlitterCanvas.width = stageW;
+    elementGlitterCanvas.height = stageH;
+    stage.appendChild(elementGlitterCanvas);
+    elementGlitterCtx = elementGlitterCanvas.getContext('2d');
+  }
+  
+  // Legacy canvas reference for export compatibility
+  glitterCanvas = stickerGlitterCanvas;
+  glitterCtx = stickerGlitterCtx;
 }
 
 function removeGlitterCanvas() {
-  if (glitterCanvas) {
-    glitterCanvas.remove();
-    glitterCanvas = null;
-    glitterCtx = null;
+  if (stickerGlitterCanvas) {
+    stickerGlitterCanvas.remove();
+    stickerGlitterCanvas = null;
+    stickerGlitterCtx = null;
   }
+  if (elementGlitterCanvas) {
+    elementGlitterCanvas.remove();
+    elementGlitterCanvas = null;
+    elementGlitterCtx = null;
+  }
+  glitterCanvas = null;
+  glitterCtx = null;
 }
 
 function getStickerBounds() {
@@ -5744,14 +5818,157 @@ function updateGlitterFrame(dt) {
   glitterCtx.globalAlpha = 1;
 }
 
+// Export-specific: Draw ONLY sticker glitter to a context
+function drawStickerGlitterToContext(ctx, dt) {
+  if (!glitterPixels || glitterPixels.length === 0) return;
+  
+  const globalTime = performance.now() * 0.001;
+  const brightness = GLITTER_SETTINGS.brightness;
+  
+  for (let i = 0; i < glitterPixels.length; i++) {
+    const p = glitterPixels[i];
+    if (!p) continue;
+    
+    const stickerSettings = p.stickerSettings || {};
+    p.phase += p.speed * dt;
+    
+    let pulse = (1 + Math.sin(p.phase)) * 0.5;
+    const hardness = Math.max(0, Math.min(1, 
+      GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+    ));
+    pulse = Math.pow(pulse, 1 - hardness * 0.8);
+    
+    if (Math.random() < 0.05) {
+      pulse = Math.random() < 0.5 ? 1 : 0;
+    }
+    
+    const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+    const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+    const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+    
+    if (alpha < 0.1) continue;
+    
+    const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+    const jx = (Math.random() - 0.5) * jitter;
+    const jy = (Math.random() - 0.5) * jitter;
+    
+    const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+    const colorPhase = stickerSettings.colorPhase || 0;
+    const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+    const currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+    const color = p.colors[currentColorIndex];
+    
+    const x = (p.x + jx) | 0;
+    const y = (p.y + jy) | 0;
+    const s = size | 0;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    
+    // Draw shape (matching drawGlitterShape logic)
+    if (p.shapeType === 'star' && s >= 3) {
+      const half = s >> 1;
+      const diagHalf = (s * 0.35) | 0;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+      for (let d = 1; d <= diagHalf; d++) {
+        ctx.fillRect(x + d, y + d, 1, 1);
+        ctx.fillRect(x - d, y - d, 1, 1);
+        ctx.fillRect(x + d, y - d, 1, 1);
+        ctx.fillRect(x - d, y + d, 1, 1);
+      }
+    } else if (p.shapeType === 'cross' && s >= 2) {
+      const half = s >> 1;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+    } else {
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Export-specific: Draw ONLY element glitter to a context
+function drawElementGlitterToContext(ctx, dt) {
+  if (!elementGlitterPixels || elementGlitterPixels.length === 0) return;
+  
+  const globalTime = performance.now() * 0.001;
+  const brightness = GLITTER_SETTINGS.brightness;
+  
+  for (let i = 0; i < elementGlitterPixels.length; i++) {
+    const p = elementGlitterPixels[i];
+    if (!p) continue;
+    
+    const stickerSettings = p.stickerSettings || {};
+    p.phase += p.speed * dt;
+    
+    let pulse = (1 + Math.sin(p.phase)) * 0.5;
+    const hardness = Math.max(0, Math.min(1, 
+      GLITTER_SETTINGS.blinkHardness + (stickerSettings.blinkHardnessOffset || 0)
+    ));
+    pulse = Math.pow(pulse, 1 - hardness * 0.8);
+    
+    if (Math.random() < 0.05) {
+      pulse = Math.random() < 0.5 ? 1 : 0;
+    }
+    
+    const amount = GLITTER_SETTINGS.glitterAmount * p.localAmount;
+    const alpha = Math.min(1, p.alphaBase * (0.1 + amount * pulse) * brightness);
+    const size = p.baseSize * (0.5 + 0.8 * amount * pulse);
+    
+    if (alpha < 0.1) continue;
+    
+    const jitter = GLITTER_SETTINGS.jitter * (stickerSettings.jitterMult || 1);
+    const jx = (Math.random() - 0.5) * jitter;
+    const jy = (Math.random() - 0.5) * jitter;
+    
+    const colorShiftSpeed = stickerSettings.colorShiftSpeed || 0.002;
+    const colorPhase = stickerSettings.colorPhase || 0;
+    const colorCyclePos = (globalTime * colorShiftSpeed + colorPhase + p.phase * 0.1) % 1;
+    const currentColorIndex = Math.floor(colorCyclePos * p.colors.length) % p.colors.length;
+    const color = p.colors[currentColorIndex];
+    
+    const x = (p.x + jx) | 0;
+    const y = (p.y + jy) | 0;
+    const s = size | 0;
+    
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    
+    // Draw shape (matching drawGlitterShape logic)
+    if (p.shapeType === 'star' && s >= 3) {
+      const half = s >> 1;
+      const diagHalf = (s * 0.35) | 0;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+      for (let d = 1; d <= diagHalf; d++) {
+        ctx.fillRect(x + d, y + d, 1, 1);
+        ctx.fillRect(x - d, y - d, 1, 1);
+        ctx.fillRect(x + d, y - d, 1, 1);
+        ctx.fillRect(x - d, y + d, 1, 1);
+      }
+    } else if (p.shapeType === 'cross' && s >= 2) {
+      const half = s >> 1;
+      ctx.fillRect(x - half, y, s, 1);
+      ctx.fillRect(x, y - half, 1, s);
+    } else {
+      ctx.fillRect(x, y, s, s);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 function glitterLoop(timestamp) {
   // Sticker glitter is always on, element glitter is per-element
   const hasStickerGlitter = true;
   const hasElementGlitter = hasAnyElementGlitter();
   
   if (!hasStickerGlitter && !hasElementGlitter) {
-    if (glitterCanvas) {
-      glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+    if (stickerGlitterCtx && stickerGlitterCanvas) {
+      stickerGlitterCtx.clearRect(0, 0, stickerGlitterCanvas.width, stickerGlitterCanvas.height);
+    }
+    if (elementGlitterCtx && elementGlitterCanvas) {
+      elementGlitterCtx.clearRect(0, 0, elementGlitterCanvas.width, elementGlitterCanvas.height);
     }
     glitterAnimationId = null;
     return;
@@ -5850,19 +6067,23 @@ function glitterLoop(timestamp) {
     });
   }
   
-  glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+  // Clear both canvases
+  if (stickerGlitterCtx && stickerGlitterCanvas) {
+    stickerGlitterCtx.clearRect(0, 0, stickerGlitterCanvas.width, stickerGlitterCanvas.height);
+  }
+  if (elementGlitterCtx && elementGlitterCanvas) {
+    elementGlitterCtx.clearRect(0, 0, elementGlitterCanvas.width, elementGlitterCanvas.height);
+  }
   
   // Global time for color cycling
   const globalTime = timestamp * 0.001;
   
-  // Ensure shadowBlur is disabled for performance
-  glitterCtx.shadowBlur = 0;
-  
   let renderedParticles = 0;
   const brightness = GLITTER_SETTINGS.brightness;
   
-  // === RENDER STICKER GLITTER ===
-  if (hasStickerGlitter) {
+  // === RENDER STICKER GLITTER (to stickerGlitterCanvas) ===
+  if (hasStickerGlitter && stickerGlitterCtx) {
+    stickerGlitterCtx.shadowBlur = 0;
     for (let i = 0; i < glitterPixels.length; i++) {
       const p = glitterPixels[i];
       const stickerSettings = p.stickerSettings || {};
@@ -5877,9 +6098,9 @@ function glitterLoop(timestamp) {
       // Skip rendering if this sticker's FPS says not this frame, draw cached state
       if (!shouldRender && p.lastDrawState) {
         const s = p.lastDrawState;
-        glitterCtx.globalAlpha = s.alpha;
-        glitterCtx.fillStyle = s.color;
-        drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+        stickerGlitterCtx.globalAlpha = s.alpha;
+        stickerGlitterCtx.fillStyle = s.color;
+        drawGlitterShapeToCtx(stickerGlitterCtx, s.x, s.y, s.size, s.shapeType);
         renderedParticles++;
         continue;
       }
@@ -5922,15 +6143,16 @@ function glitterLoop(timestamp) {
       
       p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
       
-      glitterCtx.globalAlpha = alpha;
-      glitterCtx.fillStyle = color;
-      drawGlitterShape(x, y, size, p.shapeType);
+      stickerGlitterCtx.globalAlpha = alpha;
+      stickerGlitterCtx.fillStyle = color;
+      drawGlitterShapeToCtx(stickerGlitterCtx, x, y, size, p.shapeType);
       renderedParticles++;
     }
   }
   
-  // === RENDER ELEMENT GLITTER ===
-  if (hasElementGlitter) {
+  // === RENDER ELEMENT GLITTER (to elementGlitterCanvas) ===
+  if (hasElementGlitter && elementGlitterCtx) {
+    elementGlitterCtx.shadowBlur = 0;
     for (let i = 0; i < elementGlitterPixels.length; i++) {
       const p = elementGlitterPixels[i];
       const stickerSettings = p.stickerSettings || {};
@@ -5945,9 +6167,9 @@ function glitterLoop(timestamp) {
       // Skip rendering if FPS says not this frame, draw cached state
       if (!shouldRender && p.lastDrawState) {
         const s = p.lastDrawState;
-        glitterCtx.globalAlpha = s.alpha;
-        glitterCtx.fillStyle = s.color;
-        drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+        elementGlitterCtx.globalAlpha = s.alpha;
+        elementGlitterCtx.fillStyle = s.color;
+        drawGlitterShapeToCtx(elementGlitterCtx, s.x, s.y, s.size, s.shapeType);
         renderedParticles++;
         continue;
       }
@@ -5990,14 +6212,16 @@ function glitterLoop(timestamp) {
       
       p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
       
-      glitterCtx.globalAlpha = alpha;
-      glitterCtx.fillStyle = color;
-      drawGlitterShape(x, y, size, p.shapeType);
+      elementGlitterCtx.globalAlpha = alpha;
+      elementGlitterCtx.fillStyle = color;
+      drawGlitterShapeToCtx(elementGlitterCtx, x, y, size, p.shapeType);
       renderedParticles++;
     }
   }
   
-  glitterCtx.globalAlpha = 1;
+  // Reset alpha on both contexts
+  if (stickerGlitterCtx) stickerGlitterCtx.globalAlpha = 1;
+  if (elementGlitterCtx) elementGlitterCtx.globalAlpha = 1;
   
   // Performance tracking
   const perfEnd = performance.now();
@@ -6012,6 +6236,33 @@ function glitterLoop(timestamp) {
     glitterPerfStats.frameCount = 0;
     glitterPerfStats.totalTime = 0;
     glitterPerfStats.lastReportTime = timestamp;
+  }
+}
+
+// Draw glitter shape to a specific context (for split canvas rendering)
+function drawGlitterShapeToCtx(ctx, x, y, size, shapeType) {
+  const s = size | 0; // Integer size
+  if (shapeType === 'star' && s >= 3) {
+    const half = s >> 1; // Bitwise divide by 2
+    const diagHalf = (s * 0.35) | 0;
+    
+    // Main cross
+    ctx.fillRect(x - half, y, s, 1);
+    ctx.fillRect(x, y - half, 1, s);
+    
+    // Diagonals - simplified, fewer draw calls
+    for (let d = 1; d <= diagHalf; d++) {
+      ctx.fillRect(x + d, y + d, 1, 1);
+      ctx.fillRect(x - d, y - d, 1, 1);
+      ctx.fillRect(x + d, y - d, 1, 1);
+      ctx.fillRect(x - d, y + d, 1, 1);
+    }
+  } else if (shapeType === 'cross' && s >= 2) {
+    const half = s >> 1;
+    ctx.fillRect(x - half, y, s, 1);
+    ctx.fillRect(x, y - half, 1, s);
+  } else {
+    ctx.fillRect(x, y, s, s);
   }
 }
 
