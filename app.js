@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v3.2 - GLITTER Z-ORDER FIX ====
+// ==== CHRISTMAS BANNER BUILDER v3.3 - EDITOR GLITTER Z-ORDER ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -1030,7 +1030,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   enc.start();
   
   const snowCanvasEl = document.getElementById('snow-canvas');
-  const glitterCanvasEl = document.getElementById('glitter-canvas');
   
   // Bounce animation parameters
   const BOUNCE_DURATION = 2000;
@@ -4877,8 +4876,12 @@ const ALL_GLITTER_COLORS = [
   '#98fb98', // pale green
 ];
 
-let glitterCanvas = null;
+let glitterCanvas = null;  // Legacy - used for export
 let glitterCtx = null;
+let stickerGlitterCanvas = null;  // For sticker glitter (behind text)
+let stickerGlitterCtx = null;
+let elementGlitterCanvas = null;  // For element glitter (above text)
+let elementGlitterCtx = null;
 let glitterPixels = [];
 let glitterAnimationId = null;
 let glitterLastTime = 0;
@@ -5474,35 +5477,62 @@ function hasAnyElementGlitter() {
 }
 
 function initGlitterCanvas() {
-  if (glitterCanvas) return;
-  
   const stage = document.getElementById('stage');
-  glitterCanvas = document.createElement('canvas');
-  glitterCanvas.id = 'glitter-canvas';
-  glitterCanvas.style.position = 'absolute';
-  glitterCanvas.style.top = '0';
-  glitterCanvas.style.left = '0';
-  glitterCanvas.style.width = '100%';
-  glitterCanvas.style.height = '100%';
-  glitterCanvas.style.pointerEvents = 'none';
-  glitterCanvas.style.zIndex = '9998'; // Above stickers but below UI
-  
-  // Get stage dimensions
   const stageW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-w'));
   const stageH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--stage-h'));
-  glitterCanvas.width = stageW;
-  glitterCanvas.height = stageH;
   
-  stage.appendChild(glitterCanvas);
-  glitterCtx = glitterCanvas.getContext('2d');
+  // Create sticker glitter canvas (behind text elements)
+  if (!stickerGlitterCanvas) {
+    stickerGlitterCanvas = document.createElement('canvas');
+    stickerGlitterCanvas.id = 'sticker-glitter-canvas';
+    stickerGlitterCanvas.style.position = 'absolute';
+    stickerGlitterCanvas.style.top = '0';
+    stickerGlitterCanvas.style.left = '0';
+    stickerGlitterCanvas.style.width = '100%';
+    stickerGlitterCanvas.style.height = '100%';
+    stickerGlitterCanvas.style.pointerEvents = 'none';
+    stickerGlitterCanvas.style.zIndex = '1500'; // Above stickers (100-999), below hero (2000)
+    stickerGlitterCanvas.width = stageW;
+    stickerGlitterCanvas.height = stageH;
+    stage.appendChild(stickerGlitterCanvas);
+    stickerGlitterCtx = stickerGlitterCanvas.getContext('2d');
+  }
+  
+  // Create element glitter canvas (above text elements)
+  if (!elementGlitterCanvas) {
+    elementGlitterCanvas = document.createElement('canvas');
+    elementGlitterCanvas.id = 'element-glitter-canvas';
+    elementGlitterCanvas.style.position = 'absolute';
+    elementGlitterCanvas.style.top = '0';
+    elementGlitterCanvas.style.left = '0';
+    elementGlitterCanvas.style.width = '100%';
+    elementGlitterCanvas.style.height = '100%';
+    elementGlitterCanvas.style.pointerEvents = 'none';
+    elementGlitterCanvas.style.zIndex = '9998'; // Above all elements
+    elementGlitterCanvas.width = stageW;
+    elementGlitterCanvas.height = stageH;
+    stage.appendChild(elementGlitterCanvas);
+    elementGlitterCtx = elementGlitterCanvas.getContext('2d');
+  }
+  
+  // Legacy canvas reference for export compatibility
+  glitterCanvas = stickerGlitterCanvas;
+  glitterCtx = stickerGlitterCtx;
 }
 
 function removeGlitterCanvas() {
-  if (glitterCanvas) {
-    glitterCanvas.remove();
-    glitterCanvas = null;
-    glitterCtx = null;
+  if (stickerGlitterCanvas) {
+    stickerGlitterCanvas.remove();
+    stickerGlitterCanvas = null;
+    stickerGlitterCtx = null;
   }
+  if (elementGlitterCanvas) {
+    elementGlitterCanvas.remove();
+    elementGlitterCanvas = null;
+    elementGlitterCtx = null;
+  }
+  glitterCanvas = null;
+  glitterCtx = null;
 }
 
 function getStickerBounds() {
@@ -5934,8 +5964,11 @@ function glitterLoop(timestamp) {
   const hasElementGlitter = hasAnyElementGlitter();
   
   if (!hasStickerGlitter && !hasElementGlitter) {
-    if (glitterCanvas) {
-      glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+    if (stickerGlitterCtx && stickerGlitterCanvas) {
+      stickerGlitterCtx.clearRect(0, 0, stickerGlitterCanvas.width, stickerGlitterCanvas.height);
+    }
+    if (elementGlitterCtx && elementGlitterCanvas) {
+      elementGlitterCtx.clearRect(0, 0, elementGlitterCanvas.width, elementGlitterCanvas.height);
     }
     glitterAnimationId = null;
     return;
@@ -6034,19 +6067,23 @@ function glitterLoop(timestamp) {
     });
   }
   
-  glitterCtx.clearRect(0, 0, glitterCanvas.width, glitterCanvas.height);
+  // Clear both canvases
+  if (stickerGlitterCtx && stickerGlitterCanvas) {
+    stickerGlitterCtx.clearRect(0, 0, stickerGlitterCanvas.width, stickerGlitterCanvas.height);
+  }
+  if (elementGlitterCtx && elementGlitterCanvas) {
+    elementGlitterCtx.clearRect(0, 0, elementGlitterCanvas.width, elementGlitterCanvas.height);
+  }
   
   // Global time for color cycling
   const globalTime = timestamp * 0.001;
   
-  // Ensure shadowBlur is disabled for performance
-  glitterCtx.shadowBlur = 0;
-  
   let renderedParticles = 0;
   const brightness = GLITTER_SETTINGS.brightness;
   
-  // === RENDER STICKER GLITTER ===
-  if (hasStickerGlitter) {
+  // === RENDER STICKER GLITTER (to stickerGlitterCanvas) ===
+  if (hasStickerGlitter && stickerGlitterCtx) {
+    stickerGlitterCtx.shadowBlur = 0;
     for (let i = 0; i < glitterPixels.length; i++) {
       const p = glitterPixels[i];
       const stickerSettings = p.stickerSettings || {};
@@ -6061,9 +6098,9 @@ function glitterLoop(timestamp) {
       // Skip rendering if this sticker's FPS says not this frame, draw cached state
       if (!shouldRender && p.lastDrawState) {
         const s = p.lastDrawState;
-        glitterCtx.globalAlpha = s.alpha;
-        glitterCtx.fillStyle = s.color;
-        drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+        stickerGlitterCtx.globalAlpha = s.alpha;
+        stickerGlitterCtx.fillStyle = s.color;
+        drawGlitterShapeToCtx(stickerGlitterCtx, s.x, s.y, s.size, s.shapeType);
         renderedParticles++;
         continue;
       }
@@ -6106,15 +6143,16 @@ function glitterLoop(timestamp) {
       
       p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
       
-      glitterCtx.globalAlpha = alpha;
-      glitterCtx.fillStyle = color;
-      drawGlitterShape(x, y, size, p.shapeType);
+      stickerGlitterCtx.globalAlpha = alpha;
+      stickerGlitterCtx.fillStyle = color;
+      drawGlitterShapeToCtx(stickerGlitterCtx, x, y, size, p.shapeType);
       renderedParticles++;
     }
   }
   
-  // === RENDER ELEMENT GLITTER ===
-  if (hasElementGlitter) {
+  // === RENDER ELEMENT GLITTER (to elementGlitterCanvas) ===
+  if (hasElementGlitter && elementGlitterCtx) {
+    elementGlitterCtx.shadowBlur = 0;
     for (let i = 0; i < elementGlitterPixels.length; i++) {
       const p = elementGlitterPixels[i];
       const stickerSettings = p.stickerSettings || {};
@@ -6129,9 +6167,9 @@ function glitterLoop(timestamp) {
       // Skip rendering if FPS says not this frame, draw cached state
       if (!shouldRender && p.lastDrawState) {
         const s = p.lastDrawState;
-        glitterCtx.globalAlpha = s.alpha;
-        glitterCtx.fillStyle = s.color;
-        drawGlitterShape(s.x, s.y, s.size, s.shapeType);
+        elementGlitterCtx.globalAlpha = s.alpha;
+        elementGlitterCtx.fillStyle = s.color;
+        drawGlitterShapeToCtx(elementGlitterCtx, s.x, s.y, s.size, s.shapeType);
         renderedParticles++;
         continue;
       }
@@ -6174,14 +6212,16 @@ function glitterLoop(timestamp) {
       
       p.lastDrawState = { x, y, size, color, alpha, shapeType: p.shapeType };
       
-      glitterCtx.globalAlpha = alpha;
-      glitterCtx.fillStyle = color;
-      drawGlitterShape(x, y, size, p.shapeType);
+      elementGlitterCtx.globalAlpha = alpha;
+      elementGlitterCtx.fillStyle = color;
+      drawGlitterShapeToCtx(elementGlitterCtx, x, y, size, p.shapeType);
       renderedParticles++;
     }
   }
   
-  glitterCtx.globalAlpha = 1;
+  // Reset alpha on both contexts
+  if (stickerGlitterCtx) stickerGlitterCtx.globalAlpha = 1;
+  if (elementGlitterCtx) elementGlitterCtx.globalAlpha = 1;
   
   // Performance tracking
   const perfEnd = performance.now();
@@ -6196,6 +6236,33 @@ function glitterLoop(timestamp) {
     glitterPerfStats.frameCount = 0;
     glitterPerfStats.totalTime = 0;
     glitterPerfStats.lastReportTime = timestamp;
+  }
+}
+
+// Draw glitter shape to a specific context (for split canvas rendering)
+function drawGlitterShapeToCtx(ctx, x, y, size, shapeType) {
+  const s = size | 0; // Integer size
+  if (shapeType === 'star' && s >= 3) {
+    const half = s >> 1; // Bitwise divide by 2
+    const diagHalf = (s * 0.35) | 0;
+    
+    // Main cross
+    ctx.fillRect(x - half, y, s, 1);
+    ctx.fillRect(x, y - half, 1, s);
+    
+    // Diagonals - simplified, fewer draw calls
+    for (let d = 1; d <= diagHalf; d++) {
+      ctx.fillRect(x + d, y + d, 1, 1);
+      ctx.fillRect(x - d, y - d, 1, 1);
+      ctx.fillRect(x + d, y - d, 1, 1);
+      ctx.fillRect(x - d, y + d, 1, 1);
+    }
+  } else if (shapeType === 'cross' && s >= 2) {
+    const half = s >> 1;
+    ctx.fillRect(x - half, y, s, 1);
+    ctx.fillRect(x, y - half, 1, s);
+  } else {
+    ctx.fillRect(x, y, s, s);
   }
 }
 
