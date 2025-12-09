@@ -903,25 +903,6 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         innerEl.style.transform = 'none';
         innerEl.style.animation = 'none';
         innerEl.style.overflow = 'visible';
-        
-        // Get computed box-shadow and convert to filter if it's a simple shadow
-        const computedStyle = window.getComputedStyle(w.querySelector('.cta-button, .headline-text, .company-text') || w);
-        const boxShadow = computedStyle.boxShadow;
-        
-        // If there's a simple box-shadow (not inset, not multiple), convert to filter
-        if (boxShadow && boxShadow !== 'none' && !boxShadow.includes('inset') && !boxShadow.includes(',')) {
-          // Parse simple box-shadow: "rgb(r,g,b) Xpx Ypx Zpx" or "Xpx Ypx Zpx rgb(r,g,b)"
-          // Convert to filter: drop-shadow(Xpx Ypx Zpx color)
-          const match = boxShadow.match(/rgba?\([^)]+\)|#[0-9a-fA-F]+|\d+px/g);
-          if (match && match.length >= 3) {
-            const color = match.find(m => m.startsWith('rgb') || m.startsWith('#')) || 'rgba(0,0,0,0.5)';
-            const values = match.filter(m => m.endsWith('px'));
-            if (values.length >= 2) {
-              const dropShadow = `drop-shadow(${values[0]} ${values[1]} ${values[2] || '0px'} ${color})`;
-              innerEl.style.filter = (innerEl.style.filter || '') + ' ' + dropShadow;
-            }
-          }
-        }
       }
       
       // Get the actual rendered size
@@ -1029,6 +1010,12 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.translate(s.baseW / 2, s.baseH / 2);
       ctx.rotate((s.angle || 0) * Math.PI / 180);
       ctx.scale(s.scale || 1, s.scale || 1);
+      
+      // Apply drop shadow (matches CSS filter: drop-shadow(3px 3px 0 rgba(0,0,0,0.5)))
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowOffsetX = 3;
+      ctx.shadowOffsetY = 3;
+      ctx.shadowBlur = 0;
       
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
@@ -1862,8 +1849,9 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     preview.textContent = text;
     
     // PIXEL ART STYLE TEXT - high contrast, hard shadows, blocky fonts
+    // Note: No black (#000000) - invisible on dark backgrounds
     const colors = [
-      '#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', 
+      '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
       '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ff1493', 
       '#00ff7f', '#ffa500', '#ff69b4', '#39ff14', '#fe019a'
     ];
@@ -1955,13 +1943,13 @@ function showHeadlineGenerator(container, selectedVibeWords) {
       }
       preview.style.padding = '8px 16px';
       preview.style.border = Math.random() > 0.5 ? '3px solid #000' : '3px solid #fff';
-      preview.style.boxShadow = '4px 4px 0 #000';
     }
     
     // RANDOMIZE EFFECTS (glitter, shadow, outline)
     const hasGlitter = Math.random() > 0.5;
     const hasEffectShadow = Math.random() > 0.5;
     const hasOutline = Math.random() > 0.5;
+    const hasBackground = preview.style.background && preview.style.background !== 'none';
     
     // Apply visual preview of effects
     let filterParts = [];
@@ -1973,7 +1961,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
         'drop-shadow(0 -2px 0 #000)'
       );
     }
-    if (hasEffectShadow) {
+    if (hasEffectShadow || hasBackground) {
       filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
     }
     preview.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
@@ -2310,8 +2298,9 @@ function buildCompanyNameUI(container) {
     preview.textContent = preview.dataset.companyName; // Restore text
     
     // PIXEL ART STYLE TEXT - high contrast, hard shadows, blocky fonts
+    // Note: No black (#000000) - invisible on dark backgrounds
     const colors = [
-      '#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', 
+      '#ffffff', '#ff0000', '#00ff00', '#0000ff', 
       '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#ff1493', 
       '#00ff7f', '#ffa500', '#ff69b4', '#39ff14', '#8800ff'
     ];
@@ -2397,13 +2386,13 @@ function buildCompanyNameUI(container) {
       }
       preview.style.padding = '6px 14px';
       preview.style.border = Math.random() > 0.5 ? '3px solid #000' : '3px solid #fff';
-      preview.style.boxShadow = '3px 3px 0 #000';
     }
     
     // RANDOMIZE EFFECTS (glitter, shadow, outline)
     const hasGlitter = Math.random() > 0.5;
     const hasEffectShadow = Math.random() > 0.5;
     const hasOutline = Math.random() > 0.5;
+    const hasBackground = preview.style.background && preview.style.background !== 'none';
     
     // Apply visual preview of effects
     let filterParts = [];
@@ -2415,8 +2404,8 @@ function buildCompanyNameUI(container) {
         'drop-shadow(0 -2px 0 #000)'
       );
     }
-    if (hasEffectShadow) {
-      filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
+    if (hasEffectShadow || hasBackground) {
+      filterParts.push('drop-shadow(3px 3px 0 rgba(0,0,0,0.6))');
     }
     preview.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
     
@@ -2663,8 +2652,8 @@ function buildCTAButtonUI(container) {
     preview.style.boxShadow = currentBoxShadow;
     preview.style.transform = currentButtonTransform;
     
-    // PIXEL ART: High contrast colors
-    const textColors = ['#ffffff', '#000000', '#ffff00', '#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ff8800'];
+    // PIXEL ART: High contrast colors - no black (invisible on dark buttons)
+    const textColors = ['#ffffff', '#ffff00', '#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ff8800'];
     
     // PIXEL ART: Hard shadows only, no blur - offset by whole pixels!
     const shadows = [
@@ -2755,190 +2744,107 @@ function buildCTAButtonUI(container) {
     const thirdColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
     // Button style types (for consistent pixel looks)
-    const styleType = Math.floor(Math.random() * 24);
+    const styleType = Math.floor(Math.random() * 12);
     
-    let bg, borderRadius, border, boxShadow;
+    let bg, borderRadius, border, filterShadow;
     
     switch(styleType) {
-      case 0: // Classic Windows 95/98 3D button
-        bg = '#c0c0c0';
-        borderRadius = '0px';
-        border = '3px outset #fff';
-        boxShadow = 'inset -2px -2px 0 #808080, inset 2px 2px 0 #fff';
-        break;
-        
-      case 1: // Flat pixel button with hard shadow
+      case 0: // Flat pixel button with hard shadow
         bg = mainColor;
         borderRadius = '0px';
         border = '3px solid #000';
-        boxShadow = '4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 2: // Neon glow pixel (Y2K style)
-        bg = '#000';
-        borderRadius = '0px';
-        border = `3px solid ${mainColor}`;
-        boxShadow = `0 0 0 2px #000, 4px 4px 0 ${mainColor}`;
-        break;
-        
-      case 3: // Double border retro
+      case 1: // Double border retro
         bg = mainColor;
         borderRadius = '0px';
         border = '4px double #fff';
-        boxShadow = '3px 3px 0 #000';
+        filterShadow = 'drop-shadow(3px 3px 0 #000)';
         break;
         
-      case 4: // Beveled 3D colored
-        bg = `linear-gradient(180deg, ${mainColor} 0%, ${mainColor} 45%, rgba(0,0,0,0.3) 100%)`;
-        borderRadius = '0px';
-        border = '2px solid #000';
-        boxShadow = 'inset -2px -2px 0 rgba(0,0,0,0.5), inset 2px 2px 0 rgba(255,255,255,0.5), 3px 3px 0 #000';
-        break;
-        
-      case 5: // Chunky white border (arcade style)
+      case 2: // Chunky white border (arcade style)
         bg = mainColor;
         borderRadius = '0px';
         border = '5px solid #fff';
-        boxShadow = '0 0 0 3px #000, 5px 5px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 6: // Two-tone split (old web button)
-        bg = `linear-gradient(180deg, ${mainColor} 50%, ${secondColor} 50%)`;
-        borderRadius = '0px';
-        border = '3px solid #000';
-        boxShadow = '4px 4px 0 rgba(0,0,0,0.6)';
-        break;
-        
-      case 7: // Inset pixel button (pressed look)
+      case 3: // Pixel pill with shadow
         bg = mainColor;
-        borderRadius = '0px';
-        border = '3px inset #000';
-        boxShadow = 'inset 3px 3px 0 rgba(0,0,0,0.4)';
-        break;
-        
-      case 8: // Pixel pill/oval - stepped radius
-        bg = mainColor;
-        borderRadius = '20px'; // Pill shape
+        borderRadius = '20px';
         border = '3px solid #000';
-        boxShadow = '4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 9: // Pixel capsule with white border
+      case 4: // Pixel capsule with white border
         bg = mainColor;
         borderRadius = '25px';
         border = '4px solid #fff';
-        boxShadow = '0 0 0 2px #000, 4px 4px 0 #000';
+        filterShadow = 'drop-shadow(3px 3px 0 #000)';
         break;
         
-      case 10: // Neon pill (Y2K capsule)
-        bg = '#000';
-        borderRadius = '30px';
-        border = `3px solid ${mainColor}`;
-        boxShadow = `4px 4px 0 ${mainColor}`;
-        break;
-        
-      case 11: // Rainbow gradient bar
+      case 5: // Rainbow gradient bar
         bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${thirdColor})`;
         borderRadius = '0px';
         border = '3px solid #000';
-        boxShadow = '4px 4px 0 #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 12: // Dotted border retro
+      case 6: // Dotted border retro
         bg = mainColor;
         borderRadius = '0px';
         border = '4px dotted #000';
-        boxShadow = '3px 3px 0 rgba(0,0,0,0.5)';
+        filterShadow = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
         break;
         
-      case 13: // Dashed border web 1.0
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '3px dashed #fff';
-        boxShadow = '0 0 0 2px #000, 4px 4px 0 #000';
-        break;
-        
-      case 14: // Stacked shadows (3D depth)
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '2px solid #000';
-        boxShadow = '2px 2px 0 #fff, 4px 4px 0 #000, 6px 6px 0 rgba(0,0,0,0.3)';
-        break;
-        
-      case 15: // Oval with inset bevel
-        bg = `linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(0,0,0,0.3) 100%), ${mainColor}`;
-        borderRadius = '50px';
-        border = '3px solid #000';
-        boxShadow = 'inset -2px -2px 0 rgba(0,0,0,0.4), inset 2px 2px 0 rgba(255,255,255,0.4), 4px 4px 0 #000';
-        break;
-        
-      case 16: // Thick cartoon shadow
+      case 7: // Thick cartoon shadow
         bg = mainColor;
         borderRadius = '0px';
         border = '4px solid #000';
-        boxShadow = '6px 6px 0 #000';
+        filterShadow = 'drop-shadow(6px 6px 0 #000)';
         break;
         
-      case 17: // DOS terminal style
-        bg = '#000';
-        borderRadius = '0px';
-        border = '2px solid #0f0';
-        boxShadow = 'inset 0 0 0 1px #0f0, 3px 3px 0 #0f0';
-        break;
-        
-      case 18: // Pill with colored shadow
+      case 8: // Pill with colored shadow
         bg = mainColor;
         borderRadius = '50px';
         border = '3px solid #000';
-        boxShadow = `5px 5px 0 ${secondColor}`;
+        filterShadow = `drop-shadow(5px 5px 0 ${secondColor})`;
         break;
         
-      case 19: // Double pill border
+      case 9: // Simple rounded
         bg = mainColor;
-        borderRadius = '50px';
-        border = '4px double #fff';
-        boxShadow = '0 0 0 3px #000, 4px 4px 0 #000';
-        break;
-        
-      case 20: // Stamped/embossed
-        bg = mainColor;
-        borderRadius = '4px';
-        border = '3px solid #000';
-        boxShadow = 'inset -3px -3px 0 rgba(0,0,0,0.3), inset 3px 3px 0 rgba(255,255,255,0.3), 4px 4px 0 #000';
-        break;
-        
-      case 21: // Chunky rounded Mac style
-        bg = `linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(0,0,0,0.2) 100%), ${mainColor}`;
         borderRadius = '12px';
         border = '3px solid #000';
-        boxShadow = '3px 3px 0 #000, inset 0 2px 0 rgba(255,255,255,0.5)';
+        filterShadow = 'drop-shadow(3px 3px 0 #000)';
         break;
         
-      case 22: // Glossy gel button (2000s web)
-        bg = `linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 50%, transparent 51%, rgba(0,0,0,0.1) 100%), ${mainColor}`;
-        borderRadius = '8px';
-        border = '2px solid rgba(0,0,0,0.5)';
-        boxShadow = '3px 3px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.8)';
-        break;
-        
-      case 23: // Oval neon double glow
-        bg = '#111';
-        borderRadius = '40px';
+      case 10: // Neon border (dark bg)
+        bg = '#222';
+        borderRadius = '0px';
         border = `4px solid ${mainColor}`;
-        boxShadow = `0 0 0 2px ${secondColor}, 5px 5px 0 ${mainColor}`;
+        filterShadow = `drop-shadow(3px 3px 0 ${mainColor})`;
+        break;
+        
+      case 11: // Two-tone gradient
+        bg = `linear-gradient(180deg, ${mainColor} 50%, ${secondColor} 50%)`;
+        borderRadius = '0px';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 rgba(0,0,0,0.6))';
         break;
         
       default: // Fallback: simple flat pixel
         bg = mainColor;
         borderRadius = '0px';
         border = '2px solid #000';
-        boxShadow = '3px 3px 0 #000';
+        filterShadow = 'drop-shadow(3px 3px 0 #000)';
     }
     
     preview.style.background = bg;
     preview.style.borderRadius = borderRadius;
     preview.style.border = border;
-    preview.style.boxShadow = boxShadow;
+    preview.style.boxShadow = 'none';
+    preview.style.filter = filterShadow;
     
     // Pixel art: Almost no rotation - keep it blocky!
     let transform = 'none';
@@ -2950,16 +2856,14 @@ function buildCTAButtonUI(container) {
     const hasEffectShadow = false;
     const hasOutline = false;
     
-    // Clear any filters
-    preview.style.filter = '';
-    
     // Clear glitter preview
     updateGlitterPreview(preview, false);
     
     preview.dataset.ctaBg = bg;
     preview.dataset.ctaBorderRadius = borderRadius;
     preview.dataset.ctaBorder = border;
-    preview.dataset.ctaBoxShadow = boxShadow;
+    preview.dataset.ctaBoxShadow = 'none';
+    preview.dataset.ctaFilter = filterShadow;
     preview.dataset.ctaTransform = transform;
     // Store effects (all false for CTA)
     preview.dataset.hasGlitter = 'false';
@@ -2993,7 +2897,7 @@ function buildCTAButtonUI(container) {
       preview.dataset.ctaBg,
       preview.dataset.ctaBorderRadius,
       preview.dataset.ctaBorder,
-      preview.dataset.ctaBoxShadow,
+      preview.dataset.ctaFilter,
       preview.dataset.ctaTransform,
       preview.dataset.hasGlitter,
       preview.dataset.hasEffectShadow,
@@ -3023,7 +2927,7 @@ function buildCTAButtonUI(container) {
   regenerateAll();
 }
 
-function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, boxShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline) {
+function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, filterShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline) {
   const stage = document.getElementById('stage');
   
   // Remove existing CTA button if any
@@ -3065,7 +2969,8 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   buttonEl.style.background = bg;
   buttonEl.style.borderRadius = borderRadius;
   buttonEl.style.border = border;
-  buttonEl.style.boxShadow = boxShadow;
+  buttonEl.style.boxShadow = 'none';
+  if (filterShadow) buttonEl.style.filter = filterShadow;
   if (buttonTransform !== 'none') buttonEl.style.transform = buttonTransform;
   
   const scaleHandle = document.createElement('div');

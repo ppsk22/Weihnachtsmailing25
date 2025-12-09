@@ -1570,8 +1570,9 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
    ============================================ */
 
 .export-ui-wrapper {
-  max-height: 100%;
-  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   padding-right: 10px;
 }
 
@@ -1581,13 +1582,31 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 .export-congrats {
   font-family: 'home_videoregular', sans-serif;
-  font-size: 15px;
+  font-size: 18px;
   color: #ff69b4;
   text-align: center;
   margin: 0 0 20px 0;
   letter-spacing: 1px;
-  line-height: 1.4;
-  text-shadow: 1px 1px 0 #3013a9;
+  line-height: 1.5;
+  text-shadow: 2px 2px 0 #3013a9;
+}
+
+/* Export section layout */
+.main-export-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: space-between;
+  padding-bottom: 20px;
+}
+
+.banner-name-group {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+.btn-row.centered {
+  margin-top: auto;
 }
 
 .export-section-title {
@@ -1690,8 +1709,11 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 /* Make popup body scrollable for export UI */
 .popup-body:has(.export-ui-wrapper) {
-  overflow-y: auto;
-  max-height: calc(100% - 40px);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 200px);
+  max-height: 400px;
+  min-height: 280px;
 }
 
 /* Pixel-art style scrollbar */
