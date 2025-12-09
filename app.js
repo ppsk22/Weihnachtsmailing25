@@ -1,3 +1,4 @@
+// ==== CHRISTMAS BANNER BUILDER v2.1 - CTA STYLES FIXED ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -2793,137 +2794,85 @@ function buildCTAButtonUI(container) {
     if (currentTextStroke) preview.style.webkitTextStroke = currentTextStroke;
     if (currentTextDecoration) preview.style.textDecoration = currentTextDecoration;
     
-    // PIXEL ART STYLE BUTTONS - Y2K / Web 1.0 / Retro Game aesthetic
+    // Simple export-safe button styles (only solid borders, filter drop-shadow)
     const bgColors = ['#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493', '#ffa500', '#00ff7f', '#ffff00', '#ff69b4', '#39ff14', '#ff073a'];
     
-    // Pick main color for this button
     const mainColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     const secondColor = bgColors[Math.floor(Math.random() * bgColors.length)];
-    const thirdColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
-    // Button style types (for consistent pixel looks)
-    const styleType = Math.floor(Math.random() * 12);
+    // Only 6 simple, export-safe styles (all with black shadows only)
+    const styleType = Math.floor(Math.random() * 6);
     
     let bg, borderRadius, border, filterShadow;
     
     switch(styleType) {
-      case 0: // Flat pixel button with hard shadow
+      case 0: // Flat with black border
         bg = mainColor;
         borderRadius = '0px';
         border = '3px solid #000';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 1: // Double border retro
+      case 1: // Flat with white border
         bg = mainColor;
         borderRadius = '0px';
-        border = '4px double #fff';
-        filterShadow = 'drop-shadow(3px 3px 0 #000)';
-        break;
-        
-      case 2: // Chunky white border (arcade style)
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '5px solid #fff';
+        border = '4px solid #fff';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 3: // Pixel pill with shadow
+      case 2: // Pill with black border
         bg = mainColor;
-        borderRadius = '20px';
+        borderRadius = '25px';
         border = '3px solid #000';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 4: // Pixel capsule with white border
+      case 3: // Pill with white border
         bg = mainColor;
         borderRadius = '25px';
         border = '4px solid #fff';
-        filterShadow = 'drop-shadow(3px 3px 0 #000)';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 5: // Rainbow gradient bar
-        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${thirdColor})`;
-        borderRadius = '0px';
+      case 4: // Rounded corners
+        bg = mainColor;
+        borderRadius = '12px';
         border = '3px solid #000';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 6: // Dotted border retro
-        bg = mainColor;
-        borderRadius = '0px';
-        border = '4px dotted #000';
-        filterShadow = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
-        break;
-        
-      case 7: // Thick cartoon shadow
+      case 5: // Thick shadow
         bg = mainColor;
         borderRadius = '0px';
         border = '4px solid #000';
         filterShadow = 'drop-shadow(6px 6px 0 #000)';
         break;
         
-      case 8: // Pill with colored shadow
-        bg = mainColor;
-        borderRadius = '50px';
-        border = '3px solid #000';
-        filterShadow = `drop-shadow(5px 5px 0 ${secondColor})`;
-        break;
-        
-      case 9: // Simple rounded
-        bg = mainColor;
-        borderRadius = '12px';
-        border = '3px solid #000';
-        filterShadow = 'drop-shadow(3px 3px 0 #000)';
-        break;
-        
-      case 10: // Neon border (dark bg)
-        bg = '#222';
-        borderRadius = '0px';
-        border = `4px solid ${mainColor}`;
-        filterShadow = `drop-shadow(3px 3px 0 ${mainColor})`;
-        break;
-        
-      case 11: // Two-tone gradient
-        bg = `linear-gradient(180deg, ${mainColor} 50%, ${secondColor} 50%)`;
-        borderRadius = '0px';
-        border = '3px solid #000';
-        filterShadow = 'drop-shadow(4px 4px 0 rgba(0,0,0,0.6))';
-        break;
-        
-      default: // Fallback: simple flat pixel
+      default:
         bg = mainColor;
         borderRadius = '0px';
-        border = '2px solid #000';
-        filterShadow = 'drop-shadow(3px 3px 0 #000)';
+        border = '3px solid #000';
+        filterShadow = 'drop-shadow(4px 4px 0 #000)';
     }
     
+    // Apply all styles explicitly
     preview.style.background = bg;
     preview.style.borderRadius = borderRadius;
     preview.style.border = border;
     preview.style.boxShadow = 'none';
     preview.style.filter = filterShadow;
-    
-    // Pixel art: Almost no rotation - keep it blocky!
-    let transform = 'none';
-    if (Math.random() > 0.95) transform = `rotate(${Math.floor(Math.random() * 4 - 2)}deg)`; // Very rare, very subtle
-    preview.style.transform = transform;
-    
-    // NO effects for CTA buttons by default (no glitter, shadow, outline)
-    const hasGlitter = false;
-    const hasEffectShadow = false;
-    const hasOutline = false;
+    preview.style.outline = 'none';
+    preview.style.transform = 'none';
     
     // Clear glitter preview
     updateGlitterPreview(preview, false);
     
+    // Store for spawning
     preview.dataset.ctaBg = bg;
     preview.dataset.ctaBorderRadius = borderRadius;
     preview.dataset.ctaBorder = border;
-    preview.dataset.ctaBoxShadow = 'none';
     preview.dataset.ctaFilter = filterShadow;
-    preview.dataset.ctaTransform = transform;
-    // Store effects (all false for CTA)
+    preview.dataset.ctaTransform = 'none';
     preview.dataset.hasGlitter = 'false';
     preview.dataset.hasEffectShadow = 'false';
     preview.dataset.hasOutline = 'false';

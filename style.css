@@ -1503,16 +1503,15 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 }
 
 .cta-generator .cta-preview {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: bold;
   text-align: center;
-  padding: 12px 28px;
-  min-width: 180px;
+  white-space: nowrap;
   cursor: url('assets/UI/hand.ico'), pointer;
   user-select: none;
-  max-width: 90%;
-  image-rendering: pixelated;  /* Keep pixel edges sharp */
-  -webkit-font-smoothing: none; /* Crisper text on some browsers */
+  padding: 12px 24px;
+  display: inline-block;
+  image-rendering: pixelated;
 }
 
 .cta-generator .button-container {
