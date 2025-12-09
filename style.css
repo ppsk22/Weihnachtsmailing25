@@ -244,26 +244,6 @@
   text-transform: uppercase;
 }
 
-/* Congrats message - fun retro style */
-.congrats-message {
-  font-family: 'home_videoregular', sans-serif;
-  font-size: 14px;
-  color: #ff69b4;
-  text-align: center;
-  max-width: 320px;
-  line-height: 1.4;
-  margin: 8px 0 16px 0;
-  text-shadow: 1px 1px 0 #3013a9;
-}
-
-@media (max-width: 600px) {
-  .congrats-message {
-    font-size: 12px;
-    max-width: 260px;
-    margin: 4px 0 12px 0;
-  }
-}
-
 /* Error state */
 .error-text {
   font-family: 'home_videoregular', sans-serif;
@@ -1601,11 +1581,13 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 .export-congrats {
   font-family: 'home_videoregular', sans-serif;
-  font-size: 20px;
-  color: #5a3fd9;
+  font-size: 15px;
+  color: #ff69b4;
   text-align: center;
   margin: 0 0 20px 0;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
+  line-height: 1.4;
+  text-shadow: 1px 1px 0 #3013a9;
 }
 
 .export-section-title {

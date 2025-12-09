@@ -95,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
 function showExportCompleted() {
   const exportingText = document.getElementById('exporting-text');
   const completedText = document.getElementById('export-completed-text');
-  const congratsMessage = document.getElementById('export-congrats-message');
   const errorText = document.getElementById('export-error-text');
   const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
@@ -111,16 +110,14 @@ function showExportCompleted() {
   if (fallbackBtn) fallbackBtn.classList.add('hidden');
   if (errorRestartBtn) errorRestartBtn.classList.add('hidden');
   
-  // Show completed text, congrats message, and restart button
+  // Show completed text and restart button
   if (completedText) completedText.classList.remove('hidden');
-  if (congratsMessage) congratsMessage.classList.remove('hidden');
   if (restartBtn) restartBtn.classList.remove('hidden');
 }
 
 function showExportError(errorMsg) {
   const exportingText = document.getElementById('exporting-text');
   const completedText = document.getElementById('export-completed-text');
-  const congratsMessage = document.getElementById('export-congrats-message');
   const errorText = document.getElementById('export-error-text');
   const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
@@ -132,7 +129,6 @@ function showExportError(errorMsg) {
   if (exportingText) exportingText.classList.add('hidden');
   if (progressContainer) progressContainer.classList.add('hidden');
   if (completedText) completedText.classList.add('hidden');
-  if (congratsMessage) congratsMessage.classList.add('hidden');
   if (restartBtn) restartBtn.classList.add('hidden');
   
   // Show error state
@@ -152,7 +148,6 @@ function showExportError(errorMsg) {
 function resetExportScreen() {
   const exportingText = document.getElementById('exporting-text');
   const completedText = document.getElementById('export-completed-text');
-  const congratsMessage = document.getElementById('export-congrats-message');
   const errorText = document.getElementById('export-error-text');
   const errorMessage = document.getElementById('export-error-message');
   const progressContainer = document.getElementById('export-progress-container');
@@ -165,7 +160,6 @@ function resetExportScreen() {
   // Reset to initial state
   if (exportingText) exportingText.classList.remove('hidden');
   if (completedText) completedText.classList.add('hidden');
-  if (congratsMessage) congratsMessage.classList.add('hidden');
   if (errorText) errorText.classList.add('hidden');
   if (errorMessage) errorMessage.classList.add('hidden');
   if (restartBtn) restartBtn.classList.add('hidden');
@@ -678,7 +672,7 @@ function buildExportUI(container){
   wrap.className = 'export-ui-wrapper';
   wrap.innerHTML = `
     <div class="export-section main-export-section">
-      <p class="export-congrats">Your banner is ready!</p>
+      <p class="export-congrats">Congrats! This is the most eye-catching banner since the Year-2-K Flash Pixel Party!</p>
       <div class="input-group banner-name-group">
         <label class="lbl" for="banner-name">Name your banner (optional)</label>
         <input id="banner-name" type="text" placeholder="My awesome banner" class="export-input banner-name-input" maxlength="50" />
