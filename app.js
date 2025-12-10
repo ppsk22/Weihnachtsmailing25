@@ -745,7 +745,7 @@ function wireMainExport() {
     
     try {
       // Generate GIF with fixed settings (8 fps, 3 seconds - enough for CTA bounce)
-      const gifData = await generateGIF(8, 3, (progress) => {
+      const gifData = await generateGIF(8, 2.5, (progress) => {
         if (progressBar) progressBar.style.width = `${progress * 100}%`;
       });
       
@@ -780,33 +780,8 @@ function wireMainExport() {
         progressBar.style.animation = 'pulse 1s ease-in-out infinite';
       }
       
-      // Generate PNG snapshot for fast backup upload
-      const stage = document.getElementById("stage");
-      
-      // Temporarily reset UI scale for accurate capture
-      const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
-      document.documentElement.style.setProperty('--ui-scale', '1');
-      stage.offsetHeight; // Force reflow
-      
-      const pngCanvas = await html2canvas(stage, {
-        width: STAGE_W,
-        height: STAGE_H,
-        scale: 1,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: null,
-        foreignObjectRendering: false,
-        ignoreElements: (element) => {
-          return element.id === 'overlay' || 
-                 element.classList.contains('scale-handle') || 
-                 element.classList.contains('rot-handle');
-        }
-      });
-      
-      // Restore UI scale
-      document.documentElement.style.setProperty('--ui-scale', originalScale);
-      
-      const pngData = pngCanvas.toDataURL("image/png");
+      // Generate PNG using same rendering logic as GIF (proper shadows, outlines, z-order)
+      const pngData = await generatePNGFrame();
       
       // Upload PNG first (fast backup ~100-200KB)
       const pngResult = await saveBannerToServer(pngData, pngFilename);
@@ -1318,6 +1293,237 @@ function loadImageForExport(url) {
     im.onerror = rej;
     im.src = url;
   });
+}
+
+// Generate a single PNG frame using same rendering logic as GIF export
+async function generatePNGFrame() {
+  const W = STAGE_W;
+  const H = STAGE_H;
+  
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  
+  // Save original scale and reset for capture
+  const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
+  document.documentElement.style.setProperty('--ui-scale', '1');
+  document.getElementById('stage').offsetHeight; // Force reflow
+  
+  try {
+    // Load background
+    let bgData = null;
+    const bgImg = document.getElementById("bg-img");
+    if (bgImg && bgImg.src && bgImg.src !== location.href) {
+      const img = await loadImageForExport(bgImg.src);
+      if (img) bgData = { img };
+    }
+    
+    // Load all stickers/heroes
+    const wrappers = Array.from(document.querySelectorAll(".sticker-wrapper")).filter(w => {
+      const style = getComputedStyle(w);
+      return style.display !== "none" && style.visibility !== "hidden";
+    });
+    
+    const stickerWrappers = wrappers.filter(w => w.querySelector("img") !== null);
+    const stickers = await Promise.all(stickerWrappers.map(async (w) => {
+      const img = w.querySelector("img");
+      const src = img?.src;
+      const x = parseFloat(w.getAttribute("data-x")) || 0;
+      const y = parseFloat(w.getAttribute("data-y")) || 0;
+      const scale = w.scale || 1;
+      const angle = w.angle || 0;
+      const isHero = w.hasAttribute("data-is-hero");
+      const zIndex = parseInt(w.style.zIndex) || 0;
+      const hasOutline = w.getAttribute('data-has-outline') === 'true';
+      
+      const rect = img.getBoundingClientRect();
+      const stageRect = document.getElementById('stage').getBoundingClientRect();
+      const baseW = rect.width / (scale || 1);
+      const baseH = rect.height / (scale || 1);
+      
+      // Load as static image (use first frame for GIFs)
+      const bmp = await loadImageForExport(src);
+      return { kind: "static", img: bmp, x, y, scale, angle, baseW, baseH, zIndex, isHero, hasOutline };
+    }));
+    
+    // Sort by z-index
+    stickers.sort((a, b) => a.zIndex - b.zIndex);
+    
+    // Pre-render text elements
+    const textWrappers = wrappers.filter(w => w.querySelector("img") === null);
+    const textElements = await Promise.all(textWrappers.map(async (w) => {
+      const x = parseFloat(w.getAttribute("data-x")) || 0;
+      const y = parseFloat(w.getAttribute("data-y")) || 0;
+      const scale = w.scale || 1;
+      const angle = w.angle || 0;
+      const isCTA = w.classList.contains('cta-layer');
+      const zIndex = parseInt(w.style.zIndex) || 0;
+      const hasOutline = w.getAttribute('data-has-outline') === 'true';
+      const hasEffectShadow = w.getAttribute('data-has-shadow') === 'true';
+      
+      try {
+        const clone = w.cloneNode(true);
+        clone.style.position = 'fixed';
+        clone.style.left = '40px';
+        clone.style.top = '40px';
+        clone.style.transform = 'none';
+        clone.style.zIndex = '-9999';
+        clone.style.pointerEvents = 'none';
+        clone.style.overflow = 'visible';
+        document.body.appendChild(clone);
+        
+        const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
+        if (innerEl) {
+          innerEl.classList.remove('bouncing');
+          innerEl.style.transform = 'none';
+          innerEl.style.animation = 'none';
+          innerEl.style.overflow = 'visible';
+          innerEl.style.filter = 'none';
+          innerEl.style.boxShadow = 'none';
+          innerEl.style.textShadow = 'none';
+          innerEl.style.webkitTextStroke = '0';
+        }
+        
+        const origRect = w.getBoundingClientRect();
+        const baseW = origRect.width / scale;
+        const baseH = origRect.height / scale;
+        
+        const captureW = Math.ceil(baseW) + 80;
+        const captureH = Math.ceil(baseH) + 80;
+        
+        const textCanvas = await html2canvas(clone, {
+          width: captureW,
+          height: captureH,
+          scale: 1,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: null,
+          foreignObjectRendering: false,
+          x: 0,
+          y: 0
+        });
+        
+        document.body.removeChild(clone);
+        return { canvas: textCanvas, x, y, scale, angle, baseW, baseH, zIndex, isCTA, hasOutline, hasEffectShadow };
+      } catch (e) {
+        console.warn('Text element capture failed:', e);
+        return null;
+      }
+    }));
+    
+    const validTextElements = textElements.filter(t => t !== null);
+    validTextElements.sort((a, b) => a.zIndex - b.zIndex);
+    
+    // Draw background
+    if (bgData) {
+      const drawH = H * 1.15;
+      const drawY = (H - drawH) / 2;
+      ctx.drawImage(bgData.img, 0, drawY, W, drawH);
+    }
+    
+    // Draw stickers with outlines and shadows
+    for (const s of stickers) {
+      if (!s.img) continue;
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.translate(s.baseW / 2, s.baseH / 2);
+      ctx.rotate((s.angle || 0) * Math.PI / 180);
+      ctx.scale(s.scale || 1, s.scale || 1);
+      
+      const offsetX = -s.baseW / 2;
+      const offsetY = -s.baseH / 2;
+      
+      // Draw outline if sticker has one
+      if (s.hasOutline && !s.isHero) {
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = '#000';
+        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+      }
+      
+      // Draw with drop shadow
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowOffsetX = 3;
+      ctx.shadowOffsetY = 3;
+      ctx.shadowBlur = 0;
+      ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
+      
+      ctx.restore();
+    }
+    
+    // Draw sticker glitter
+    if (typeof drawStickerGlitterToContext === 'function') {
+      drawStickerGlitterToContext(ctx, 1);
+    }
+    
+    // Draw text elements
+    for (const t of validTextElements) {
+      ctx.save();
+      ctx.shadowColor = 'transparent';
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.shadowBlur = 0;
+      
+      ctx.translate(t.x, t.y);
+      ctx.translate(t.baseW / 2, t.baseH / 2);
+      ctx.rotate((t.angle || 0) * Math.PI / 180);
+      ctx.scale(t.scale || 1, t.scale || 1);
+      
+      const drawX = -t.baseW / 2;
+      const drawY = -t.baseH / 2;
+      
+      // Draw outline
+      if (t.hasOutline) {
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = '#000';
+        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      }
+      
+      // Draw with drop shadow
+      if (t.isCTA || t.hasEffectShadow) {
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowOffsetX = 4;
+        ctx.shadowOffsetY = 4;
+        ctx.shadowBlur = 0;
+      }
+      
+      ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+      ctx.restore();
+    }
+    
+    // Draw element glitter
+    if (typeof drawElementGlitterToContext === 'function') {
+      drawElementGlitterToContext(ctx, 1);
+    }
+    
+    // Draw snow
+    const snowCanvas = document.getElementById('snow-canvas');
+    if (snowCanvas) {
+      ctx.drawImage(snowCanvas, 0, 0, W, H);
+    }
+    
+    return canvas.toDataURL("image/png");
+    
+  } finally {
+    document.documentElement.style.setProperty('--ui-scale', originalScale);
+  }
 }
 
 // ==== API INTEGRATION ====
