@@ -1,4 +1,4 @@
-// ==== CHRISTMAS BANNER BUILDER v3.3 - EDITOR GLITTER Z-ORDER ====
+// ==== CHRISTMAS BANNER BUILDER v3.4 - 3 SEC EXPORT + AUTO DOWNLOAD ====
 // ==== LOADING SCREEN ====
 let loadingReady = false;
 let videoEnded = false;
@@ -744,8 +744,8 @@ function wireMainExport() {
     await new Promise(resolve => setTimeout(resolve, 100));
     
     try {
-      // Generate GIF with fixed settings (10 fps, 5 seconds)
-      const gifData = await generateGIF(10, 5, (progress) => {
+      // Generate GIF with fixed settings (8 fps, 3 seconds - enough for CTA bounce)
+      const gifData = await generateGIF(8, 3, (progress) => {
         if (progressBar) progressBar.style.width = `${progress * 100}%`;
       });
       
@@ -756,28 +756,75 @@ function wireMainExport() {
       // Generate unique filename with timestamp and optional name
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(2, 8);
-      const filename = bannerName 
-        ? `${bannerName}_${timestamp}_${randomId}.gif`
-        : `banner_${timestamp}_${randomId}.gif`;
+      const baseFilename = bannerName 
+        ? `${bannerName}_${timestamp}_${randomId}`
+        : `banner_${timestamp}_${randomId}`;
+      const gifFilename = baseFilename + '.gif';
+      const pngFilename = baseFilename + '.png';
       
-      // Save to server
-      exportStatus.textContent = 'Saving to server...';
-      const saveResult = await saveBannerToServer(gifData, filename);
-      
-      if (!saveResult.success) {
-        console.warn('Server save failed:', saveResult.error);
-        // Continue anyway - still download for user
-      }
-      
-      // Download the GIF
+      // IMMEDIATELY download the GIF to user
       const a = document.createElement('a');
       a.href = gifData;
-      a.download = filename;
+      a.download = gifFilename;
       a.click();
       
       SoundManager.play('save');
       
-      // Show completed state
+      // Show saving status
+      const exportingText = document.getElementById('exporting-text');
+      if (exportingText) {
+        exportingText.innerHTML = 'saving<span class="loading-dots"></span>';
+      }
+      if (progressBar) {
+        progressBar.style.width = '100%';
+        progressBar.style.animation = 'pulse 1s ease-in-out infinite';
+      }
+      
+      // Generate PNG snapshot for fast backup upload
+      const stage = document.getElementById("stage");
+      
+      // Temporarily reset UI scale for accurate capture
+      const originalScale = getComputedStyle(document.documentElement).getPropertyValue('--ui-scale');
+      document.documentElement.style.setProperty('--ui-scale', '1');
+      stage.offsetHeight; // Force reflow
+      
+      const pngCanvas = await html2canvas(stage, {
+        width: STAGE_W,
+        height: STAGE_H,
+        scale: 1,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        foreignObjectRendering: false,
+        ignoreElements: (element) => {
+          return element.id === 'overlay' || 
+                 element.classList.contains('scale-handle') || 
+                 element.classList.contains('rot-handle');
+        }
+      });
+      
+      // Restore UI scale
+      document.documentElement.style.setProperty('--ui-scale', originalScale);
+      
+      const pngData = pngCanvas.toDataURL("image/png");
+      
+      // Upload PNG first (fast backup ~100-200KB)
+      const pngResult = await saveBannerToServer(pngData, pngFilename);
+      if (!pngResult.success) {
+        console.warn('PNG backup save failed:', pngResult.error);
+      }
+      
+      // Then upload GIF (slower but PNG is already safe)
+      const gifResult = await saveBannerToServer(gifData, gifFilename);
+      if (!gifResult.success) {
+        console.warn('GIF save failed:', gifResult.error);
+      }
+      
+      if (progressBar) {
+        progressBar.style.animation = '';
+      }
+      
+      // NOW show restart button (after both uploads done)
       showExportCompleted();
       
     } catch (error) {
@@ -1026,7 +1073,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const enc = new GIFEncoder();
   enc.setRepeat(0);
   enc.setDelay(FRAME_MS);
-  enc.setQuality(10);
+  enc.setQuality(50); // Higher = faster encoding, smaller file
   enc.start();
   
   const snowCanvasEl = document.getElementById('snow-canvas');
@@ -1274,22 +1321,34 @@ function loadImageForExport(url) {
 }
 
 // ==== API INTEGRATION ====
-// Saves the banner GIF to server
-async function saveBannerToServer(gifDataUrl, filename) {
+// Saves the banner (GIF or PNG) to server
+async function saveBannerToServer(dataUrl, filename) {
   // Change this to your actual PHP endpoint path
   const API_ENDPOINT = 'save-banner.php';
   
   try {
+    // Detect type from data URL
+    const isPng = dataUrl.startsWith('data:image/png');
+    const mimeType = isPng ? 'image/png' : 'image/gif';
+    
+    // Convert base64 to binary blob (33% smaller than base64 string!)
+    const base64Data = dataUrl.split(',')[1];
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
+    
+    // Use FormData for efficient binary upload
+    const formData = new FormData();
+    formData.append('file', blob, filename);
+    formData.append('filename', filename);
+    formData.append('timestamp', new Date().toISOString());
+    
     const response = await fetch(API_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image: gifDataUrl,
-        filename: filename,
-        timestamp: new Date().toISOString(),
-      })
+      body: formData  // No Content-Type header - browser sets it with boundary
     });
     
     const result = await response.json();

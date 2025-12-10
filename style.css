@@ -1550,6 +1550,11 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   100% { transform: scale(1); }
 }
 
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .cta-button.bouncing {
   animation: pixelBounce 2s steps(4) forwards;
 }
