@@ -1,11 +1,136 @@
 // ==== CHRISTMAS BANNER BUILDER v3.4 - 3 SEC EXPORT + AUTO DOWNLOAD ====
 // ==== LOADING SCREEN ====
-let loadingReady = false;
 let videoEnded = false;
 let mobileLoadingStarted = false; // Track if mobile loading has started
+let assetsLoaded = false;
+
+// Preload all assets (images and fonts) during loading screen
+// Store preloaded images to prevent garbage collection
+const preloadedImages = [];
+const preloadedImageMap = new Map(); // URL → Image for instant reuse
+
+async function preloadAssets() {
+  let loaded = 0;
+  let total = 0;
+  
+  function updateProgress() {
+    loaded++;
+  }
+  
+  const promises = [];
+  
+  // Helper function to preload an image with decode()
+  function preloadImage(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = async () => {
+        // Decode to ensure image is ready for rendering
+        try {
+          await img.decode();
+        } catch (e) {
+          // Ignore decode errors
+        }
+        preloadedImages.push(img); // Keep reference to prevent GC
+        preloadedImageMap.set(url, img); // Map URL to image for reuse
+        updateProgress();
+        resolve();
+      };
+      img.onerror = () => { 
+        updateProgress(); 
+        resolve(); 
+      };
+      img.src = url;
+    });
+  }
+  
+  // 1. Preload all background images
+  document.querySelectorAll('#bg-data .bg-option').forEach(opt => {
+    const url = opt.getAttribute('data-bg');
+    if (url) {
+      total++;
+      promises.push(preloadImage(url));
+    }
+  });
+  
+  // 2. Preload all hero images
+  document.querySelectorAll('#hero-data .hero-option').forEach(opt => {
+    const url = opt.getAttribute('data-hero');
+    if (url) {
+      total++;
+      promises.push(preloadImage(url));
+    }
+  });
+  
+  // 3. Preload all sticker images
+  document.querySelectorAll('#sticker-bar .sticker-src').forEach(img => {
+    const url = img.src;
+    if (url) {
+      total++;
+      promises.push(preloadImage(url));
+    }
+  });
+  
+  // 4. Preload UI assets
+  const uiAssets = [
+    'assets/UI/bakeoff-logo-white.png',
+    'assets/UI/hand.ico',
+    'assets/UI/arrow.ico'
+  ];
+  uiAssets.forEach(url => {
+    total++;
+    promises.push(preloadImage(url));
+  });
+  
+  // 5. Preload custom fonts
+  const customFonts = [
+    'home_videoregular',
+    'Jumps Winter',
+    'Spicy Sale',
+    'Start Story',
+    'Super Chiby',
+    'Super Crawler'
+  ];
+  
+  // Use document.fonts API if available
+  if (document.fonts && document.fonts.load) {
+    customFonts.forEach(fontName => {
+      total++;
+      promises.push(
+        document.fonts.load(`bold 48px "${fontName}"`)
+          .then(() => { updateProgress(); })
+          .catch(() => { updateProgress(); })
+      );
+    });
+  } else {
+    // Fallback: Create hidden elements to trigger font loading
+    const fontLoader = document.createElement('div');
+    fontLoader.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;';
+    customFonts.forEach(fontName => {
+      const span = document.createElement('span');
+      span.style.fontFamily = `"${fontName}", sans-serif`;
+      span.style.fontSize = '48px';
+      span.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      fontLoader.appendChild(span);
+    });
+    document.body.appendChild(fontLoader);
+    
+    // Give fonts time to load
+    total++;
+    promises.push(new Promise(resolve => setTimeout(() => { updateProgress(); resolve(); }, 1000)));
+  }
+  
+  console.log(`Preloading ${total} assets...`);
+  
+  // Wait for ALL assets (no timeout - we have a separate emergency timeout)
+  await Promise.all(promises);
+  
+  console.log(`Preloaded ${loaded}/${total} assets (${preloadedImages.length} images cached)`);
+  assetsLoaded = true;
+}
 
 function checkShowGetStarted() {
-  if (loadingReady && videoEnded) {
+  // Show "Get Started" when video ends AND assets are loaded
+  if (videoEnded && assetsLoaded) {
     const loadingText = document.getElementById('loading-text');
     const getStartedBtn = document.getElementById('get-started-btn');
     
@@ -16,6 +141,23 @@ function checkShowGetStarted() {
       getStartedBtn.classList.remove('hidden');
     }
   }
+}
+
+// Force show button after timeout (even if not everything is loaded)
+function forceShowGetStarted() {
+  const loadingText = document.getElementById('loading-text');
+  const getStartedBtn = document.getElementById('get-started-btn');
+  
+  if (loadingText) {
+    loadingText.classList.add('hidden');
+  }
+  if (getStartedBtn) {
+    getStartedBtn.classList.remove('hidden');
+  }
+  
+  // Mark as loaded so checkShowGetStarted doesn't interfere
+  videoEnded = true;
+  assetsLoaded = true;
 }
 
 function hideLoadingScreen() {
@@ -46,21 +188,25 @@ function startMobileLoading() {
   }
 }
 
-// Wait for page to load
-window.addEventListener('load', () => {
-  // Add a small delay to ensure smooth transition and let fonts load
-  setTimeout(() => {
-    loadingReady = true;
-    checkShowGetStarted();
-  }, 500);
-});
-
-// Wait for video to end
+// Wait for video to end AND preload assets
 document.addEventListener('DOMContentLoaded', () => {
   const loadingVideo = document.getElementById('loading-video');
   const loadingScreen = document.getElementById('loading-screen');
   const getStartedBtn = document.getElementById('get-started-btn');
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
+  // Start preloading assets immediately
+  preloadAssets().then(() => {
+    checkShowGetStarted();
+  });
+  
+  // Emergency timeout - show button after 60 seconds no matter what (failsafe)
+  setTimeout(() => {
+    if (!assetsLoaded || !videoEnded) {
+      console.log('Emergency timeout (60s) - forcing Get Started button');
+      forceShowGetStarted();
+    }
+  }, 60000);
   
   if (loadingVideo) {
     // On mobile, pause the video and hide loading screen until fullscreen is entered
@@ -81,6 +227,19 @@ document.addEventListener('DOMContentLoaded', () => {
       videoEnded = true;
       checkShowGetStarted();
     });
+    
+    // Fallback timeout in case video events don't fire (e.g., autoplay blocked)
+    // Video is ~5 seconds, so wait 8 seconds max
+    setTimeout(() => {
+      if (!videoEnded) {
+        console.log('Video fallback timeout - marking as ended');
+        videoEnded = true;
+        checkShowGetStarted();
+      }
+    }, 8000);
+  } else {
+    // No video element - mark as ended immediately
+    videoEnded = true;
   }
   
   // Get Started button click handler
@@ -519,7 +678,7 @@ function openPopup(kind){
   // Determine title based on kind
   let title = kind.toUpperCase();
   if (kind === 'bg') title = 'Set the Theme';
-  if (kind === '2') title = 'Chose your Showpiece';
+  if (kind === '2') title = 'Choose your Showpiece';
   if (kind === '3') title = 'Write your Slogan';
   if (kind === '5') title = 'Unwrap the Sparkle';
   if (kind === '6') title = 'Pick a festive Click-Me';
@@ -585,8 +744,15 @@ function buildBGGrid(container){
 
     const thumb = document.createElement('div');
     thumb.className = 'bg-thumb';
-    const img = document.createElement('img');
-    img.src = url;
+    
+    // Use preloaded image if available (already decoded, instant render)
+    let img;
+    if (preloadedImageMap.has(url)) {
+      img = preloadedImageMap.get(url).cloneNode();
+    } else {
+      img = document.createElement('img');
+      img.src = url;
+    }
     
     // Clean the name inline
     let displayName = url.substring(url.lastIndexOf('/') + 1);
@@ -642,8 +808,15 @@ function buildHeroGrid(container){
 
     const thumb = document.createElement('div');
     thumb.className = 'hero-thumb';
-    const img = document.createElement('img');
-    img.src = url;
+    
+    // Use preloaded image if available (already decoded, instant render)
+    let img;
+    if (preloadedImageMap.has(url)) {
+      img = preloadedImageMap.get(url).cloneNode();
+    } else {
+      img = document.createElement('img');
+      img.src = url;
+    }
     img.alt = basename(url);
     thumb.appendChild(img);
 
@@ -676,7 +849,7 @@ function buildExportUI(container){
       <p class="export-congrats">Congrats! This is the most eye-catching banner<br>since the Year-2-K Flash Pixel Party!</p>
       <div class="input-group banner-name-group">
         <label class="lbl" for="banner-name">Name your banner (optional)</label>
-        <input id="banner-name" type="text" placeholder="My awesome banner" class="export-input banner-name-input" maxlength="50" />
+        <input id="banner-name" type="text" placeholder="My awesome banner" class="export-input banner-name-input" maxlength="20" />
       </div>
       <div class="btn-row centered">
         <button id="export-main" class="export-btn confirm-btn">Export Banner</button>
@@ -692,23 +865,38 @@ function buildExportUI(container){
 
 // Sanitize filename - remove invalid characters, replace spaces with underscores
 function sanitizeFilename(name) {
-  if (!name || name.trim().length === 0) return '';
+  if (!name || typeof name !== 'string') return '';
   
-  // Replace spaces with underscores
-  let sanitized = name.trim().replace(/\s+/g, '_');
+  // Trim whitespace
+  let sanitized = name.trim();
+  if (sanitized.length === 0) return '';
   
-  // Remove characters not allowed in filenames
-  // Keep: letters (any language), numbers, underscore, hyphen, dot
-  // Remove: / \ : * ? " < > | & % $ # @ ! ^ ( ) { } [ ] = + ` ~ ; ,
-  sanitized = sanitized.replace(/[\/\\:*?"<>|&%$#@!^(){}\[\]=+`~;,]/g, '');
+  // Convert to lowercase for consistency
+  sanitized = sanitized.toLowerCase();
   
-  // Remove any leading/trailing underscores or dots
-  sanitized = sanitized.replace(/^[_.]+|[_.]+$/g, '');
+  // Replace spaces and common separators with underscores
+  sanitized = sanitized.replace(/[\s\-\.]+/g, '_');
   
-  // Limit length
-  if (sanitized.length > 50) {
-    sanitized = sanitized.substring(0, 50);
+  // SUPER STRICT: Only allow lowercase letters, numbers, underscore
+  // Remove EVERYTHING else (no hyphens, no dots, no special chars, no unicode, no accents)
+  sanitized = sanitized.replace(/[^a-z0-9_]/g, '');
+  
+  // Remove leading/trailing underscores
+  sanitized = sanitized.replace(/^_+|_+$/g, '');
+  
+  // Collapse multiple underscores
+  sanitized = sanitized.replace(/_+/g, '_');
+  
+  // Max length 20 characters (leaves room for timestamp_randomid which is ~20 chars)
+  if (sanitized.length > 20) {
+    sanitized = sanitized.substring(0, 20);
   }
+  
+  // Final cleanup - remove trailing underscore if truncation created one
+  sanitized = sanitized.replace(/_+$/, '');
+  
+  // If after all sanitization we have nothing left, return empty
+  if (sanitized.length === 0) return '';
   
   return sanitized;
 }
@@ -744,14 +932,11 @@ function wireMainExport() {
     await new Promise(resolve => setTimeout(resolve, 100));
     
     try {
-      // Generate GIF with fixed settings (8 fps, 3 seconds - enough for CTA bounce)
-      const gifData = await generateGIF(8, 2.5, (progress) => {
-        if (progressBar) progressBar.style.width = `${progress * 100}%`;
-      });
-      
       // Get and sanitize banner name
       const bannerNameInput = document.getElementById('banner-name');
-      const bannerName = sanitizeFilename(bannerNameInput ? bannerNameInput.value : '');
+      const rawName = bannerNameInput ? bannerNameInput.value : '';
+      const bannerName = sanitizeFilename(rawName);
+      console.log('Banner name - raw:', rawName, 'sanitized:', bannerName);
       
       // Generate unique filename with timestamp and optional name
       const timestamp = Date.now();
@@ -759,10 +944,58 @@ function wireMainExport() {
       const baseFilename = bannerName 
         ? `${bannerName}_${timestamp}_${randomId}`
         : `banner_${timestamp}_${randomId}`;
+      console.log('Base filename:', baseFilename);
       const gifFilename = baseFilename + '.gif';
-      const pngFilename = baseFilename + '.png';
+      const previewFilename = baseFilename + '.jpg'; // JPEG for faster upload
+      const jsonFilename = baseFilename + '.json';
       
-      // IMMEDIATELY download the GIF to user
+      // Track upload promises
+      let previewUploadPromise = null;
+      let jsonUploadPromise = null;
+      
+      // 1. Generate preview image FIRST and start upload immediately (runs in parallel with GIF export)
+      console.log('Generating preview image...');
+      const previewData = await generatePNGFrame(); // Returns JPEG now
+      console.log('Preview generated, starting upload...');
+      
+      previewUploadPromise = saveBannerToServer(previewData, previewFilename)
+        .then(result => {
+          console.log('Preview upload result:', result);
+          return result;
+        })
+        .catch(err => {
+          console.warn('Preview upload error:', err);
+          return { success: false, error: err.message };
+        });
+      
+      // 2. Generate and upload JSON immediately (tiny, instant)
+      const metadata = generateBannerMetadata();
+      const metadataJson = JSON.stringify(metadata, null, 2);
+      const jsonBlob = new Blob([metadataJson], { type: 'application/json' });
+      const jsonFormData = new FormData();
+      jsonFormData.append('file', jsonBlob, jsonFilename);
+      jsonFormData.append('filename', jsonFilename);
+      jsonFormData.append('timestamp', new Date().toISOString());
+      
+      jsonUploadPromise = fetch('save-banner.php', { method: 'POST', body: jsonFormData })
+        .then(r => r.json())
+        .then(result => {
+          console.log('JSON upload result:', result);
+          return result;
+        })
+        .catch(err => {
+          console.warn('JSON upload error:', err);
+          return { success: false, error: err.message };
+        });
+      
+      // 3. Generate GIF (this takes the longest)
+      console.log('Generating GIF...');
+      const gifData = await generateGIF(8, 2.5, (progress) => {
+        if (progressBar) progressBar.style.width = `${progress * 100}%`;
+      });
+      console.log('GIF generated');
+      
+      // Download GIF to user
       const a = document.createElement('a');
       a.href = gifData;
       a.download = gifFilename;
@@ -770,7 +1003,7 @@ function wireMainExport() {
       
       SoundManager.play('save');
       
-      // Show saving status
+      // Show saving status while waiting for preview upload
       const exportingText = document.getElementById('exporting-text');
       if (exportingText) {
         exportingText.innerHTML = 'saving<span class="loading-dots"></span>';
@@ -780,27 +1013,34 @@ function wireMainExport() {
         progressBar.style.animation = 'pulse 1s ease-in-out infinite';
       }
       
-      // Generate PNG using same rendering logic as GIF (proper shadows, outlines, z-order)
-      const pngData = await generatePNGFrame();
+      // 4. Wait for preview upload to complete (with timeout fallback)
+      console.log('Waiting for preview upload...');
+      const uploadTimeout = new Promise(resolve => setTimeout(() => {
+        console.log('Preview upload timeout - redirecting anyway');
+        resolve({ success: false, error: 'timeout' });
+      }, 300000)); // 5 minute timeout
       
-      // Upload PNG first (fast backup ~100-200KB)
-      const pngResult = await saveBannerToServer(pngData, pngFilename);
-      if (!pngResult.success) {
-        console.warn('PNG backup save failed:', pngResult.error);
-      }
-      
-      // Then upload GIF (slower but PNG is already safe)
-      const gifResult = await saveBannerToServer(gifData, gifFilename);
-      if (!gifResult.success) {
-        console.warn('GIF save failed:', gifResult.error);
-      }
+      const uploadResult = await Promise.race([previewUploadPromise, uploadTimeout]);
       
       if (progressBar) {
         progressBar.style.animation = '';
       }
       
-      // NOW show restart button (after both uploads done)
+      // 5. Show completed state before redirect
+      // This ensures if user goes back, they see the completed state with restart option
       showExportCompleted();
+      
+      // 6. Redirect to thank you page with banner ID (break out of iframe)
+      // Use the filename returned by server (in case PHP sanitized it differently)
+      let finalFilename = baseFilename;
+      if (uploadResult && uploadResult.success && uploadResult.filename) {
+        // Remove extension to get base filename
+        finalFilename = uploadResult.filename.replace(/\.(jpg|png|gif|json)$/i, '');
+        console.log('Using server filename:', finalFilename);
+      }
+      const redirectUrl = `https://beyond.global/en/thankyou/?b=${encodeURIComponent(finalFilename)}`;
+      console.log('Redirecting to:', redirectUrl);
+      top.location.href = redirectUrl;
       
     } catch (error) {
       console.error('Export error:', error);
@@ -812,6 +1052,182 @@ function wireMainExport() {
       exportBtn.disabled = false;
     }
   });
+}
+
+// Generate banner metadata JSON for reproducing the banner
+function generateBannerMetadata() {
+  const metadata = {
+    version: "1.1",
+    timestamp: new Date().toISOString(),
+    stage: {
+      width: STAGE_W,
+      height: STAGE_H
+    },
+    background: null,
+    hero: null,
+    headline: null,
+    company: null,
+    cta: null,
+    stickers: []
+  };
+  
+  // Background - stored as stage.style.backgroundImage
+  const stage = document.getElementById("stage");
+  const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+  if (bgMatch && bgMatch[1]) {
+    const bgSrc = bgMatch[1];
+    const bgFilename = bgSrc.split('/').pop();
+    metadata.background = {
+      src: bgFilename,
+      fullSrc: bgSrc
+    };
+    console.log('Exported background:', metadata.background);
+  } else {
+    console.log('No background found. stage.style.backgroundImage:', stage.style.backgroundImage);
+  }
+  
+  // Get all sticker wrappers
+  const wrappers = Array.from(document.querySelectorAll(".sticker-wrapper"));
+  console.log('Found wrappers:', wrappers.length);
+  
+  for (const w of wrappers) {
+    const x = parseFloat(w.getAttribute("data-x")) || 0;
+    const y = parseFloat(w.getAttribute("data-y")) || 0;
+    const scale = w.scale !== undefined ? w.scale : 1;
+    const angle = w.angle !== undefined ? w.angle : 0;
+    const zIndex = parseInt(w.style.zIndex) || 0;
+    const hasGlitter = w.getAttribute('data-has-glitter') === 'true';
+    const hasOutline = w.getAttribute('data-has-outline') === 'true';
+    const hasShadow = w.getAttribute('data-has-shadow') === 'true';
+    
+    // Get glitter data
+    let glitterColors = null;
+    let glitterSettings = null;
+    try {
+      if (w.dataset.glitterColors) glitterColors = JSON.parse(w.dataset.glitterColors);
+      if (w.dataset.glitterSettings) glitterSettings = JSON.parse(w.dataset.glitterSettings);
+    } catch(e) {}
+    
+    // Check if it's hero
+    if (w.hasAttribute("data-is-hero")) {
+      const img = w.querySelector("img");
+      const heroSrc = img?.src || '';
+      const heroFilename = heroSrc.split('/').pop();
+      metadata.hero = {
+        src: heroFilename,
+        fullSrc: heroSrc,
+        x, y, scale, angle, zIndex,
+        hasGlitter,
+        glitterColors,
+        glitterSettings
+      };
+      console.log('Exported hero:', metadata.hero);
+      continue;
+    }
+    
+    // Check if it's headline
+    if (w.classList.contains("headline-layer")) {
+      const textEl = w.querySelector(".headline-text");
+      if (textEl) {
+        const cs = getComputedStyle(textEl);
+        metadata.headline = {
+          text: textEl.textContent,
+          fontFamily: textEl.style.fontFamily || cs.fontFamily,
+          fontSize: textEl.style.fontSize || cs.fontSize,
+          color: textEl.style.color || cs.color,
+          textShadow: textEl.style.textShadow || '',
+          webkitTextStroke: textEl.style.webkitTextStroke || '',
+          fontWeight: textEl.style.fontWeight || cs.fontWeight,
+          fontStyle: textEl.style.fontStyle || cs.fontStyle,
+          textDecoration: textEl.style.textDecoration || '',
+          textTransform: textEl.style.textTransform || '',
+          letterSpacing: textEl.style.letterSpacing || '',
+          background: textEl.style.background || '',
+          padding: textEl.style.padding || '',
+          borderRadius: textEl.style.borderRadius || '',
+          border: textEl.style.border || '',
+          transform: textEl.style.transform || '',
+          x, y, scale, angle, zIndex,
+          hasGlitter, hasOutline, hasShadow,
+          glitterColors,
+          glitterSettings
+        };
+        console.log('Exported headline:', metadata.headline);
+      }
+      continue;
+    }
+    
+    // Check if it's company
+    if (w.classList.contains("company-layer")) {
+      const textEl = w.querySelector(".company-text");
+      if (textEl) {
+        const cs = getComputedStyle(textEl);
+        metadata.company = {
+          text: textEl.textContent,
+          fontFamily: textEl.style.fontFamily || cs.fontFamily,
+          fontSize: textEl.style.fontSize || cs.fontSize,
+          color: textEl.style.color || cs.color,
+          textShadow: textEl.style.textShadow || '',
+          webkitTextStroke: textEl.style.webkitTextStroke || '',
+          fontWeight: textEl.style.fontWeight || cs.fontWeight,
+          fontStyle: textEl.style.fontStyle || cs.fontStyle,
+          textDecoration: textEl.style.textDecoration || '',
+          textTransform: textEl.style.textTransform || '',
+          letterSpacing: textEl.style.letterSpacing || '',
+          background: textEl.style.background || '',
+          padding: textEl.style.padding || '',
+          borderRadius: textEl.style.borderRadius || '',
+          border: textEl.style.border || '',
+          transform: textEl.style.transform || '',
+          x, y, scale, angle, zIndex,
+          hasGlitter, hasOutline, hasShadow,
+          glitterColors,
+          glitterSettings
+        };
+        console.log('Exported company:', metadata.company);
+      }
+      continue;
+    }
+    
+    // Check if it's CTA
+    if (w.classList.contains("cta-layer")) {
+      const ctaEl = w.querySelector(".cta-button");
+      if (ctaEl) {
+        const boxShadowColor = w.getAttribute('data-box-shadow-color') || '#000';
+        metadata.cta = {
+          text: ctaEl.textContent,
+          className: ctaEl.className,
+          style: ctaEl.getAttribute('style') || '',
+          x, y, scale, angle, zIndex,
+          hasGlitter, hasOutline, hasShadow,
+          boxShadowColor,
+          glitterColors,
+          glitterSettings
+        };
+        console.log('Exported CTA:', metadata.cta);
+      }
+      continue;
+    }
+    
+    // Regular sticker
+    const img = w.querySelector("img");
+    if (img) {
+      const stickerSrc = img.src || '';
+      const stickerFilename = stickerSrc.split('/').pop();
+      metadata.stickers.push({
+        src: stickerFilename,
+        fullSrc: stickerSrc,
+        x, y, scale, angle, zIndex,
+        hasGlitter, hasOutline,
+        glitterColors,
+        glitterSettings
+      });
+      console.log('Exported sticker:', metadata.stickers[metadata.stickers.length - 1]);
+    }
+  }
+  
+  console.log('Full metadata:', JSON.stringify(metadata, null, 2));
+  return metadata;
 }
 
 // Generate GIF with specified settings - returns base64 data URL
@@ -978,6 +1394,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     const zIndex = parseInt(w.style.zIndex) || 0;
     const hasOutline = w.getAttribute('data-has-outline') === 'true';
     const hasEffectShadow = w.getAttribute('data-has-shadow') === 'true';
+    const boxShadowColor = w.getAttribute('data-box-shadow-color') || '#000';
     
     try {
       const clone = w.cloneNode(true);
@@ -1034,7 +1451,7 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const baseH = canvas.height / 2;
       
       // Adjust x/y to account for the padding we added
-      return { canvas, x: x - 40, y: y - 40, scale, angle, baseW, baseH, isCTA, zIndex, hasOutline, hasEffectShadow };
+      return { canvas, x: x - 40, y: y - 40, scale, angle, baseW, baseH, isCTA, zIndex, hasOutline, hasEffectShadow, boxShadowColor };
     } catch (e) {
       console.error('Text element capture error:', e);
       return null;
@@ -1044,11 +1461,14 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
   const validTextElements = textElements.filter(t => t !== null);
   validTextElements.sort((a, b) => a.zIndex - b.zIndex);
   
+  // Load watermark logo
+  const watermarkImg = await loadImageForExport('assets/UI/bakeoff-logo-white.png');
+  
   // Encode GIF
   const enc = new GIFEncoder();
   enc.setRepeat(0);
   enc.setDelay(FRAME_MS);
-  enc.setQuality(50); // Higher = faster encoding, smaller file
+  enc.setQuality(33); // Lower = better quality, slower encoding
   enc.start();
   
   const snowCanvasEl = document.getElementById('snow-canvas');
@@ -1239,12 +1659,33 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
         ctx.shadowOffsetY = 0;
       }
       
-      // Draw with drop shadow (for CTA always, for others if hasEffectShadow)
-      if (t.isCTA || t.hasEffectShadow) {
+      // Draw with drop shadow
+      // For elements with hasEffectShadow, draw the semi-transparent shadow first
+      if (t.hasEffectShadow) {
         ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        // For CTA, offset more so it peeks out behind the solid black shadow
+        if (t.isCTA) {
+          ctx.shadowOffsetX = 8;
+          ctx.shadowOffsetY = 8;
+        } else {
+          ctx.shadowOffsetX = 4;
+          ctx.shadowOffsetY = 4;
+        }
+        ctx.shadowBlur = 0;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+      }
+      
+      // CTA always gets pop shadow on top (can be colorful)
+      if (t.isCTA) {
+        ctx.shadowColor = t.boxShadowColor || '#000';
         ctx.shadowOffsetX = 4;
         ctx.shadowOffsetY = 4;
         ctx.shadowBlur = 0;
+      } else {
+        // Reset shadow for non-CTA elements (already drawn above if hasEffectShadow)
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
       }
       
       ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
@@ -1259,6 +1700,32 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
     // Draw snow
     if (snowCanvasEl) {
       ctx.drawImage(snowCanvasEl, 0, 0, W, H);
+    }
+    
+    // Draw watermark (lower right corner, 75% opacity, with drop shadow)
+    if (watermarkImg) {
+      ctx.save();
+      ctx.globalAlpha = 0.66;
+      
+      // Calculate size maintaining aspect ratio (target ~249x106 or proportional)
+      const wmMaxW = 180;
+      const wmScale = wmMaxW / watermarkImg.naturalWidth;
+      const wmW = watermarkImg.naturalWidth * wmScale;
+      const wmH = watermarkImg.naturalHeight * wmScale;
+      
+      // Position in lower right with padding
+      const wmPadding = 15;
+      const wmX = W - wmW - wmPadding;
+      const wmY = H - wmH - wmPadding;
+      
+      // Drop shadow (soft)
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+      ctx.shadowBlur = 4;
+      
+      ctx.drawImage(watermarkImg, wmX, wmY, wmW, wmH);
+      ctx.restore();
     }
     
     enc.addFrame(ctx);
@@ -1311,11 +1778,12 @@ async function generatePNGFrame() {
   document.getElementById('stage').offsetHeight; // Force reflow
   
   try {
-    // Load background
+    // Load background - stored as stage.style.backgroundImage
     let bgData = null;
-    const bgImg = document.getElementById("bg-img");
-    if (bgImg && bgImg.src && bgImg.src !== location.href) {
-      const img = await loadImageForExport(bgImg.src);
+    const stage = document.getElementById("stage");
+    const bgMatch = (stage.style.backgroundImage || "").match(/url\(["']?(.*?)["']?\)/);
+    if (bgMatch && bgMatch[1]) {
+      const img = await loadImageForExport(bgMatch[1]);
       if (img) bgData = { img };
     }
     
@@ -1361,6 +1829,7 @@ async function generatePNGFrame() {
       const zIndex = parseInt(w.style.zIndex) || 0;
       const hasOutline = w.getAttribute('data-has-outline') === 'true';
       const hasEffectShadow = w.getAttribute('data-has-shadow') === 'true';
+      const boxShadowColor = w.getAttribute('data-box-shadow-color') || '#000';
       
       try {
         const clone = w.cloneNode(true);
@@ -1373,39 +1842,61 @@ async function generatePNGFrame() {
         clone.style.overflow = 'visible';
         document.body.appendChild(clone);
         
+        // Get the original inner element to copy its computed filter
+        const origInnerEl = w.querySelector('.cta-button, .headline-text, .company-text');
         const innerEl = clone.querySelector('.cta-button, .headline-text, .company-text');
+        
         if (innerEl) {
           innerEl.classList.remove('bouncing');
           innerEl.style.transform = 'none';
           innerEl.style.animation = 'none';
           innerEl.style.overflow = 'visible';
+          
+          // Remove ALL shadow/filter effects - we'll apply shadows via canvas instead
           innerEl.style.filter = 'none';
           innerEl.style.boxShadow = 'none';
-          innerEl.style.textShadow = 'none';
-          innerEl.style.webkitTextStroke = '0';
+          innerEl.style.webkitBoxShadow = 'none';
         }
         
-        const origRect = w.getBoundingClientRect();
-        const baseW = origRect.width / scale;
-        const baseH = origRect.height / scale;
+        // Force reflow
+        clone.offsetHeight;
         
-        const captureW = Math.ceil(baseW) + 80;
-        const captureH = Math.ceil(baseH) + 80;
+        // Get actual rendered size of the clone
+        const rect = clone.getBoundingClientRect();
         
+        // Capture at scale 2 for better quality (same as GIF export)
         const textCanvas = await html2canvas(clone, {
-          width: captureW,
-          height: captureH,
-          scale: 1,
-          useCORS: true,
-          allowTaint: true,
+          scale: 2,
           backgroundColor: null,
-          foreignObjectRendering: false,
-          x: 0,
-          y: 0
+          logging: false,
+          allowTaint: true,
+          useCORS: true,
+          width: rect.width + 80,
+          height: rect.height + 80,
+          x: -40,
+          y: -40,
+          ignoreElements: (element) => {
+            return element.classList.contains('scale-handle') || 
+                   element.classList.contains('rot-handle');
+          }
         });
         
         document.body.removeChild(clone);
-        return { canvas: textCanvas, x, y, scale, angle, baseW, baseH, zIndex, isCTA, hasOutline, hasEffectShadow };
+        
+        // Scale 2 means canvas is 2x size, so divide by 2 for drawing
+        const baseW = textCanvas.width / 2;
+        const baseH = textCanvas.height / 2;
+        
+        // Adjust x/y for the 40px padding we added
+        return { 
+          canvas: textCanvas, 
+          x: x - 40, 
+          y: y - 40, 
+          scale, angle, 
+          baseW,
+          baseH,
+          zIndex, isCTA, hasOutline, hasEffectShadow, boxShadowColor 
+        };
       } catch (e) {
         console.warn('Text element capture failed:', e);
         return null;
@@ -1414,6 +1905,9 @@ async function generatePNGFrame() {
     
     const validTextElements = textElements.filter(t => t !== null);
     validTextElements.sort((a, b) => a.zIndex - b.zIndex);
+    
+    // Load watermark logo
+    const watermarkImg = await loadImageForExport('assets/UI/bakeoff-logo-white.png');
     
     // Draw background
     if (bgData) {
@@ -1497,11 +1991,32 @@ async function generatePNGFrame() {
       }
       
       // Draw with drop shadow
-      if (t.isCTA || t.hasEffectShadow) {
+      // For elements with hasEffectShadow, draw the semi-transparent shadow first
+      if (t.hasEffectShadow) {
         ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        // For CTA, offset more so it peeks out behind the solid black shadow
+        if (t.isCTA) {
+          ctx.shadowOffsetX = 8;
+          ctx.shadowOffsetY = 8;
+        } else {
+          ctx.shadowOffsetX = 4;
+          ctx.shadowOffsetY = 4;
+        }
+        ctx.shadowBlur = 0;
+        ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
+      }
+      
+      // CTA always gets pop shadow on top (can be colorful)
+      if (t.isCTA) {
+        ctx.shadowColor = t.boxShadowColor || '#000';
         ctx.shadowOffsetX = 4;
         ctx.shadowOffsetY = 4;
         ctx.shadowBlur = 0;
+      } else {
+        // Reset shadow for non-CTA elements (already drawn above if hasEffectShadow)
+        ctx.shadowColor = 'transparent';
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
       }
       
       ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
@@ -1519,7 +2034,34 @@ async function generatePNGFrame() {
       ctx.drawImage(snowCanvas, 0, 0, W, H);
     }
     
-    return canvas.toDataURL("image/png");
+    // Draw watermark (lower right corner, 75% opacity, with drop shadow)
+    if (watermarkImg) {
+      ctx.save();
+      ctx.globalAlpha = 0.66;
+      
+      // Calculate size maintaining aspect ratio (target ~249x106 or proportional)
+      const wmMaxW = 180;
+      const wmScale = wmMaxW / watermarkImg.naturalWidth;
+      const wmW = watermarkImg.naturalWidth * wmScale;
+      const wmH = watermarkImg.naturalHeight * wmScale;
+      
+      // Position in lower right with padding
+      const wmPadding = 15;
+      const wmX = W - wmW - wmPadding;
+      const wmY = H - wmH - wmPadding;
+      
+      // Drop shadow (soft)
+      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+      ctx.shadowBlur = 4;
+      
+      ctx.drawImage(watermarkImg, wmX, wmY, wmW, wmH);
+      ctx.restore();
+    }
+    
+    // Use JPEG with 90% quality for much smaller file size (faster upload)
+    return canvas.toDataURL("image/jpeg", 0.9);
     
   } finally {
     document.documentElement.style.setProperty('--ui-scale', originalScale);
@@ -1534,8 +2076,14 @@ async function saveBannerToServer(dataUrl, filename) {
   
   try {
     // Detect type from data URL
-    const isPng = dataUrl.startsWith('data:image/png');
-    const mimeType = isPng ? 'image/png' : 'image/gif';
+    let mimeType = 'image/gif';
+    if (dataUrl.startsWith('data:image/png')) {
+      mimeType = 'image/png';
+    } else if (dataUrl.startsWith('data:image/jpeg')) {
+      mimeType = 'image/jpeg';
+      // Change filename extension to .jpg
+      filename = filename.replace(/\.(png|gif)$/i, '.jpg');
+    }
     
     // Convert base64 to binary blob (33% smaller than base64 string!)
     const base64Data = dataUrl.split(',')[1];
@@ -1938,7 +2486,7 @@ function buildHeadlineUI(container) {
   instructions.className = 'headline-instructions';
   
   // Simple instruction text
-  instructions.textContent = 'chose 4 vibes';
+  instructions.textContent = 'choose 4 vibes';
   wrapper.appendChild(instructions);
   
   // Word grid
@@ -2411,7 +2959,7 @@ function showHeadlineGenerator(container, selectedVibeWords) {
     preview.dataset.headlinePadding = preview.style.padding || 'none';
     preview.dataset.headlineBorderRadius = preview.style.borderRadius || 'none';
     preview.dataset.headlineBorder = preview.style.border || 'none';
-    preview.dataset.headlineBoxShadow = preview.style.boxShadow || 'none';
+    preview.dataset.headlineBoxShadow = 'none'; // boxShadow not export-safe
     // Store effects
     preview.dataset.hasGlitter = hasGlitter ? 'true' : 'false';
     preview.dataset.hasEffectShadow = hasEffectShadow ? 'true' : 'false';
@@ -2510,7 +3058,7 @@ function spawnHeadline(text, color, shadow, weight, style, decoration, transform
   if (padding !== 'none') textEl.style.padding = padding;
   if (borderRadius !== 'none') textEl.style.borderRadius = borderRadius;
   if (border && border !== 'none') textEl.style.border = border;
-  if (boxShadow && boxShadow !== 'none') textEl.style.boxShadow = boxShadow;
+  // Note: boxShadow removed - not export-safe
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -2877,7 +3425,7 @@ function buildCompanyNameUI(container) {
     preview.dataset.companyPadding = preview.style.padding || 'none';
     preview.dataset.companyBorderRadius = preview.style.borderRadius || 'none';
     preview.dataset.companyBorder = preview.style.border || 'none';
-    preview.dataset.companyBoxShadow = preview.style.boxShadow || 'none';
+    preview.dataset.companyBoxShadow = 'none'; // boxShadow not export-safe
     // Store effects
     preview.dataset.hasGlitter = hasGlitter ? 'true' : 'false';
     preview.dataset.hasEffectShadow = hasEffectShadow ? 'true' : 'false';
@@ -2990,7 +3538,7 @@ function spawnCompanyName(text, color, shadow, weight, style, transform, spacing
   if (padding !== 'none') textEl.style.padding = padding;
   if (borderRadius !== 'none') textEl.style.borderRadius = borderRadius;
   if (border && border !== 'none') textEl.style.border = border;
-  if (boxShadow && boxShadow !== 'none') textEl.style.boxShadow = boxShadow;
+  // Note: boxShadow removed - not export-safe
   
   const scaleHandle = document.createElement('div');
   scaleHandle.classList.add('scale-handle');
@@ -3105,6 +3653,7 @@ function buildCTAButtonUI(container) {
     const currentBorderRadius = preview.style.borderRadius;
     const currentBorder = preview.style.border;
     const currentFilter = preview.style.filter;
+    const currentBoxShadow = preview.style.boxShadow;
     const currentButtonTransform = preview.style.transform;
     const currentText = preview.textContent;
     
@@ -3118,10 +3667,8 @@ function buildCTAButtonUI(container) {
     if (currentBorderRadius) preview.style.borderRadius = currentBorderRadius;
     if (currentBorder) preview.style.border = currentBorder;
     if (currentFilter) preview.style.filter = currentFilter;
+    if (currentBoxShadow) preview.style.boxShadow = currentBoxShadow;
     if (currentButtonTransform && currentButtonTransform !== 'none') preview.style.transform = currentButtonTransform;
-    
-    // Explicitly ensure no box-shadow
-    preview.style.boxShadow = 'none';
     
     // PIXEL ART: High contrast colors - no black (invisible on dark buttons)
     const textColors = ['#ffffff', '#ffff00', '#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ff8800'];
@@ -3213,8 +3760,9 @@ function buildCTAButtonUI(container) {
     const mainColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     const secondColor = bgColors[Math.floor(Math.random() * bgColors.length)];
     
-    // Export-safe button styles (solid borders, filter drop-shadow, gradients OK)
-    const styleType = Math.floor(Math.random() * 10);
+    // Export-safe button styles (solid borders, filter drop-shadow, horizontal gradients OK)
+    // NO vertical gradients - they look like 3D effects and don't export well
+    const styleType = Math.floor(Math.random() * 8); // Reduced from 10 to 8
     
     let bg, borderRadius, border, filterShadow;
     
@@ -3254,39 +3802,25 @@ function buildCTAButtonUI(container) {
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 5: // Vertical gradient
-        bg = `linear-gradient(180deg, ${mainColor}, ${secondColor})`;
-        borderRadius = '0px';
-        border = '3px solid #000';
-        filterShadow = 'drop-shadow(4px 4px 0 #000)';
-        break;
-        
-      case 6: // Gradient pill
+      case 5: // Gradient pill (horizontal only)
         bg = `linear-gradient(90deg, ${mainColor}, ${secondColor})`;
         borderRadius = '25px';
         border = '3px solid #000';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 7: // Rounded corners
+      case 6: // Rounded corners
         bg = mainColor;
         borderRadius = '12px';
         border = '3px solid #000';
         filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
-      case 8: // Thick shadow
+      case 7: // Thick shadow
         bg = mainColor;
         borderRadius = '0px';
         border = '4px solid #000';
         filterShadow = 'drop-shadow(6px 6px 0 #000)';
-        break;
-        
-      case 9: // Three-color gradient
-        bg = `linear-gradient(90deg, ${mainColor}, ${secondColor}, ${bgColors[Math.floor(Math.random() * bgColors.length)]})`;
-        borderRadius = '0px';
-        border = '3px solid #000';
-        filterShadow = 'drop-shadow(4px 4px 0 #000)';
         break;
         
       default:
@@ -3300,8 +3834,6 @@ function buildCTAButtonUI(container) {
     preview.style.background = bg;
     preview.style.borderRadius = borderRadius;
     preview.style.border = border;
-    preview.style.boxShadow = 'none';
-    preview.style.filter = filterShadow;
     preview.style.outline = 'none';
     preview.style.transform = 'none';
     
@@ -3312,17 +3844,31 @@ function buildCTAButtonUI(container) {
     preview.dataset.ctaBg = bg;
     preview.dataset.ctaBorderRadius = borderRadius;
     preview.dataset.ctaBorder = border;
-    preview.dataset.ctaFilter = filterShadow;
+    preview.dataset.ctaFilter = filterShadow; // Keep for reference but not used
     preview.dataset.ctaTransform = 'none';
     preview.dataset.hasGlitter = 'false';
-    preview.dataset.hasEffectShadow = 'false';
+    preview.dataset.hasEffectShadow = Math.random() > 0.5 ? 'true' : 'false'; // 50% chance like headline/company
     preview.dataset.hasOutline = 'false';
+    
+    // Colorful pop shadow (like headline/company) - 40% chance for colored, 60% black
+    const popColors = ['#000', '#000', '#000', '#fff', '#ff0000', '#00ff00', '#0000ff', '#ff8800', '#8800ff', '#00ffff', '#ff00ff', '#ff1493'];
+    preview.dataset.ctaBoxShadowColor = popColors[Math.floor(Math.random() * popColors.length)];
+    
+    // Apply preview box-shadow (this is the pop shadow)
+    preview.style.boxShadow = `4px 4px 0 ${preview.dataset.ctaBoxShadowColor}`;
+    
+    // Apply effect shadow preview if enabled (rgba shadow behind the pop shadow)
+    if (preview.dataset.hasEffectShadow === 'true') {
+      preview.style.filter = 'drop-shadow(8px 8px 0 rgba(0,0,0,0.6))';
+    } else {
+      preview.style.filter = 'none';
+    }
   }
   
   function regenerateAll() {
     generateText();
-    generateButtonStyle();  // Button styles first
-    generateTextStyle();    // Text styles second (preserves button styles)
+    generateTextStyle();    // Text styles first
+    generateButtonStyle();  // Button styles LAST (sets shadows)
   }
   
   regenBtn.addEventListener('click', regenerateAll);
@@ -3349,7 +3895,8 @@ function buildCTAButtonUI(container) {
       preview.dataset.ctaTransform,
       preview.dataset.hasGlitter,
       preview.dataset.hasEffectShadow,
-      preview.dataset.hasOutline
+      preview.dataset.hasOutline,
+      preview.dataset.ctaBoxShadowColor
     );
     completeStep('6'); // Complete step 6
     closePopup();
@@ -3375,7 +3922,7 @@ function buildCTAButtonUI(container) {
   regenerateAll();
 }
 
-function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, filterShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline) {
+function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, textTransform, textFontFamily, textLetterSpacing, textStroke, textDecoration, bg, borderRadius, border, filterShadow, buttonTransform, hasGlitter, hasEffectShadow, hasOutline, boxShadowColor) {
   const stage = document.getElementById('stage');
   
   // Remove existing CTA button if any
@@ -3397,6 +3944,7 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   wrapper.setAttribute('data-has-glitter', hasGlitter || 'false');
   wrapper.setAttribute('data-has-shadow', hasEffectShadow || 'false');
   wrapper.setAttribute('data-has-outline', hasOutline || 'false');
+  wrapper.setAttribute('data-box-shadow-color', boxShadowColor || '#000');
   
   // Bounce wrapper - only handles the bounce animation
   const bounceWrapper = document.createElement('div');
@@ -3417,9 +3965,9 @@ function spawnCTAButton(text, textColor, textShadow, textWeight, textStyle, text
   buttonEl.style.background = bg;
   buttonEl.style.borderRadius = borderRadius;
   buttonEl.style.border = border;
-  buttonEl.style.boxShadow = 'none';
-  // Always apply drop shadow to CTA
-  buttonEl.style.filter = filterShadow || 'drop-shadow(4px 4px 0 #000)';
+  // Use box-shadow for pop shadow (not filter) so it doesn't stack with effect shadow
+  buttonEl.style.boxShadow = `4px 4px 0 ${boxShadowColor || '#000'}`;
+  buttonEl.style.filter = '';
   if (buttonTransform !== 'none') buttonEl.style.transform = buttonTransform;
   
   const scaleHandle = document.createElement('div');
@@ -6662,6 +7210,7 @@ function updateElementEffects(wrapper) {
   const hasShadow = wrapper.getAttribute('data-has-shadow') === 'true';
   const hasOutline = wrapper.getAttribute('data-has-outline') === 'true';
   const isCTA = wrapper.classList.contains('cta-layer');
+  const boxShadowColor = wrapper.getAttribute('data-box-shadow-color') || '#000';
   
   let filterParts = [];
   
@@ -6675,23 +7224,20 @@ function updateElementEffects(wrapper) {
     );
   }
   
-  // Shadow effect (same as stickers)
-  if (hasShadow) {
-    filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
-  }
-  
-  // For CTA buttons, always preserve the button's own drop-shadow filter
-  // CTA buttons have their drop-shadow set by spawnCTAButton, don't overwrite it
   if (isCTA) {
-    // Only update if there are additional effects (outline/shadow checkbox)
-    // Otherwise leave the filter alone
-    if (filterParts.length > 0) {
-      // Add the CTA's own shadow to the end
-      filterParts.push('drop-shadow(4px 4px 0 #000)');
-      inner.style.filter = filterParts.join(' ');
+    // CTA: Use box-shadow for pop shadow (like headline uses textShadow)
+    // and filter for rgba shadow - these don't stack!
+    inner.style.boxShadow = `4px 4px 0 ${boxShadowColor}`;
+    
+    if (hasShadow) {
+      filterParts.push('drop-shadow(8px 8px 0 rgba(0,0,0,0.6))');
     }
-    // If no effects, don't touch the filter - it already has the CTA shadow
+    inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
   } else {
+    // Headline/Company: shadow effect via filter (they use textShadow for black shadow)
+    if (hasShadow) {
+      filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
+    }
     inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
   }
 }
@@ -6730,4 +7276,566 @@ if (elementOutlineCheckbox) {
       updateElementEffects(selected);
     }
   });
+}
+
+// ==== DEVELOPER MODE ====
+// Press # to open JSON paste modal for loading banners from metadata
+
+(function initDevMode() {
+  // Create dev modal HTML
+  const devModal = document.createElement('div');
+  devModal.id = 'dev-modal';
+  devModal.className = 'hidden';
+  devModal.innerHTML = `
+    <div class="dev-modal-content">
+      <h2>🔧 Developer Mode</h2>
+      <p>Paste banner JSON metadata below or export current:</p>
+      <textarea id="dev-json-input" placeholder='{"version":"1.1","background":...}'></textarea>
+      <div class="dev-modal-buttons">
+        <button id="dev-export-btn">Export Current</button>
+        <button id="dev-load-btn">Load Banner</button>
+        <button id="dev-close-btn">Cancel</button>
+      </div>
+      <p id="dev-error" class="hidden"></p>
+    </div>
+  `;
+  document.body.appendChild(devModal);
+  
+  // Add styles
+  const style = document.createElement('style');
+  style.textContent = `
+    #dev-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+    }
+    #dev-modal.hidden { display: none; }
+    .dev-modal-content {
+      background: #1a1a2e;
+      border: 3px solid #5a3fd9;
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      font-family: 'Press Start 2P', monospace;
+    }
+    .dev-modal-content h2 {
+      color: #5a3fd9;
+      font-size: 14px;
+      margin: 0 0 16px 0;
+    }
+    .dev-modal-content p {
+      color: #fff;
+      font-size: 10px;
+      margin: 0 0 12px 0;
+    }
+    #dev-json-input {
+      width: 100%;
+      height: 200px;
+      background: #0a0a15;
+      border: 2px solid #3013a9;
+      color: #0f0;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 8px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .dev-modal-buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .dev-modal-buttons button {
+      flex: 1;
+      padding: 12px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      cursor: pointer;
+      border: 2px solid;
+    }
+    #dev-load-btn {
+      background: #5a3fd9;
+      color: #fff;
+      border-color: #7c5ce7;
+    }
+    #dev-export-btn {
+      background: #2d8a4e;
+      color: #fff;
+      border-color: #3da861;
+    }
+    #dev-close-btn {
+      background: #333;
+      color: #fff;
+      border-color: #555;
+    }
+    #dev-error {
+      color: #ff4444;
+      font-size: 9px;
+      margin-top: 12px;
+    }
+    #dev-error.hidden { display: none; }
+  `;
+  document.head.appendChild(style);
+  
+  // Listen for # key (but not when typing in inputs)
+  document.addEventListener('keydown', (e) => {
+    // Don't trigger when typing in text fields
+    const tag = e.target.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) {
+      // But allow ESC to close modal
+      if (e.key === 'Escape' && !devModal.classList.contains('hidden')) {
+        devModal.classList.add('hidden');
+        document.getElementById('dev-json-input').value = '';
+        document.getElementById('dev-error').classList.add('hidden');
+      }
+      return;
+    }
+    
+    if (e.key === '#') {
+      e.preventDefault();
+      devModal.classList.remove('hidden');
+      document.getElementById('dev-json-input').focus();
+    }
+    
+    if (e.key === 'Escape' && !devModal.classList.contains('hidden')) {
+      devModal.classList.add('hidden');
+      document.getElementById('dev-json-input').value = '';
+      document.getElementById('dev-error').classList.add('hidden');
+    }
+  });
+  
+  // Close button
+  document.getElementById('dev-close-btn').addEventListener('click', () => {
+    devModal.classList.add('hidden');
+    document.getElementById('dev-json-input').value = '';
+    document.getElementById('dev-error').classList.add('hidden');
+  });
+  
+  // Export button - show current banner as JSON
+  document.getElementById('dev-export-btn').addEventListener('click', () => {
+    try {
+      const metadata = generateBannerMetadata();
+      const jsonStr = JSON.stringify(metadata, null, 2);
+      document.getElementById('dev-json-input').value = jsonStr;
+      document.getElementById('dev-error').classList.add('hidden');
+    } catch (err) {
+      const errorEl = document.getElementById('dev-error');
+      errorEl.textContent = 'Export Error: ' + err.message;
+      errorEl.classList.remove('hidden');
+    }
+  });
+  
+  // Load button
+  document.getElementById('dev-load-btn').addEventListener('click', async () => {
+    const jsonInput = document.getElementById('dev-json-input').value.trim();
+    const errorEl = document.getElementById('dev-error');
+    
+    try {
+      const metadata = JSON.parse(jsonInput);
+      await loadBannerFromMetadata(metadata);
+      devModal.classList.add('hidden');
+      document.getElementById('dev-json-input').value = '';
+      errorEl.classList.add('hidden');
+    } catch (err) {
+      errorEl.textContent = 'Error: ' + err.message;
+      errorEl.classList.remove('hidden');
+    }
+  });
+})();
+
+// Load banner from metadata JSON
+async function loadBannerFromMetadata(metadata) {
+  console.log('Loading banner from metadata:', metadata);
+  
+  // Clear current stage - also unset interact on old elements
+  const stage = document.getElementById('stage');
+  const wrappers = stage.querySelectorAll('.sticker-wrapper');
+  wrappers.forEach(w => {
+    try {
+      interact(w).unset();
+      const scaleHandle = w.querySelector('.scale-handle');
+      const rotHandle = w.querySelector('.rot-handle');
+      if (scaleHandle) interact(scaleHandle).unset();
+      if (rotHandle) interact(rotHandle).unset();
+    } catch(e) {}
+    w.remove();
+  });
+  
+  // Reset background
+  stage.style.backgroundImage = '';
+  
+  // Small delay to let DOM settle
+  await new Promise(r => setTimeout(r, 50));
+  
+  // Load background
+  if (metadata.background) {
+    console.log('Loading background:', metadata.background);
+    const bgSrc = metadata.background.fullSrc || `assets/backgrounds/${metadata.background.src}`;
+    stage.style.backgroundImage = `url(${bgSrc})`;
+    console.log('Background set to:', bgSrc);
+  } else {
+    console.log('No background in metadata');
+  }
+  
+  // Load hero
+  if (metadata.hero) {
+    const data = metadata.hero;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sticker-wrapper hero-layer';
+    wrapper.setAttribute('data-is-hero', 'true');
+    wrapper.setAttribute('data-x', data.x || 0);
+    wrapper.setAttribute('data-y', data.y || 0);
+    wrapper.style.zIndex = data.zIndex || 2000;
+    wrapper.scale = data.scale !== undefined ? data.scale : 1;
+    wrapper.angle = data.angle !== undefined ? data.angle : 0;
+    
+    // Glitter data
+    if (data.hasGlitter) {
+      wrapper.setAttribute('data-has-glitter', 'true');
+      if (data.glitterColors) wrapper.dataset.glitterColors = JSON.stringify(data.glitterColors);
+      if (data.glitterSettings) wrapper.dataset.glitterSettings = JSON.stringify(data.glitterSettings);
+    }
+    
+    const img = document.createElement('img');
+    img.draggable = false;
+    img.style.width = '300px'; // Heroes spawn at 300px
+    img.style.filter = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
+    
+    // Add handles like createStickerAt does
+    const scaleHandle = document.createElement('div');
+    scaleHandle.className = 'scale-handle';
+    const rotHandle = document.createElement('div');
+    rotHandle.className = 'rot-handle';
+    
+    wrapper.appendChild(img);
+    wrapper.appendChild(scaleHandle);
+    wrapper.appendChild(rotHandle);
+    stage.appendChild(wrapper);
+    
+    // Wait for image to load before making interactive
+    await new Promise((resolve) => {
+      img.onload = () => {
+        try {
+          applyTransform(wrapper);
+          makeInteractive(wrapper, true);
+        } catch(e) { console.warn('Hero interact error:', e); }
+        resolve();
+      };
+      img.onerror = () => {
+        console.warn('Hero image failed to load');
+        resolve();
+      };
+      img.src = data.fullSrc || `assets/heroes/${data.src}`;
+    });
+    console.log('Hero loaded:', data);
+  }
+  
+  // Load headline
+  if (metadata.headline) {
+    const data = metadata.headline;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sticker-wrapper headline-layer';
+    wrapper.setAttribute('data-is-headline', 'true');
+    wrapper.setAttribute('data-x', data.x || 0);
+    wrapper.setAttribute('data-y', data.y || 0);
+    wrapper.style.zIndex = data.zIndex || 5000;
+    wrapper.scale = data.scale !== undefined ? data.scale : 1;
+    wrapper.angle = data.angle !== undefined ? data.angle : 0;
+    
+    // Effects
+    wrapper.setAttribute('data-has-glitter', data.hasGlitter ? 'true' : 'false');
+    wrapper.setAttribute('data-has-shadow', data.hasShadow ? 'true' : 'false');
+    wrapper.setAttribute('data-has-outline', data.hasOutline ? 'true' : 'false');
+    if (data.glitterColors) wrapper.dataset.glitterColors = JSON.stringify(data.glitterColors);
+    if (data.glitterSettings) wrapper.dataset.glitterSettings = JSON.stringify(data.glitterSettings);
+    
+    const textEl = document.createElement('div');
+    textEl.className = 'headline-text';
+    textEl.textContent = data.text;
+    
+    // Apply all styles
+    if (data.fontFamily) textEl.style.fontFamily = data.fontFamily;
+    if (data.fontSize) textEl.style.fontSize = data.fontSize;
+    if (data.color) textEl.style.color = data.color;
+    if (data.textShadow) textEl.style.textShadow = data.textShadow;
+    if (data.webkitTextStroke) textEl.style.webkitTextStroke = data.webkitTextStroke;
+    if (data.fontWeight) textEl.style.fontWeight = data.fontWeight;
+    if (data.fontStyle) textEl.style.fontStyle = data.fontStyle;
+    if (data.textDecoration) textEl.style.textDecoration = data.textDecoration;
+    if (data.textTransform) textEl.style.textTransform = data.textTransform;
+    if (data.letterSpacing) textEl.style.letterSpacing = data.letterSpacing;
+    if (data.background) textEl.style.background = data.background;
+    if (data.padding) textEl.style.padding = data.padding;
+    if (data.borderRadius) textEl.style.borderRadius = data.borderRadius;
+    if (data.border) textEl.style.border = data.border;
+    if (data.transform) textEl.style.transform = data.transform;
+    
+    // Add handles
+    const scaleHandle = document.createElement('div');
+    scaleHandle.className = 'scale-handle';
+    const rotHandle = document.createElement('div');
+    rotHandle.className = 'rot-handle';
+    
+    wrapper.appendChild(textEl);
+    wrapper.appendChild(scaleHandle);
+    wrapper.appendChild(rotHandle);
+    stage.appendChild(wrapper);
+    
+    applyTransform(wrapper);
+    makeInteractiveText(wrapper, 'headline-text');
+    updateElementEffects(wrapper);
+    console.log('Headline loaded:', data);
+  }
+  
+  // Load company
+  if (metadata.company) {
+    const data = metadata.company;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sticker-wrapper company-layer';
+    wrapper.setAttribute('data-x', data.x || 0);
+    wrapper.setAttribute('data-y', data.y || 0);
+    wrapper.style.zIndex = data.zIndex || 4000;
+    wrapper.scale = data.scale !== undefined ? data.scale : 1;
+    wrapper.angle = data.angle !== undefined ? data.angle : 0;
+    
+    // Effects
+    wrapper.setAttribute('data-has-glitter', data.hasGlitter ? 'true' : 'false');
+    wrapper.setAttribute('data-has-shadow', data.hasShadow ? 'true' : 'false');
+    wrapper.setAttribute('data-has-outline', data.hasOutline ? 'true' : 'false');
+    if (data.glitterColors) wrapper.dataset.glitterColors = JSON.stringify(data.glitterColors);
+    if (data.glitterSettings) wrapper.dataset.glitterSettings = JSON.stringify(data.glitterSettings);
+    
+    const textEl = document.createElement('div');
+    textEl.className = 'company-text';
+    textEl.textContent = data.text;
+    
+    // Apply all styles
+    if (data.fontFamily) textEl.style.fontFamily = data.fontFamily;
+    if (data.fontSize) textEl.style.fontSize = data.fontSize;
+    if (data.color) textEl.style.color = data.color;
+    if (data.textShadow) textEl.style.textShadow = data.textShadow;
+    if (data.webkitTextStroke) textEl.style.webkitTextStroke = data.webkitTextStroke;
+    if (data.fontWeight) textEl.style.fontWeight = data.fontWeight;
+    if (data.fontStyle) textEl.style.fontStyle = data.fontStyle;
+    if (data.textDecoration) textEl.style.textDecoration = data.textDecoration;
+    if (data.textTransform) textEl.style.textTransform = data.textTransform;
+    if (data.letterSpacing) textEl.style.letterSpacing = data.letterSpacing;
+    if (data.background) textEl.style.background = data.background;
+    if (data.padding) textEl.style.padding = data.padding;
+    if (data.borderRadius) textEl.style.borderRadius = data.borderRadius;
+    if (data.border) textEl.style.border = data.border;
+    if (data.transform) textEl.style.transform = data.transform;
+    
+    // Add handles
+    const scaleHandle = document.createElement('div');
+    scaleHandle.className = 'scale-handle';
+    const rotHandle = document.createElement('div');
+    rotHandle.className = 'rot-handle';
+    
+    wrapper.appendChild(textEl);
+    wrapper.appendChild(scaleHandle);
+    wrapper.appendChild(rotHandle);
+    stage.appendChild(wrapper);
+    
+    applyTransform(wrapper);
+    makeInteractiveText(wrapper, 'company-text');
+    updateElementEffects(wrapper);
+    console.log('Company loaded:', data);
+  }
+  
+  // Load CTA
+  if (metadata.cta) {
+    const data = metadata.cta;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sticker-wrapper cta-layer';
+    wrapper.setAttribute('data-x', data.x || 0);
+    wrapper.setAttribute('data-y', data.y || 0);
+    wrapper.style.zIndex = data.zIndex || 3000;
+    wrapper.scale = data.scale !== undefined ? data.scale : 1;
+    wrapper.angle = data.angle !== undefined ? data.angle : 0;
+    
+    // Effects
+    wrapper.setAttribute('data-has-glitter', data.hasGlitter ? 'true' : 'false');
+    wrapper.setAttribute('data-has-shadow', data.hasShadow ? 'true' : 'false');
+    wrapper.setAttribute('data-has-outline', data.hasOutline ? 'true' : 'false');
+    wrapper.setAttribute('data-box-shadow-color', data.boxShadowColor || '#000');
+    if (data.glitterColors) wrapper.dataset.glitterColors = JSON.stringify(data.glitterColors);
+    if (data.glitterSettings) wrapper.dataset.glitterSettings = JSON.stringify(data.glitterSettings);
+    
+    const ctaEl = document.createElement('div');
+    ctaEl.className = data.className || 'cta-button';
+    ctaEl.textContent = data.text;
+    
+    // Apply inline style (this contains the CTA styling like background, border, etc)
+    if (data.style) {
+      ctaEl.setAttribute('style', data.style);
+    }
+    
+    // Clear any old shadow styles from imported style - updateElementEffects will set them correctly
+    ctaEl.style.boxShadow = '';
+    ctaEl.style.filter = '';
+    
+    // Create bounce wrapper (same structure as spawnCTAButton)
+    const bounceWrapper = document.createElement('div');
+    bounceWrapper.className = 'cta-bounce';
+    bounceWrapper.appendChild(ctaEl);
+    
+    // Add handles
+    const scaleHandle = document.createElement('div');
+    scaleHandle.className = 'scale-handle';
+    const rotHandle = document.createElement('div');
+    rotHandle.className = 'rot-handle';
+    
+    wrapper.appendChild(bounceWrapper);
+    wrapper.appendChild(scaleHandle);
+    wrapper.appendChild(rotHandle);
+    stage.appendChild(wrapper);
+    
+    applyTransform(wrapper);
+    makeInteractiveText(wrapper, 'cta-button');
+    updateElementEffects(wrapper);
+    
+    // Set as current CTA
+    currentCTAButton = wrapper;
+    
+    // Setup bounce animation (same as spawnCTAButton)
+    if (window.ctaBounceInterval) clearInterval(window.ctaBounceInterval);
+    if (window.ctaBounceTimeout) clearTimeout(window.ctaBounceTimeout);
+    
+    function doBounce() {
+      if (!ctaEl || !ctaEl.isConnected) {
+        if (window.ctaBounceInterval) clearInterval(window.ctaBounceInterval);
+        return;
+      }
+      ctaEl.classList.remove('bouncing');
+      void ctaEl.offsetWidth;
+      ctaEl.classList.add('bouncing');
+      setTimeout(() => ctaEl.classList.remove('bouncing'), 2050);
+    }
+    
+    window.ctaBounceTimeout = setTimeout(() => {
+      doBounce();
+      window.ctaBounceInterval = setInterval(doBounce, 10000);
+    }, 1000);
+    
+    console.log('CTA loaded:', data);
+  }
+  
+  // Load stickers
+  if (metadata.stickers && metadata.stickers.length > 0) {
+    for (const data of metadata.stickers) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'sticker-wrapper';
+      wrapper.setAttribute('data-x', data.x || 0);
+      wrapper.setAttribute('data-y', data.y || 0);
+      wrapper.style.zIndex = data.zIndex || 100;
+      wrapper.scale = data.scale !== undefined ? data.scale : 1;
+      wrapper.angle = data.angle !== undefined ? data.angle : 0;
+      
+      // Effects
+      wrapper.setAttribute('data-has-outline', data.hasOutline ? 'true' : 'false');
+      if (data.hasGlitter) {
+        wrapper.setAttribute('data-has-glitter', 'true');
+        if (data.glitterColors) wrapper.dataset.glitterColors = JSON.stringify(data.glitterColors);
+        if (data.glitterSettings) wrapper.dataset.glitterSettings = JSON.stringify(data.glitterSettings);
+      }
+      
+      const img = document.createElement('img');
+      img.draggable = false;
+      img.style.width = '150px'; // Stickers spawn at 150px
+      
+      // Apply filter based on outline
+      if (data.hasOutline) {
+        img.style.filter = 'drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000) drop-shadow(0 -2px 0 #000) drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
+        wrapper.classList.add('has-outline');
+      } else {
+        img.style.filter = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
+      }
+      
+      // Add handles
+      const scaleHandle = document.createElement('div');
+      scaleHandle.className = 'scale-handle';
+      const rotHandle = document.createElement('div');
+      rotHandle.className = 'rot-handle';
+      
+      wrapper.appendChild(img);
+      wrapper.appendChild(scaleHandle);
+      wrapper.appendChild(rotHandle);
+      stage.appendChild(wrapper);
+      
+      // Wait for image to load
+      await new Promise((resolve) => {
+        img.onload = () => {
+          try {
+            applyTransform(wrapper);
+            makeInteractive(wrapper);
+          } catch(e) { console.warn('Sticker interact error:', e); }
+          resolve();
+        };
+        img.onerror = () => {
+          console.warn('Sticker image failed to load:', data.src);
+          resolve();
+        };
+        img.src = data.fullSrc || `assets/stickers/${data.src}`;
+      });
+      console.log('Sticker loaded:', data);
+    }
+  }
+  
+  // Initialize glitter for all loaded elements
+  setTimeout(() => {
+    // Set up glitter data for elements with glitter enabled
+    const allWrappers = stage.querySelectorAll('.sticker-wrapper');
+    allWrappers.forEach(wrapper => {
+      if (wrapper.getAttribute('data-has-glitter') === 'true') {
+        // Check if we have stored glitter data
+        let glitterData = null;
+        try {
+          if (wrapper.dataset.glitterColors && wrapper.dataset.glitterSettings) {
+            glitterData = {
+              colors: JSON.parse(wrapper.dataset.glitterColors),
+              settings: JSON.parse(wrapper.dataset.glitterSettings)
+            };
+          }
+        } catch(e) {}
+        
+        // For text elements (headline, company, CTA)
+        if (wrapper.classList.contains('headline-layer') || 
+            wrapper.classList.contains('company-layer') || 
+            wrapper.classList.contains('cta-layer')) {
+          if (typeof elementGlitterData !== 'undefined') {
+            if (glitterData) {
+              elementGlitterData.set(wrapper, glitterData);
+            } else {
+              elementGlitterData.set(wrapper, getMatchedGlitterData());
+            }
+            if (typeof addElementGlitterPixels === 'function') {
+              addElementGlitterPixels(wrapper);
+            }
+          }
+        }
+      }
+    });
+    
+    // Regenerate sticker glitter
+    if (typeof regenerateGlitterPixels === 'function') {
+      regenerateGlitterPixels();
+    }
+    if (typeof regenerateElementGlitterPixels === 'function') {
+      regenerateElementGlitterPixels();
+    }
+    if (typeof startGlitter === 'function') {
+      startGlitter();
+    }
+    console.log('Glitter initialized');
+  }, 100);
+  
+  console.log('Banner loaded successfully!');
 }

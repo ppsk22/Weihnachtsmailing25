@@ -64,24 +64,46 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
     $fileContent = file_get_contents($tempPath);
     $isValidGif = substr($fileContent, 0, 3) === 'GIF';
     $isValidPng = substr($fileContent, 0, 8) === "\x89PNG\r\n\x1a\n";
+    $isValidJpeg = substr($fileContent, 0, 2) === "\xFF\xD8";
+    $isValidJson = preg_match('/\.json$/i', $filename) && json_decode($fileContent) !== null;
     
-    if (!$isValidGif && !$isValidPng) {
+    if (!$isValidGif && !$isValidPng && !$isValidJpeg && !$isValidJson) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Invalid image file (must be GIF or PNG)']);
+        echo json_encode(['success' => false, 'error' => 'Invalid file (must be GIF, PNG, JPEG, or JSON)']);
         exit();
     }
     
-    $extension = $isValidGif ? 'gif' : 'png';
-    if (!preg_match('/^[a-zA-Z0-9_-]+_\d+_[a-z0-9]+\.(gif|png)$/i', $filename)) {
-        $filename = 'banner_' . time() . '_' . bin2hex(random_bytes(3)) . '.' . $extension;
+    // Determine extension
+    if ($isValidJson) {
+        $extension = 'json';
+        $fileType = 'JSON';
+    } elseif ($isValidGif) {
+        $extension = 'gif';
+        $fileType = 'GIF';
+    } elseif ($isValidJpeg) {
+        $extension = 'jpg';
+        $fileType = 'JPEG';
+    } else {
+        $extension = 'png';
+        $fileType = 'PNG';
     }
-    $filename = preg_replace('/[^a-zA-Z0-9_.-]/', '', $filename);
     
-    if ($isValidGif && !preg_match('/\.gif$/i', $filename)) {
-        $filename = preg_replace('/\.[^.]+$/', '.gif', $filename);
-    } elseif ($isValidPng && !preg_match('/\.png$/i', $filename)) {
-        $filename = preg_replace('/\.[^.]+$/', '.png', $filename);
+    // Sanitize filename - strip everything except safe characters
+    // First, get just the base name without extension
+    $baseName = pathinfo($filename, PATHINFO_FILENAME);
+    $originalExt = pathinfo($filename, PATHINFO_EXTENSION);
+    
+    // Strip to only lowercase alphanumeric and underscore
+    $baseName = preg_replace('/[^a-z0-9_]/i', '', $baseName);
+    $baseName = strtolower($baseName);
+    
+    // If base name is empty or too short after sanitization, generate a new one
+    if (strlen($baseName) < 5) {
+        $baseName = 'banner_' . time() . '_' . bin2hex(random_bytes(3));
     }
+    
+    // Ensure correct extension based on content type
+    $filename = $baseName . '.' . $extension;
     
     $filepath = $SAVE_DIR . $filename;
     if (!move_uploaded_file($tempPath, $filepath)) {
@@ -90,7 +112,6 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
         exit();
     }
     
-    $fileType = $isValidGif ? 'GIF' : 'PNG';
     $logEntry = date('Y-m-d H:i:s') . ' | ' . $filename . ' | ' . $fileType . ' | ' . $fileSize . ' bytes' . PHP_EOL;
     file_put_contents($SAVE_DIR . 'save_log.txt', $logEntry, FILE_APPEND);
     

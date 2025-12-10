@@ -1299,7 +1299,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
 
 .bg-caption{
   padding: 4px 2px;
-  font-size: 10px;
+  font-size: 18px;
   font-family: 'home_videoregular', sans-serif;
   line-height: 1.2;
   text-align: center;
@@ -1361,7 +1361,7 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   text-align: center;
   cursor: url('assets/UI/hand.ico'), pointer;
   color: #fff;
-  font-size: 14px;
+  font-size: 18px;
   font-weight: normal;
   font-family: 'home_videoregular', sans-serif;
   letter-spacing: 1px;
@@ -1638,10 +1638,12 @@ body.rotating, body.rotating * { cursor: grabbing  !important; }
   text-align: center;
   display: block;
   margin-bottom: 8px;
+  font-size: 18px;
 }
 
 .banner-name-input {
   text-align: center;
+  font-size: 18px;
 }
 
 .send-status {
