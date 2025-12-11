@@ -1116,6 +1116,7 @@ function generateBannerMetadata() {
       metadata.hero = {
         src: heroFilename,
         fullSrc: heroSrc,
+        width: img?.style.width || '300px',  // Save the display width
         x, y, scale, angle, zIndex,
         hasGlitter,
         glitterColors,
@@ -1217,6 +1218,7 @@ function generateBannerMetadata() {
       metadata.stickers.push({
         src: stickerFilename,
         fullSrc: stickerSrc,
+        width: img.style.width || '150px',  // Save the display width
         x, y, scale, angle, zIndex,
         hasGlitter, hasOutline,
         glitterColors,
@@ -1559,7 +1561,8 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       ctx.translate(s.x, s.y);
       ctx.translate(s.baseW / 2, s.baseH / 2);
       ctx.rotate((s.angle || 0) * Math.PI / 180);
-      ctx.scale(s.scale || 1, s.scale || 1);
+      const stickerScale = s.scale || 1;
+      ctx.scale(stickerScale, stickerScale);
       
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
@@ -1580,24 +1583,27 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       }
       
       // Draw outline if sticker has one (4 directional shadows)
+      // Shadow offsets must be scaled with element scale
       if (s.hasOutline && !s.isHero) {
         ctx.shadowBlur = 0;
         ctx.shadowColor = '#000';
+        const outlineSize = 3 * stickerScale;
         // Draw 4 times with offsets for outline effect
-        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
-        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = -outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = outlineSize;
         ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -outlineSize;
         ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
       }
       
       // Draw with drop shadow (all stickers AND heroes)
+      // Shadow offsets must be scaled with element scale
       ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowOffsetX = 3;
-      ctx.shadowOffsetY = 3;
+      ctx.shadowOffsetX = 4 * stickerScale;
+      ctx.shadowOffsetY = 4 * stickerScale;
       ctx.shadowBlur = 0;
       ctx.drawImage(imgToDraw, offsetX, offsetY, s.baseW, s.baseH);
       
@@ -1642,16 +1648,18 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       const drawY = -t.baseH / 2;
       
       // Draw outline if element has one (4 directional shadows)
+      // Shadow offsets must be scaled with element scale
       if (t.hasOutline) {
         ctx.shadowBlur = 0;
         ctx.shadowColor = '#000';
-        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        const outlineSize = 3 * finalScale;
+        ctx.shadowOffsetX = outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
-        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = -outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = outlineSize;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -outlineSize;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
         // Reset after outline
         ctx.shadowColor = 'transparent';
@@ -1661,25 +1669,27 @@ async function generateGIF(fps, durationSeconds, progressCallback) {
       
       // Draw with drop shadow
       // For elements with hasEffectShadow, draw the semi-transparent shadow first
+      // Shadow offsets must be scaled with element scale
       if (t.hasEffectShadow) {
         ctx.shadowColor = 'rgba(0,0,0,0.6)';
         // For CTA, offset more so it peeks out behind the solid black shadow
         if (t.isCTA) {
-          ctx.shadowOffsetX = 8;
-          ctx.shadowOffsetY = 8;
+          ctx.shadowOffsetX = 10 * finalScale;
+          ctx.shadowOffsetY = 10 * finalScale;
         } else {
-          ctx.shadowOffsetX = 4;
-          ctx.shadowOffsetY = 4;
+          ctx.shadowOffsetX = 5 * finalScale;
+          ctx.shadowOffsetY = 5 * finalScale;
         }
         ctx.shadowBlur = 0;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
       }
       
       // CTA always gets pop shadow on top (can be colorful)
+      // Shadow offsets must be scaled with element scale
       if (t.isCTA) {
         ctx.shadowColor = t.boxShadowColor || '#000';
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowOffsetX = 5 * finalScale;
+        ctx.shadowOffsetY = 5 * finalScale;
         ctx.shadowBlur = 0;
       } else {
         // Reset shadow for non-CTA elements (already drawn above if hasEffectShadow)
@@ -1923,29 +1933,33 @@ async function generatePNGFrame() {
       ctx.translate(s.x, s.y);
       ctx.translate(s.baseW / 2, s.baseH / 2);
       ctx.rotate((s.angle || 0) * Math.PI / 180);
-      ctx.scale(s.scale || 1, s.scale || 1);
+      const stickerScale = s.scale || 1;
+      ctx.scale(stickerScale, stickerScale);
       
       const offsetX = -s.baseW / 2;
       const offsetY = -s.baseH / 2;
       
       // Draw outline if sticker has one
+      // Shadow offsets must be scaled with element scale
       if (s.hasOutline && !s.isHero) {
         ctx.shadowBlur = 0;
         ctx.shadowColor = '#000';
-        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        const outlineSize = 3 * stickerScale;
+        ctx.shadowOffsetX = outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = -outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = outlineSize;
         ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -outlineSize;
         ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
       }
       
       // Draw with drop shadow
+      // Shadow offsets must be scaled with element scale
       ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.shadowOffsetX = 3;
-      ctx.shadowOffsetY = 3;
+      ctx.shadowOffsetX = 4 * stickerScale;
+      ctx.shadowOffsetY = 4 * stickerScale;
       ctx.shadowBlur = 0;
       ctx.drawImage(s.img, offsetX, offsetY, s.baseW, s.baseH);
       
@@ -1968,22 +1982,25 @@ async function generatePNGFrame() {
       ctx.translate(t.x, t.y);
       ctx.translate(t.baseW / 2, t.baseH / 2);
       ctx.rotate((t.angle || 0) * Math.PI / 180);
-      ctx.scale(t.scale || 1, t.scale || 1);
+      const textScale = t.scale || 1;
+      ctx.scale(textScale, textScale);
       
       const drawX = -t.baseW / 2;
       const drawY = -t.baseH / 2;
       
       // Draw outline
+      // Shadow offsets must be scaled with element scale
       if (t.hasOutline) {
         ctx.shadowBlur = 0;
         ctx.shadowColor = '#000';
-        ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 0;
+        const outlineSize = 3 * textScale;
+        ctx.shadowOffsetX = outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
-        ctx.shadowOffsetX = -2; ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = -outlineSize; ctx.shadowOffsetY = 0;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = outlineSize;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
-        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -2;
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = -outlineSize;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
         ctx.shadowColor = 'transparent';
         ctx.shadowOffsetX = 0;
@@ -1992,25 +2009,27 @@ async function generatePNGFrame() {
       
       // Draw with drop shadow
       // For elements with hasEffectShadow, draw the semi-transparent shadow first
+      // Shadow offsets must be scaled with element scale
       if (t.hasEffectShadow) {
         ctx.shadowColor = 'rgba(0,0,0,0.6)';
         // For CTA, offset more so it peeks out behind the solid black shadow
         if (t.isCTA) {
-          ctx.shadowOffsetX = 8;
-          ctx.shadowOffsetY = 8;
+          ctx.shadowOffsetX = 10 * textScale;
+          ctx.shadowOffsetY = 10 * textScale;
         } else {
-          ctx.shadowOffsetX = 4;
-          ctx.shadowOffsetY = 4;
+          ctx.shadowOffsetX = 5 * textScale;
+          ctx.shadowOffsetY = 5 * textScale;
         }
         ctx.shadowBlur = 0;
         ctx.drawImage(t.canvas, drawX, drawY, t.baseW, t.baseH);
       }
       
       // CTA always gets pop shadow on top (can be colorful)
+      // Shadow offsets must be scaled with element scale
       if (t.isCTA) {
         ctx.shadowColor = t.boxShadowColor || '#000';
-        ctx.shadowOffsetX = 4;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowOffsetX = 5 * textScale;
+        ctx.shadowOffsetY = 5 * textScale;
         ctx.shadowBlur = 0;
       } else {
         // Reset shadow for non-CTA elements (already drawn above if hasEffectShadow)
@@ -3859,7 +3878,7 @@ function buildCTAButtonUI(container) {
     
     // Apply effect shadow preview if enabled (rgba shadow behind the pop shadow)
     if (preview.dataset.hasEffectShadow === 'true') {
-      preview.style.filter = 'drop-shadow(8px 8px 0 rgba(0,0,0,0.6))';
+      preview.style.filter = 'drop-shadow(4px 4px 0 rgba(0,0,0,0.6))';
     } else {
       preview.style.filter = 'none';
     }
@@ -4900,7 +4919,7 @@ const UI_SNOW_SETTINGS = {
 // Snow accumulation settings (fake accumulation on UI borders)
 const ACCUMULATION_SETTINGS = {
   maxHeight: 12,           // Max snow pile height in pixels
-  growthRate: 0.002,       // Chance to grow per column per frame
+  growthRate: 0.008,       // Chance to grow per column per frame
   resolution: 2.0,         // Resolution multiplier (higher = more columns/rows = smoother)
   organicVariation: 0.4,   // How much the max height varies (0-1, creates hills/valleys)
   verticalGravityBias: 4.0, // How much more snow accumulates at bottom vs top (1 = even, higher = more at bottom)
@@ -7230,7 +7249,7 @@ function updateElementEffects(wrapper) {
     inner.style.boxShadow = `4px 4px 0 ${boxShadowColor}`;
     
     if (hasShadow) {
-      filterParts.push('drop-shadow(8px 8px 0 rgba(0,0,0,0.6))');
+      filterParts.push('drop-shadow(4px 4px 0 rgba(0,0,0,0.6))');
     }
     inner.style.filter = filterParts.length > 0 ? filterParts.join(' ') : '';
   } else {
@@ -7289,12 +7308,32 @@ if (elementOutlineCheckbox) {
   devModal.innerHTML = `
     <div class="dev-modal-content">
       <h2>🔧 Developer Mode</h2>
-      <p>Paste banner JSON metadata below or export current:</p>
-      <textarea id="dev-json-input" placeholder='{"version":"1.1","background":...}'></textarea>
+      
+      <div class="dev-section">
+        <p>Paste banner JSON metadata below or export current:</p>
+        <textarea id="dev-json-input" placeholder='{"version":"1.1","background":...}'></textarea>
+        <div class="dev-modal-buttons">
+          <button id="dev-export-btn">Export Current</button>
+          <button id="dev-load-btn">Load Banner</button>
+        </div>
+      </div>
+      
+      <div class="dev-section dev-batch-section">
+        <p>📦 Batch GIF Generation:</p>
+        <div id="dev-batch-status">Click "Check Banners" to scan server...</div>
+        <div class="dev-modal-buttons">
+          <button id="dev-check-btn">Check Banners</button>
+          <button id="dev-generate-btn" disabled>Generate All</button>
+          <button id="dev-stop-btn" class="hidden">Stop</button>
+        </div>
+        <div id="dev-batch-progress" class="hidden">
+          <div class="dev-progress-bar"><div class="dev-progress-fill"></div></div>
+          <div class="dev-progress-text">Processing...</div>
+        </div>
+      </div>
+      
       <div class="dev-modal-buttons">
-        <button id="dev-export-btn">Export Current</button>
-        <button id="dev-load-btn">Load Banner</button>
-        <button id="dev-close-btn">Cancel</button>
+        <button id="dev-close-btn">Close</button>
       </div>
       <p id="dev-error" class="hidden"></p>
     </div>
@@ -7315,6 +7354,7 @@ if (elementOutlineCheckbox) {
       align-items: center;
       justify-content: center;
       z-index: 99999;
+      overflow-y: auto;
     }
     #dev-modal.hidden { display: none; }
     .dev-modal-content {
@@ -7324,6 +7364,7 @@ if (elementOutlineCheckbox) {
       max-width: 600px;
       width: 90%;
       font-family: 'Press Start 2P', monospace;
+      margin: 20px;
     }
     .dev-modal-content h2 {
       color: #5a3fd9;
@@ -7335,9 +7376,21 @@ if (elementOutlineCheckbox) {
       font-size: 10px;
       margin: 0 0 12px 0;
     }
+    .dev-section {
+      border-bottom: 1px solid #3013a9;
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+    }
+    .dev-batch-section {
+      background: rgba(90, 63, 217, 0.1);
+      padding: 16px;
+      margin: 0 -24px;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
     #dev-json-input {
       width: 100%;
-      height: 200px;
+      height: 150px;
       background: #0a0a15;
       border: 2px solid #3013a9;
       color: #0f0;
@@ -7360,6 +7413,10 @@ if (elementOutlineCheckbox) {
       cursor: pointer;
       border: 2px solid;
     }
+    .dev-modal-buttons button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     #dev-load-btn {
       background: #5a3fd9;
       color: #fff;
@@ -7370,10 +7427,58 @@ if (elementOutlineCheckbox) {
       color: #fff;
       border-color: #3da861;
     }
+    #dev-check-btn {
+      background: #2d6a8a;
+      color: #fff;
+      border-color: #3d8ab1;
+    }
+    #dev-generate-btn {
+      background: #8a4e2d;
+      color: #fff;
+      border-color: #b1613d;
+    }
+    #dev-stop-btn {
+      background: #8a2d2d;
+      color: #fff;
+      border-color: #b13d3d;
+    }
+    #dev-stop-btn.hidden { display: none; }
     #dev-close-btn {
       background: #333;
       color: #fff;
       border-color: #555;
+    }
+    #dev-batch-status {
+      color: #aaa;
+      font-size: 10px;
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+    #dev-batch-status .highlight {
+      color: #5a3fd9;
+      font-weight: bold;
+    }
+    #dev-batch-progress {
+      margin-top: 16px;
+    }
+    #dev-batch-progress.hidden { display: none; }
+    .dev-progress-bar {
+      width: 100%;
+      height: 20px;
+      background: #0a0a15;
+      border: 2px solid #3013a9;
+    }
+    .dev-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #5a3fd9, #7c5ce7);
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .dev-progress-text {
+      color: #fff;
+      font-size: 9px;
+      margin-top: 8px;
+      text-align: center;
     }
     #dev-error {
       color: #ff4444;
@@ -7448,7 +7553,177 @@ if (elementOutlineCheckbox) {
       errorEl.classList.remove('hidden');
     }
   });
+  
+  // Batch generation state
+  let batchBanners = [];
+  let batchStopRequested = false;
+  
+  // Check Banners button
+  document.getElementById('dev-check-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('dev-batch-status');
+    const generateBtn = document.getElementById('dev-generate-btn');
+    const errorEl = document.getElementById('dev-error');
+    
+    statusEl.textContent = 'Scanning server...';
+    generateBtn.disabled = true;
+    errorEl.classList.add('hidden');
+    
+    try {
+      const response = await fetch('list-banners.php');
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to scan banners');
+      }
+      
+      batchBanners = data.missingGifs || [];
+      
+      if (batchBanners.length === 0) {
+        statusEl.innerHTML = `✅ All <span class="highlight">${data.total}</span> banners have GIFs!`;
+        generateBtn.disabled = true;
+      } else {
+        statusEl.innerHTML = `Found <span class="highlight">${data.withoutGif}/${data.total}</span> banners without GIFs`;
+        generateBtn.disabled = false;
+      }
+    } catch (err) {
+      errorEl.textContent = 'Check Error: ' + err.message;
+      errorEl.classList.remove('hidden');
+      statusEl.textContent = 'Error scanning server';
+    }
+  });
+  
+  // Generate All button
+  document.getElementById('dev-generate-btn').addEventListener('click', async () => {
+    if (batchBanners.length === 0) return;
+    
+    const statusEl = document.getElementById('dev-batch-status');
+    const progressEl = document.getElementById('dev-batch-progress');
+    const progressFill = progressEl.querySelector('.dev-progress-fill');
+    const progressText = progressEl.querySelector('.dev-progress-text');
+    const generateBtn = document.getElementById('dev-generate-btn');
+    const stopBtn = document.getElementById('dev-stop-btn');
+    const checkBtn = document.getElementById('dev-check-btn');
+    const closeBtn = document.getElementById('dev-close-btn');
+    const errorEl = document.getElementById('dev-error');
+    
+    // UI state for batch processing
+    batchStopRequested = false;
+    generateBtn.disabled = true;
+    checkBtn.disabled = true;
+    closeBtn.disabled = true;
+    stopBtn.classList.remove('hidden');
+    progressEl.classList.remove('hidden');
+    errorEl.classList.add('hidden');
+    
+    const total = batchBanners.length;
+    let completed = 0;
+    let failed = 0;
+    
+    // Hide modal during entire batch process so stage renders correctly
+    devModal.classList.add('hidden');
+    
+    for (const bannerName of batchBanners) {
+      if (batchStopRequested) {
+        break;
+      }
+      
+      // Show modal briefly to update progress
+      devModal.classList.remove('hidden');
+      progressText.textContent = `Processing ${completed + 1}/${total}: ${bannerName}`;
+      progressFill.style.width = ((completed / total) * 100) + '%';
+      await new Promise(r => setTimeout(r, 50)); // Let UI update
+      devModal.classList.add('hidden');
+      
+      try {
+        // 1. Fetch JSON metadata
+        const jsonResponse = await fetch(`banners/${bannerName}.json`);
+        if (!jsonResponse.ok) throw new Error('JSON not found');
+        const metadata = await jsonResponse.json();
+        
+        // 2. Load banner (modal hidden so stage renders correctly)
+        await loadBannerFromMetadata(metadata);
+        
+        // 3. Wait for assets to fully load and render
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // 4. Force reflow and let UI settle
+        document.getElementById('stage').offsetHeight;
+        await new Promise(r => setTimeout(r, 500));
+        
+        // 5. Export GIF (uses same generateGIF as user export)
+        await batchExportGIF(bannerName);
+        
+        completed++;
+      } catch (err) {
+        console.error(`Failed to process ${bannerName}:`, err);
+        failed++;
+      }
+    }
+    
+    // Show completion in modal
+    devModal.classList.remove('hidden');
+    
+    if (batchStopRequested) {
+      progressText.textContent = `Stopped! ${completed}/${total} completed, ${failed} failed`;
+    }
+    progressFill.style.width = '100%';
+    if (!batchStopRequested) {
+      progressText.textContent = `Done! ${completed}/${total} completed` + (failed > 0 ? `, ${failed} failed` : '');
+    }
+    statusEl.innerHTML = `Batch complete: <span class="highlight">${completed}</span> GIFs generated`;
+    
+    generateBtn.disabled = true;
+    checkBtn.disabled = false;
+    closeBtn.disabled = false;
+    stopBtn.classList.add('hidden');
+    batchBanners = [];
+  });
+  
+  // Stop button
+  document.getElementById('dev-stop-btn').addEventListener('click', () => {
+    batchStopRequested = true;
+    document.getElementById('dev-stop-btn').textContent = 'Stopping...';
+    document.getElementById('dev-stop-btn').disabled = true;
+  });
 })();
+
+// Batch export GIF - reuses main generateGIF function
+async function batchExportGIF(bannerName) {
+  try {
+    // Use the same export function as user export (8fps, 2.5s)
+    const gifData = await generateGIF(8, 2.5, () => {});
+    
+    // Convert base64 data URL to blob
+    const base64 = gifData.split(',')[1];
+    const binaryString = atob(base64);
+    const byteArray = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      byteArray[i] = binaryString.charCodeAt(i);
+    }
+    const gifBlob = new Blob([byteArray], { type: 'image/gif' });
+    
+    // Upload to banners/gif/
+    const formData = new FormData();
+    formData.append('file', gifBlob, `${bannerName}.gif`);
+    formData.append('filename', `${bannerName}.gif`);
+    formData.append('subfolder', 'gif');
+    
+    const response = await fetch('save-banner.php', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || 'Upload failed');
+    }
+    
+    console.log(`✅ Batch exported: banners/gif/${bannerName}.gif`);
+  } catch (err) {
+    console.error(`❌ Batch export failed for ${bannerName}:`, err);
+    throw err;
+  }
+}
 
 // Load banner from metadata JSON
 async function loadBannerFromMetadata(metadata) {
@@ -7505,7 +7780,7 @@ async function loadBannerFromMetadata(metadata) {
     
     const img = document.createElement('img');
     img.draggable = false;
-    img.style.width = '300px'; // Heroes spawn at 300px
+    img.style.width = data.width || '300px'; // Restore saved width, or default to 300px
     img.style.filter = 'drop-shadow(3px 3px 0 rgba(0,0,0,0.5))';
     
     // Add handles like createStickerAt does
@@ -7749,7 +8024,7 @@ async function loadBannerFromMetadata(metadata) {
       
       const img = document.createElement('img');
       img.draggable = false;
-      img.style.width = '150px'; // Stickers spawn at 150px
+      img.style.width = data.width || '150px'; // Restore saved width, or default to 150px
       
       // Apply filter based on outline
       if (data.hasOutline) {

@@ -88,6 +88,16 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
         $fileType = 'PNG';
     }
     
+    // Check for subfolder parameter (e.g., 'gif' for banners/gif/)
+    $subfolder = '';
+    if (isset($_POST['subfolder']) && preg_match('/^[a-z0-9_]+$/i', $_POST['subfolder'])) {
+        $subfolder = $_POST['subfolder'] . '/';
+        // Create subfolder if it doesn't exist
+        if (!file_exists($SAVE_DIR . $subfolder)) {
+            mkdir($SAVE_DIR . $subfolder, 0755, true);
+        }
+    }
+    
     // Sanitize filename - strip everything except safe characters
     // First, get just the base name without extension
     $baseName = pathinfo($filename, PATHINFO_FILENAME);
@@ -105,7 +115,7 @@ if (isset($_FILES['file']) && $_FILES['file']['error'] === UPLOAD_ERR_OK) {
     // Ensure correct extension based on content type
     $filename = $baseName . '.' . $extension;
     
-    $filepath = $SAVE_DIR . $filename;
+    $filepath = $SAVE_DIR . $subfolder . $filename;
     if (!move_uploaded_file($tempPath, $filepath)) {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => 'Failed to save file']);
